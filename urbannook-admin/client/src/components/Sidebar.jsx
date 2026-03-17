@@ -4,6 +4,7 @@ import {
   Package,
   Users,
   ShoppingCart,
+  Ticket,
   LogOut,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
@@ -11,8 +12,9 @@ import { useAuth } from "../context/AuthContext";
 const navLinks = [
   { to: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/admin/products", label: "Products", icon: Package },
-  { to: "/admin/waitlist", label: "Waitlist", icon: Users },
   { to: "/admin/orders", label: "Orders", icon: ShoppingCart },
+  { to: "/admin/coupons", label: "Coupons", icon: Ticket },
+  { to: "/admin/waitlist", label: "Waitlist", icon: Users },
 ];
 
 export default function Sidebar({ onNavigate }) {

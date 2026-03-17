@@ -207,7 +207,7 @@ export default function Products() {
 
                     {/* Selling Price */}
                     <td className="px-4 py-3 text-gray-900 font-medium">
-                      ${product.sellingPrice.toFixed(2)}
+                        ₹{product.sellingPrice.toFixed(2)}
                     </td>
 
                     {/* Category */}

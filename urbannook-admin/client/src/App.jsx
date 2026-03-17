@@ -6,6 +6,7 @@ import Dashboard from "./pages/Dashboard";
 import Products from "./pages/Products";
 import Waitlist from "./pages/Waitlist";
 import Orders from "./pages/Orders";
+import Coupons from "./pages/Coupons";
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
           <Route path="/admin/products" element={<Products />} />
           <Route path="/admin/waitlist" element={<Waitlist />} />
           <Route path="/admin/orders" element={<Orders />} />
+          <Route path="/admin/coupons" element={<Coupons />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />

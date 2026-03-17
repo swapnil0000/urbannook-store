@@ -22,19 +22,26 @@ export function getChangedFields(original, current) {
     "productImg",
     "productDes",
     "sellingPrice",
+    "listedPrice",
     "productCategory",
     "productStatus",
     "productSubDes",
     "productSubCategory",
+    "materialAndCare",
+    "isPublished",
   ];
 
   for (const field of fieldsToCompare) {
     const origVal = original[field] ?? "";
     const curVal = current[field] ?? "";
 
-    if (field === "sellingPrice") {
+    if (field === "sellingPrice" || field === "listedPrice") {
       if (Number(origVal) !== Number(curVal)) {
         changed[field] = Number(curVal);
+      }
+    } else if (field === "isPublished") {
+      if (Boolean(origVal) !== Boolean(curVal)) {
+        changed[field] = Boolean(curVal);
       }
     } else {
       if (String(origVal) !== String(curVal)) {
@@ -71,6 +78,32 @@ export function getChangedFields(original, current) {
     if (curDims.height !== "") changed.dimensions.height = Number(curDims.height);
   }
 
+  // Compare specifications
+  const origSpecs = (original.specifications || [])
+    .map((spec) => ({
+      key: spec.key.trim(),
+      value: spec.value.trim(),
+    }))
+    .filter((spec) => spec.key && spec.value);
+  
+  const curSpecs = (current.specifications || [])
+    .map((spec) => ({
+      key: spec.key.trim(),
+      value: spec.value.trim(),
+    }))
+    .filter((spec) => spec.key && spec.value);
+  
+  if (JSON.stringify(origSpecs) !== JSON.stringify(curSpecs)) {
+    changed.specifications = curSpecs;
+  }
+
+  // Compare color options
+  const origColors = (original.colorOptions || []).filter((c) => c && c.trim());
+  const curColors = (current.colorOptions || []).filter((c) => c && c.trim());
+  if (JSON.stringify(origColors) !== JSON.stringify(curColors)) {
+    changed.colorOptions = curColors;
+  }
+
   return changed;
 }
 
@@ -94,16 +127,25 @@ export default function EditProductForm({ product, onClose, onSuccess }) {
       : [""],
     productDes: product.productDes || "",
     sellingPrice: product.sellingPrice ?? "",
+    listedPrice: product.listedPrice ?? "",
     productCategory: product.productCategory || "",
     productStatus: product.productStatus || "",
     tags: product.tags ? [...product.tags] : [],
     productSubDes: product.productSubDes || "",
     productSubCategory: product.productSubCategory || "",
+    materialAndCare: product.materialAndCare || "",
+    isPublished: product.isPublished ?? true,
     dimensions: {
       length: product.dimensions?.length ?? "",
       breadth: product.dimensions?.breadth ?? "",
       height: product.dimensions?.height ?? "",
     },
+    specifications: product.specifications?.length
+      ? [...product.specifications]
+      : [{ key: "", value: "" }],
+    colorOptions: product.colorOptions?.length
+      ? [...product.colorOptions]
+      : [""],
   });
 
   // Quantity controls state
@@ -155,6 +197,50 @@ export default function EditProductForm({ product, onClose, onSuccess }) {
     });
   };
 
+  const handleSpecificationChange = (index, field, value) => {
+    setFormData((prev) => {
+      const updated = [...prev.specifications];
+      updated[index] = { ...updated[index], [field]: value };
+      return { ...prev, specifications: updated };
+    });
+  };
+
+  const addSpecificationField = () => {
+    setFormData((prev) => ({
+      ...prev,
+      specifications: [...prev.specifications, { key: "", value: "" }],
+    }));
+  };
+
+  const removeSpecificationField = (index) => {
+    setFormData((prev) => ({
+      ...prev,
+      specifications: prev.specifications.filter((_, i) => i !== index),
+    }));
+  };
+
+  const handleColorOptionChange = (index, value) => {
+    setFormData((prev) => {
+      const updated = [...prev.colorOptions];
+      updated[index] = value;
+      return { ...prev, colorOptions: updated };
+    });
+  };
+
+  const addColorOptionField = () => {
+    setFormData((prev) => ({
+      ...prev,
+      colorOptions: [...prev.colorOptions, ""],
+    }));
+  };
+
+  const removeColorOptionField = (index) => {
+    setFormData((prev) => ({
+      ...prev,
+      colorOptions: prev.colorOptions.filter((_, i) => i !== index),
+    }));
+  };
+
   /**
    * Submit quantity change (add or subtract).
    * Sends { action: "add"|"sub", productQuantity: delta } to the update endpoint.
@@ -201,7 +287,7 @@ export default function EditProductForm({ product, onClose, onSuccess }) {
     }
 
     // Basic validation on changed fields
-    if (changed.sellingPrice !== undefined && Number(changed.sellingPrice) < 10) {
+    if (changed.sellingPrice !== undefined && Number(changed.sellingPrice) < 0) {
       showToast("Selling price must be at least 10", "error");
       return;
     }
@@ -380,14 +466,14 @@ export default function EditProductForm({ product, onClose, onSuccess }) {
             />
           </div>
 
-          {/* Selling Price + Category (side by side) */}
+          {/* Selling Price + Listed Price (side by side) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label
                 htmlFor="edit-sellingPrice"
                 className="block text-sm font-medium text-gray-700 mb-1"
               >
-                Selling Price
+                Selling Price (Base)
               </label>
               <input
                 id="edit-sellingPrice"
@@ -396,26 +482,54 @@ export default function EditProductForm({ product, onClose, onSuccess }) {
                 min="10"
                 step="0.01"
                 value={formData.sellingPrice}
-                onChange={handleChange}
+                onChange={(e) => {
+                  const selling = Number(e.target.value);
+                  const listed = selling * 1.18;
+                  setFormData((prev) => ({ 
+                    ...prev, 
+                    sellingPrice: e.target.value,
+                    listedPrice: listed.toFixed(2)
+                  }));
+                }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
               />
             </div>
             <div>
               <label
-                htmlFor="edit-productCategory"
+                htmlFor="edit-listedPrice"
                 className="block text-sm font-medium text-gray-700 mb-1"
               >
-                Category
+                Listed Price (with 18% GST)
               </label>
               <input
-                id="edit-productCategory"
-                name="productCategory"
-                type="text"
-                value={formData.productCategory}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                id="edit-listedPrice"
+                name="listedPrice"
+                type="number"
+                min="10"
+                step="0.01"
+                value={formData.listedPrice}
+                readOnly
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50 cursor-not-allowed"
               />
             </div>
+          </div>
+
+          {/* Category */}
+          <div>
+            <label
+              htmlFor="edit-productCategory"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
+              Category
+            </label>
+            <input
+              id="edit-productCategory"
+              name="productCategory"
+              type="text"
+              value={formData.productCategory}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+            />
           </div>
 
           {/* Status */}
@@ -556,6 +670,120 @@ export default function EditProductForm({ product, onClose, onSuccess }) {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
               placeholder="Optional sub category"
             />
+          </div>
+
+          {/* Material & Care */}
+          <div>
+            <label
+              htmlFor="edit-materialAndCare"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
+              Material & Care
+            </label>
+            <textarea
+              id="edit-materialAndCare"
+              name="materialAndCare"
+              value={formData.materialAndCare}
+              onChange={handleChange}
+              rows={2}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent resize-vertical"
+              placeholder="e.g., Crafted with premium materials. Wipe clean with a soft and dry cloth."
+            />
+          </div>
+
+          {/* Is Published */}
+          <div>
+            <label className="inline-flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                name="isPublished"
+                checked={formData.isPublished}
+                onChange={(e) => setFormData((prev) => ({ ...prev, isPublished: e.target.checked }))}
+                className="h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900"
+              />
+              <span className="text-sm font-medium text-gray-700">
+                Publish product (make visible to users)
+              </span>
+            </label>
+          </div>
+
+          {/* Product Specifications */}
+          <div className="border-t border-gray-200 pt-4">
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              Product Specifications
+            </label>
+            <div className="space-y-2">
+              {formData.specifications.map((spec, index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={spec.key}
+                    onChange={(e) => handleSpecificationChange(index, "key", e.target.value)}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                    placeholder="Key (e.g., Material)"
+                  />
+                  <input
+                    type="text"
+                    value={spec.value}
+                    onChange={(e) => handleSpecificationChange(index, "value", e.target.value)}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                    placeholder="Value (e.g., PLA)"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeSpecificationField(index)}
+                    className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    title="Remove specification"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={addSpecificationField}
+              className="mt-3 inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <Plus className="h-4 w-4" />
+              Add Specification
+            </button>
+          </div>
+
+          {/* Color Options */}
+          <div className="border-t border-gray-200 pt-4">
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              Color Options
+            </label>
+            <div className="space-y-2">
+              {formData.colorOptions.map((color, index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={color}
+                    onChange={(e) => handleColorOptionChange(index, e.target.value)}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                    placeholder="Color (e.g., Red, Blue, Black)"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeColorOptionField(index)}
+                    className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    title="Remove color"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={addColorOptionField}
+              className="mt-3 inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <Plus className="h-4 w-4" />
+              Add Color
+            </button>
           </div>
 
           {/* Footer buttons */}

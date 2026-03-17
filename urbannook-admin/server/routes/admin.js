@@ -12,6 +12,13 @@ const {
 const { uploadImage, uploadMultipleImages } = require("../controllers/upload");
 const { getWaitlistUsers } = require("../controllers/waitlist");
 const { getAllOrders } = require("../controllers/order");
+const {
+  createCoupon,
+  listCoupons,
+  editCoupon,
+  togglePublish,
+  deleteCoupon,
+} = require("../controllers/coupon");
 
 // Multer config — store in memory, max 5MB per file
 const upload = multer({
@@ -70,5 +77,12 @@ router.get("/joined/waitlist", verifyAuth, getWaitlistUsers);
 
 // Protected order routes
 router.get("/orders", verifyAuth, getAllOrders);
+
+// Protected coupon routes
+router.post("/coupon/create", verifyAuth, createCoupon);
+router.get("/coupon/list", verifyAuth, listCoupons);
+router.put("/coupon/edit/:couponCodeId", verifyAuth, editCoupon);
+router.patch("/coupon/toggle/:couponCodeId", verifyAuth, togglePublish);
+router.delete("/coupon/delete/:couponCodeId", verifyAuth, deleteCoupon);
 
 module.exports = router;
