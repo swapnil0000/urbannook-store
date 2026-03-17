@@ -11,7 +11,7 @@ const {
 } = require("../controllers/product");
 const { uploadImage, uploadMultipleImages } = require("../controllers/upload");
 const { getWaitlistUsers } = require("../controllers/waitlist");
-const { getAllOrders } = require("../controllers/order");
+const { getAllOrders, streamOrders } = require("../controllers/order");
 const {
   createCoupon,
   listCoupons,
@@ -77,6 +77,8 @@ router.get("/joined/waitlist", verifyAuth, getWaitlistUsers);
 
 // Protected order routes
 router.get("/orders", verifyAuth, getAllOrders);
+// SSE stream — must be declared before any wildcard routes
+router.get("/orders/stream", verifyAuth, streamOrders);
 
 // Protected coupon routes
 router.post("/coupon/create", verifyAuth, createCoupon);
