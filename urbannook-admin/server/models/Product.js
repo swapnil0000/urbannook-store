@@ -9,6 +9,7 @@ const productSchema = new mongoose.Schema(
     secondaryImages: [{ type: String }],
     productDes: { type: String, required: true },
     sellingPrice: { type: Number, required: true, min: 10 },
+    listedPrice: { type: Number, required: true, min: 10 },
     productCategory: { type: String, required: true },
     productQuantity: { type: Number, default: 0 },
     dimensions: {
@@ -29,8 +30,27 @@ const productSchema = new mongoose.Schema(
     isPublished: { type: Boolean, default: false },
     productSubDes: { type: String },
     productSubCategory: { type: String },
+    materialAndCare: { type: String },
+    colorOptions: [{ type: String }],
+    specifications: [
+      {
+        key: { type: String, required: true },
+        value: { type: String, required: true },
+      },
+    ],
   },
-  { timestamps: true }
+  { 
+    timestamps: true,
+    strict: true,
+    strictQuery: false
+  }
 );
+
+productSchema.index({ productCategory: 1 });
+productSchema.index({ productStatus: 1 });
+productSchema.index({ productCategory: 1, productStatus: 1 });
+productSchema.index({ productName: "text", productDes: "text" });
+productSchema.index({ tags: 1 });
+productSchema.index({ isPublished: 1 });
 
 module.exports = mongoose.model("Product", productSchema);

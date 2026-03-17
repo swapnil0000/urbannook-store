@@ -6,7 +6,18 @@
   "scripts": {
     "start": "node index.js",
     "dev": "node --watch index.js",
-    "test": "jest"
+    "dev:prod": "NODE_ENV=production node --watch index.js",
+    "start:prod": "NODE_ENV=production node index.js",
+    "test": "jest",
+    "merge:prod": "node scripts/mergeProducts.js",
+    "migrate:colors": "node scripts/addColorOptionsField.js",
+    "debug:colors": "node scripts/debugColorOptions.js",
+    "test:colors": "node scripts/testCreateProductWithColors.js",
+    "verify:schema": "node scripts/verifySchema.js",
+    "migrate:colors:prod": "node scripts/addColorOptionsField.prod.js",
+    "debug:colors:prod": "node scripts/debugColorOptions.prod.js",
+    "test:colors:prod": "node scripts/testCreateProductWithColors.prod.js",
+    "verify:schema:prod": "node scripts/verifySchema.prod.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.985.0",
