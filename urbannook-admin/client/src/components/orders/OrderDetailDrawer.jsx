@@ -1,6 +1,24 @@
 import { useEffect, useRef, useCallback, useState } from "react";
-import { X, MapPin, CreditCard, Package } from "lucide-react";
+import { X, MapPin, CreditCard, Package, Globe, Camera } from "lucide-react";
 import OrderStatusBadge from "./OrderStatusBadge";
+
+// Instagram orders have customerName; website orders have userId
+function ChannelBadge({ isInstagram }) {
+  if (isInstagram) {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+        <Camera className="h-3 w-3" />
+        Instagram
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+      <Globe className="h-3 w-3" />
+      Website
+    </span>
+  );
+}
 
 /**
  * Slide-over drawer that displays full order details.
@@ -52,6 +70,8 @@ export default function OrderDetailDrawer({ order, onClose }) {
 
   if (!order) return null;
 
+  const isInstagram = Boolean(order.customerName);
+
   const formattedDate = order.createdAt
     ? new Date(order.createdAt).toLocaleString(undefined, {
         year: "numeric",
@@ -63,11 +83,13 @@ export default function OrderDetailDrawer({ order, onClose }) {
     : "—";
 
   const formattedAmount =
-    typeof order.amount === "number" ? `$${order.amount.toFixed(2)}` : "—";
+    typeof order.amount === "number"
+      ? `₹${order.amount.toLocaleString()}`
+      : "—";
 
   return (
     <>
-      {/* ── Backdrop ─────────────────────────────────────────────────────── */}
+      {/*   Backdrop     */}
       <div
         className={`fixed inset-0 bg-black/40 z-40 transition-opacity duration-300 ${
           visible ? "opacity-100" : "opacity-0"
@@ -76,7 +98,7 @@ export default function OrderDetailDrawer({ order, onClose }) {
         aria-hidden="true"
       />
 
-      {/* ── Drawer panel ─────────────────────────────────────────────────── */}
+      {/*   Drawer panel      */}
       <aside
         className={`fixed inset-y-0 right-0 w-full sm:w-[520px] bg-white z-50 flex flex-col shadow-2xl transition-transform duration-300 ease-in-out ${
           visible ? "translate-x-0" : "translate-x-full"
@@ -88,9 +110,12 @@ export default function OrderDetailDrawer({ order, onClose }) {
         {/* Header */}
         <div className="flex items-start justify-between px-6 py-5 border-b border-gray-200 shrink-0">
           <div>
-            <h2 className="text-base font-semibold text-gray-900">
-              Order Details
-            </h2>
+            <div className="flex items-center gap-2 mb-0.5">
+              <h2 className="text-base font-semibold text-gray-900">
+                Order Details
+              </h2>
+              <ChannelBadge isInstagram={isInstagram} />
+            </div>
             {order.orderId && (
               <p className="text-xs font-mono text-gray-400 mt-0.5 break-all">
                 {order.orderId}
@@ -108,15 +133,31 @@ export default function OrderDetailDrawer({ order, onClose }) {
 
         {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
-
-          {/* ── Summary row ─────────────────────────────────────────────── */}
+          {/*   Summary row     */}
           <div className="flex flex-wrap items-center gap-3 pb-4 border-b border-gray-100">
-            <div className="flex-1 min-w-0">
-              <p className="text-xs text-gray-400 mb-0.5">Customer ID</p>
-              <p className="text-sm font-medium text-gray-800 truncate">
-                {order.userId || "—"}
-              </p>
-            </div>
+            {isInstagram ? (
+              <div className="flex-1 min-w-0 space-y-1">
+                <div>
+                  <p className="text-xs text-gray-400 mb-0.5">Customer Name</p>
+                  <p className="text-sm font-medium text-gray-800 truncate">
+                    {order.customerName || "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400 mb-0.5">Contact</p>
+                  <p className="text-sm font-medium text-gray-800 truncate">
+                    {order.contactNumber || "—"}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-gray-400 mb-0.5">Customer ID</p>
+                <p className="text-sm font-medium text-gray-800 truncate">
+                  {order.userId || "—"}
+                </p>
+              </div>
+            )}
             <div className="text-right shrink-0">
               <p className="text-xs text-gray-400 mb-0.5">Order Total</p>
               <p className="text-lg font-semibold text-gray-900">
@@ -129,7 +170,7 @@ export default function OrderDetailDrawer({ order, onClose }) {
             </div>
           </div>
 
-          {/* ── Order items ──────────────────────────────────────────────── */}
+          {/*   Order items     */}
           <section aria-label="Order items">
             <div className="flex items-center gap-2 mb-3">
               <Package className="h-4 w-4 text-gray-400" />
@@ -146,7 +187,7 @@ export default function OrderDetailDrawer({ order, onClose }) {
                   const snap = item.productSnapshot ?? {};
                   const price =
                     typeof snap.priceAtPurchase === "number"
-                      ? `$${snap.priceAtPurchase.toFixed(2)}`
+                      ? `₹${snap.priceAtPurchase.toLocaleString()}`
                       : "—";
 
                   return (
@@ -192,7 +233,7 @@ export default function OrderDetailDrawer({ order, onClose }) {
                       <p className="text-sm font-medium text-gray-900 shrink-0">
                         {typeof snap.priceAtPurchase === "number" &&
                         typeof snap.quantity === "number"
-                          ? `$${(snap.priceAtPurchase * snap.quantity).toFixed(2)}`
+                          ? `₹${(snap.priceAtPurchase * snap.quantity).toLocaleString()}`
                           : ""}
                       </p>
                     </div>
@@ -202,8 +243,11 @@ export default function OrderDetailDrawer({ order, onClose }) {
             )}
           </section>
 
-          {/* ── Delivery address ─────────────────────────────────────────── */}
-          {order.deliveryAddress?.formattedAddress && (
+          {/*   Delivery address     */}
+          {/* Instagram: plain string; Website: { formattedAddress } */}
+          {(isInstagram
+            ? order.deliveryAddress
+            : order.deliveryAddress?.formattedAddress) && (
             <section aria-label="Delivery address">
               <div className="flex items-center gap-2 mb-3">
                 <MapPin className="h-4 w-4 text-gray-400" />
@@ -212,12 +256,26 @@ export default function OrderDetailDrawer({ order, onClose }) {
                 </h3>
               </div>
               <p className="text-sm text-gray-600 leading-relaxed">
-                {order.deliveryAddress.formattedAddress}
+                {isInstagram
+                  ? order.deliveryAddress
+                  : order.deliveryAddress.formattedAddress}
               </p>
             </section>
           )}
 
-          {/* ── Payment details ──────────────────────────────────────────── */}
+          {/*   Notes (Instagram orders only)     */}
+          {isInstagram && order.notes && (
+            <section aria-label="Order notes">
+              <h3 className="text-sm font-semibold text-gray-700 mb-2">
+                Notes
+              </h3>
+              <p className="text-sm text-gray-600 leading-relaxed bg-gray-50 rounded-lg p-3">
+                {order.notes}
+              </p>
+            </section>
+          )}
+
+          {/*   Payment details     */}
           {order.payment && (
             <section aria-label="Payment details">
               <div className="flex items-center gap-2 mb-3">
@@ -228,16 +286,27 @@ export default function OrderDetailDrawer({ order, onClose }) {
               </div>
               <div className="bg-gray-50 rounded-lg p-4 space-y-2">
                 {[
-                  { label: "Razorpay Order ID", value: order.payment.razorpayOrderId },
-                  { label: "Payment ID", value: order.payment.razorpayPaymentId },
-                  { label: "Signature", value: order.payment.razorpaySignature },
+                  {
+                    label: "Razorpay Order ID",
+                    value: order.payment.razorpayOrderId,
+                  },
+                  {
+                    label: "Payment ID",
+                    value: order.payment.razorpayPaymentId,
+                  },
+                  {
+                    label: "Signature",
+                    value: order.payment.razorpaySignature,
+                  },
                 ].map(({ label, value }) =>
                   value ? (
                     <div key={label}>
                       <p className="text-xs text-gray-400">{label}</p>
-                      <p className="text-xs font-mono text-gray-700 break-all">{value}</p>
+                      <p className="text-xs font-mono text-gray-700 break-all">
+                        {value}
+                      </p>
                     </div>
-                  ) : null
+                  ) : null,
                 )}
                 {/* Edge case: payment exists but all IDs are empty */}
                 {!order.payment.razorpayOrderId &&

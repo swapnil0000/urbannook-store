@@ -1,5 +1,6 @@
 // Load environment variables based on NODE_ENV
-const envFile = process.env.NODE_ENV === "production" ? ".env.production" : ".env";
+const envFile =
+  process.env.NODE_ENV === "production" ? ".env.production" : ".env";
 require("dotenv").config({ path: envFile });
 
 const http = require("http");
@@ -11,17 +12,18 @@ const connectDB = require("./config/db");
 const adminRoutes = require("./routes/admin");
 const publicRoutes = require("./routes/public");
 const Order = require("./models/Order");
+const InstagramOrder = require("./models/InstagramOrder");
 const orderEventEmitter = require("./utils/orderEvents");
 
 const app = express();
 const server = http.createServer(app);
 
-// ── CORS origins ──────────────────────────────────────────────────────────────
+//   CORS origins
 const allowedOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(",").map((o) => o.trim())
   : [];
 
-// ── Express middleware ─────────────────────────────────────────────────────────
+//   Express middleware
 app.use(
   cors({
     origin: function (origin, callback) {
@@ -30,21 +32,21 @@ app.use(
       return callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
-  })
+  }),
 );
 app.use(cookieParser());
 app.use(express.json());
 
-// ── Routes ────────────────────────────────────────────────────────────────────
+//   Routes
 app.use("/api/v1/admin", adminRoutes);
 app.use("/api/v1", publicRoutes);
 
-// ── Health check ──────────────────────────────────────────────────────────────
+//   Health check
 app.get("/", (req, res) => {
   res.json({ message: "UrbanNook Admin API is running" });
 });
 
-// ── Global error handler ──────────────────────────────────────────────────────
+//   Global error handler
 app.use((err, _req, res, _next) => {
   const origin = _req.headers.origin;
   if (origin && allowedOrigins.includes(origin)) {
@@ -53,12 +55,11 @@ app.use((err, _req, res, _next) => {
   }
   const statusCode = err.statusCode || 500;
   const message = err.message || "Internal Server Error";
-  res.status(statusCode).json({ statusCode, message, data: null, success: false });
+  res
+    .status(statusCode)
+    .json({ statusCode, message, data: null, success: false });
 });
 
-// ── MongoDB Change Stream ──────────────────────────────────────────────────────
-// Watches the Order collection for new inserts and emits on the orderEventEmitter.
-// SSE connections subscribe to that emitter — fully decoupled.
 let changeStreamRetryTimer = null;
 
 function setupOrderChangeStream() {
@@ -70,7 +71,7 @@ function setupOrderChangeStream() {
   try {
     const changeStream = Order.watch(
       [{ $match: { operationType: "insert" } }],
-      { fullDocument: "updateLookup" }
+      { fullDocument: "updateLookup" },
     );
 
     changeStream.on("change", (change) => {
@@ -95,16 +96,67 @@ function setupOrderChangeStream() {
   } catch (err) {
     console.warn(
       "[ChangeStream] Unavailable — real-time sync disabled.",
-      `Reason: ${err.message}`
+      `Reason: ${err.message}`,
     );
   }
 }
 
-// ── Boot ──────────────────────────────────────────────────────────────────────
+let igChangeStreamRetryTimer = null;
+
+function setupInstagramOrderChangeStream() {
+  if (igChangeStreamRetryTimer) {
+    clearTimeout(igChangeStreamRetryTimer);
+    igChangeStreamRetryTimer = null;
+  }
+
+  try {
+    const changeStream = InstagramOrder.watch(
+      [{ $match: { operationType: "insert" } }],
+      { fullDocument: "updateLookup" },
+    );
+
+    changeStream.on("change", (change) => {
+      if (change.fullDocument) {
+        orderEventEmitter.emit("new_instagram_order", change.fullDocument);
+        console.log(
+          `[ChangeStream:Instagram] New order: ${change.fullDocument.orderId}`,
+        );
+      }
+    });
+
+    changeStream.on("error", (err) => {
+      console.error(`[ChangeStream:Instagram] Error: ${err.message}`);
+      changeStream.close().catch(() => {});
+      igChangeStreamRetryTimer = setTimeout(
+        setupInstagramOrderChangeStream,
+        5000,
+      );
+    });
+
+    changeStream.on("close", () => {
+      console.warn("[ChangeStream:Instagram] Closed, restarting in 5s...");
+      igChangeStreamRetryTimer = setTimeout(
+        setupInstagramOrderChangeStream,
+        5000,
+      );
+    });
+
+    console.log(
+      "[ChangeStream:Instagram] Watching InstagramOrder collection for inserts",
+    );
+  } catch (err) {
+    console.warn(
+      "[ChangeStream:Instagram] Unavailable — real-time sync disabled.",
+      `Reason: ${err.message}`,
+    );
+  }
+}
+
 const PORT = process.env.PORT || 3000;
 
 connectDB().then(() => {
   setupOrderChangeStream();
+  setupInstagramOrderChangeStream();
 
   server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
@@ -113,6 +165,7 @@ connectDB().then(() => {
 
 process.on("SIGTERM", () => {
   if (changeStreamRetryTimer) clearTimeout(changeStreamRetryTimer);
+  if (igChangeStreamRetryTimer) clearTimeout(igChangeStreamRetryTimer);
   server.close(() => process.exit(0));
 });
 

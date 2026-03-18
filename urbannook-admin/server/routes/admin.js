@@ -13,6 +13,11 @@ const { uploadImage, uploadMultipleImages } = require("../controllers/upload");
 const { getWaitlistUsers } = require("../controllers/waitlist");
 const { getAllOrders, streamOrders } = require("../controllers/order");
 const {
+  getAllInstagramOrders,
+  createInstagramOrder,
+  streamInstagramOrders,
+} = require("../controllers/instagramOrder");
+const {
   createCoupon,
   listCoupons,
   editCoupon,
@@ -75,10 +80,16 @@ router.delete("/delete/inventory/:productId", verifyAuth, deleteProduct);
 // Protected waitlist routes
 router.get("/joined/waitlist", verifyAuth, getWaitlistUsers);
 
-// Protected order routes
+// Protected website order routes
 router.get("/orders", verifyAuth, getAllOrders);
 // SSE stream — must be declared before any wildcard routes
 router.get("/orders/stream", verifyAuth, streamOrders);
+
+// Protected Instagram order routes
+// Specific paths declared before any wildcard — order matters in Express
+router.get("/orders/instagram", verifyAuth, getAllInstagramOrders);
+router.get("/orders/instagram/stream", verifyAuth, streamInstagramOrders);
+router.post("/orders/instagram", verifyAuth, createInstagramOrder);
 
 // Protected coupon routes
 router.post("/coupon/create", verifyAuth, createCoupon);

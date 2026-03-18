@@ -8,9 +8,9 @@ const ALLOWED_SORT_FIELDS = new Set(["createdAt", "amount"]);
 // Valid statuses from the Order schema enum
 const ALLOWED_STATUSES = new Set(["CREATED", "PAID", "FAILED"]);
 
-// ── GET /admin/orders ─────────────────────────────────────────────────────────
+//   GET /admin/orders
 const getAllOrders = async (req, res) => {
-  // ── Pagination ──────────────────────────────────────────────────────────────
+  //   Pagination
   const rawPage = parseInt(req.query.page, 10);
   const rawLimit = parseInt(req.query.limit, 10);
   const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1;
@@ -18,13 +18,13 @@ const getAllOrders = async (req, res) => {
     Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 100) : 20;
   const skip = (page - 1) * limit;
 
-  // ── Sorting ──────────────────────────────────────────────────────────────────
+  //   Sorting
   const sortBy = ALLOWED_SORT_FIELDS.has(req.query.sortBy)
     ? req.query.sortBy
     : "createdAt";
   const sortOrder = req.query.sortOrder === "asc" ? 1 : -1;
 
-  // ── Filtering ────────────────────────────────────────────────────────────────
+  //   Filtering
   const filter = {};
 
   if (req.query.status && ALLOWED_STATUSES.has(req.query.status)) {
@@ -43,7 +43,7 @@ const getAllOrders = async (req, res) => {
       new ApiResponse(200, "Orders fetched successfully", {
         orders: [],
         pagination: { currentPage: page, totalPages: 0, totalOrders: 0, limit },
-      })
+      }),
     );
   }
 
@@ -57,7 +57,7 @@ const getAllOrders = async (req, res) => {
     }
   }
 
-  // ── Query — find + count in parallel ─────────────────────────────────────────
+  //   Query — find + count in parallel
   const [orders, totalOrders] = await Promise.all([
     Order.find(filter)
       .sort({ [sortBy]: sortOrder })
@@ -73,11 +73,11 @@ const getAllOrders = async (req, res) => {
     new ApiResponse(200, "Orders fetched successfully", {
       orders,
       pagination: { currentPage: page, totalPages, totalOrders, limit },
-    })
+    }),
   );
 };
 
-// ── GET /admin/orders/stream  (Server-Sent Events) ────────────────────────────
+//   GET /admin/orders/stream  (Server-Sent Events)
 // Keeps an HTTP connection open and pushes new orders to the client as they
 // arrive via the Change Stream → orderEventEmitter pipeline.
 //
@@ -87,11 +87,11 @@ const getAllOrders = async (req, res) => {
 //   • Credentials (cookies) are sent automatically — no manual token plumbing
 //   • One-directional by design: server → client only
 const streamOrders = (req, res) => {
-  // ── SSE headers ──────────────────────────────────────────────────────────────
+  //   SSE headers
   res.writeHead(200, {
     "Content-Type": "text/event-stream",
     "Cache-Control": "no-cache, no-transform",
-    "Connection": "keep-alive",
+    Connection: "keep-alive",
     // Prevent nginx / proxies from buffering the stream
     "X-Accel-Buffering": "no",
   });
@@ -99,7 +99,7 @@ const streamOrders = (req, res) => {
   // Flush initial bytes so the browser opens the stream immediately
   res.write(":\n\n");
 
-  // ── Heartbeat ────────────────────────────────────────────────────────────────
+  //   Heartbeat
   // Send a comment line every 25 seconds to keep the connection alive through
   // proxies/load-balancers that would otherwise close idle connections
   const heartbeat = setInterval(() => {
@@ -107,7 +107,7 @@ const streamOrders = (req, res) => {
     res.write(":\n\n");
   }, 25_000);
 
-  // ── Forward new orders to this SSE client ─────────────────────────────────
+  //   Forward new orders to this SSE client
   const sendOrder = (order) => {
     try {
       res.write(`event: new_order\ndata: ${JSON.stringify(order)}\n\n`);
@@ -119,7 +119,7 @@ const streamOrders = (req, res) => {
   orderEventEmitter.on("new_order", sendOrder);
   console.log(`[SSE] Client connected (${req.admin?.email ?? "unknown"})`);
 
-  // ── Cleanup on disconnect ─────────────────────────────────────────────────
+  //   Cleanup on disconnect
   req.on("close", () => {
     clearInterval(heartbeat);
     orderEventEmitter.off("new_order", sendOrder);

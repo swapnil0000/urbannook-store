@@ -24,6 +24,7 @@ export default function OrdersToolbar({
   onFilterChange,
   onSortChange,
   onReset,
+  showChannelFilter = false,
 }) {
   // Local date state — avoids calling onFilterChange on every partial date input
   const [localStartDate, setLocalStartDate] = useState(filters.startDate);
@@ -68,11 +69,14 @@ export default function OrdersToolbar({
       const [sortBy, sortOrder] = e.target.value.split(":");
       onSortChange({ sortBy, sortOrder });
     },
-    [onSortChange]
+    [onSortChange],
   );
 
   const hasActiveFilters =
-    filters.status || filters.startDate || filters.endDate;
+    filters.status ||
+    filters.startDate ||
+    filters.endDate ||
+    (showChannelFilter && filters.channel && filters.channel !== "all");
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg px-4 py-3 mb-4">
@@ -85,7 +89,9 @@ export default function OrdersToolbar({
               "Loading…"
             ) : (
               <>
-                <span className="font-semibold text-gray-800">{totalOrders}</span>{" "}
+                <span className="font-semibold text-gray-800">
+                  {totalOrders}
+                </span>{" "}
                 {totalOrders === 1 ? "order" : "orders"}
               </>
             )}
@@ -96,7 +102,7 @@ export default function OrdersToolbar({
         <select
           value={filters.status}
           onChange={(e) => onFilterChange({ status: e.target.value })}
-          className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent cursor-pointer"
+          className="text-sm border border-gray-200 rounded-lg px-1 py-1.5 text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent cursor-pointer"
           aria-label="Filter by status"
         >
           <option value="">All statuses</option>
@@ -106,6 +112,20 @@ export default function OrdersToolbar({
             </option>
           ))}
         </select>
+
+        {/* Channel filter — unified view only */}
+        {showChannelFilter && (
+          <select
+            value={filters.channel || "all"}
+            onChange={(e) => onFilterChange({ channel: e.target.value })}
+            className="text-sm border border-gray-200 rounded-lg px-1 py-1.5 text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent cursor-pointer"
+            aria-label="Filter by channel"
+          >
+            <option value="all">All channels</option>
+            <option value="website">Website only</option>
+            <option value="instagram">Instagram only</option>
+          </select>
+        )}
 
         {/* Date range */}
         <div className="flex items-center gap-2">
@@ -132,11 +152,14 @@ export default function OrdersToolbar({
         <select
           value={currentSortValue}
           onChange={handleSortChange}
-          className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent cursor-pointer"
+          className="text-sm border border-gray-200 rounded-lg px-1 py-1.5 text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent cursor-pointer"
           aria-label="Sort orders"
         >
           {SORT_OPTIONS.map((opt) => (
-            <option key={`${opt.sortBy}:${opt.sortOrder}`} value={`${opt.sortBy}:${opt.sortOrder}`}>
+            <option
+              key={`${opt.sortBy}:${opt.sortOrder}`}
+              value={`${opt.sortBy}:${opt.sortOrder}`}
+            >
               {opt.label}
             </option>
           ))}
@@ -146,7 +169,7 @@ export default function OrdersToolbar({
         {hasActiveFilters && (
           <button
             onClick={onReset}
-            className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors"
+            className="inline-flex items-center gap-1 text-sm text-red-500 hover:text-red-900 transition-colors"
             aria-label="Clear all filters"
           >
             <X className="h-3.5 w-3.5" />

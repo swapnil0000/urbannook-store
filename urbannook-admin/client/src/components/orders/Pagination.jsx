@@ -35,11 +35,26 @@ function getPageNumbers(currentPage, totalPages) {
   return result;
 }
 
-export default function Pagination({ currentPage, totalPages, totalOrders, limit, onPageChange }) {
-  // Don't render the control at all when there's only one page
-  if (totalPages <= 1) return null;
+export default function Pagination({
+  currentPage,
+  totalPages,
+  totalOrders,
+  limit,
+  onPageChange,
+}) {
+  // Derive a safe totalPages: prefer server value, but recalculate if it looks
+  // wrong (e.g. server returned 1 but we know there are more items than a page holds).
+  const safeTotalPages =
+    totalPages > 1
+      ? totalPages
+      : totalOrders > limit
+        ? Math.ceil(totalOrders / limit)
+        : totalPages;
 
-  const pageNumbers = getPageNumbers(currentPage, totalPages);
+  // Don't render the control at all when there's only one page
+  if (safeTotalPages <= 1) return null;
+
+  const pageNumbers = getPageNumbers(currentPage, safeTotalPages);
 
   // Calculate the visible range of items for the summary line
   const rangeStart = (currentPage - 1) * limit + 1;
@@ -49,14 +64,17 @@ export default function Pagination({ currentPage, totalPages, totalOrders, limit
     <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-3 border-t border-gray-200">
       {/* Result range summary */}
       <p className="text-sm text-gray-500">
-        Showing{" "}
-        <span className="font-medium text-gray-800">{rangeStart}</span>–
+        Showing <span className="font-medium text-gray-800">{rangeStart}</span>–
         <span className="font-medium text-gray-800">{rangeEnd}</span> of{" "}
         <span className="font-medium text-gray-800">{totalOrders}</span>
       </p>
 
       {/* Page controls */}
-      <div className="flex items-center gap-1" role="navigation" aria-label="Pagination">
+      <div
+        className="flex items-center gap-1"
+        role="navigation"
+        aria-label="Pagination"
+      >
         {/* Previous */}
         <button
           onClick={() => onPageChange(currentPage - 1)}
@@ -91,13 +109,13 @@ export default function Pagination({ currentPage, totalPages, totalOrders, limit
             >
               {page}
             </button>
-          )
+          ),
         )}
 
         {/* Next */}
         <button
           onClick={() => onPageChange(currentPage + 1)}
-          disabled={currentPage === totalPages}
+          disabled={currentPage === safeTotalPages}
           className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           aria-label="Next page"
         >

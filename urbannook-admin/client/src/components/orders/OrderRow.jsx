@@ -1,3 +1,4 @@
+import { Camera, Globe } from "lucide-react";
 import OrderStatusBadge from "./OrderStatusBadge";
 
 /**
@@ -10,7 +11,7 @@ export default function OrderRow({ order, isSelected, onSelect }) {
   // Guard: amount may be missing on legacy or malformed records
   const formattedAmount =
     typeof order.amount === "number"
-      ? `$${order.amount.toFixed(2)}`
+      ? `₹${order.amount.toLocaleString()}`
       : "—";
 
   // Guard: createdAt may be missing or unparseable
@@ -27,7 +28,15 @@ export default function OrderRow({ order, isSelected, onSelect }) {
     ? order.orderId.length > 20
       ? `${order.orderId.slice(0, 10)}…${order.orderId.slice(-6)}`
       : order.orderId
-    : order._id ?? "—";
+    : (order._id ?? "—");
+
+  // Instagram orders have customerName; website orders have userId
+  const isInstagram = Boolean(order.customerName);
+
+  // Customer column: name for Instagram, userId for website
+  const customerDisplay = isInstagram
+    ? order.customerName || "—"
+    : order.userId || "—";
 
   return (
     <tr
@@ -38,10 +47,23 @@ export default function OrderRow({ order, isSelected, onSelect }) {
       aria-selected={isSelected}
     >
       <td className="px-6 py-4 text-sm font-mono font-medium text-gray-900">
-        <span title={order.orderId}>{displayOrderId}</span>
+        <div className="flex items-center gap-1.5">
+          {isInstagram ? (
+            <Camera
+              className="h-3.5 w-3.5 text-pink-400 shrink-0"
+              aria-label="Instagram order"
+            />
+          ) : (
+            <Globe
+              className="h-3.5 w-3.5 text-blue-300 shrink-0"
+              aria-label="Website order"
+            />
+          )}
+          <span title={order.orderId}>{displayOrderId}</span>
+        </div>
       </td>
       <td className="px-6 py-4 text-sm text-gray-600 max-w-[160px] truncate">
-        {order.userId || "—"}
+        {customerDisplay}
       </td>
       <td className="px-6 py-4 text-sm text-gray-600">
         {itemCount} {itemCount === 1 ? "item" : "items"}
