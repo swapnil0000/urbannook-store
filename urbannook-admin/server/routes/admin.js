@@ -3,6 +3,7 @@ const router = express.Router();
 const multer = require("multer");
 const { login, logout } = require("../controllers/auth");
 const { verifyAuth } = require("../middleware/auth");
+const shipmozoRoutes = require("./shipmozo");
 const {
   getAllProducts,
   addProduct,
@@ -11,7 +12,12 @@ const {
 } = require("../controllers/product");
 const { uploadImage, uploadMultipleImages } = require("../controllers/upload");
 const { getWaitlistUsers } = require("../controllers/waitlist");
-const { getAllOrders } = require("../controllers/order");
+const { getAllOrders, streamOrders } = require("../controllers/order");
+const {
+  getAllInstagramOrders,
+  createInstagramOrder,
+  streamInstagramOrders,
+} = require("../controllers/instagramOrder");
 const {
   createCoupon,
   listCoupons,
@@ -75,8 +81,19 @@ router.delete("/delete/inventory/:productId", verifyAuth, deleteProduct);
 // Protected waitlist routes
 router.get("/joined/waitlist", verifyAuth, getWaitlistUsers);
 
-// Protected order routes
+// Protected website order routes
 router.get("/orders", verifyAuth, getAllOrders);
+// SSE stream — must be declared before any wildcard routes
+router.get("/orders/stream", verifyAuth, streamOrders);
+
+// Protected Instagram order routes
+// Specific paths declared before any wildcard — order matters in Express
+router.get("/orders/instagram", verifyAuth, getAllInstagramOrders);
+router.get("/orders/instagram/stream", verifyAuth, streamInstagramOrders);
+router.post("/orders/instagram", verifyAuth, createInstagramOrder);
+
+// Shipmozo shipping routes (verifyAuth applied to entire sub-router)
+router.use("/shipmozo", verifyAuth, shipmozoRoutes);
 
 // Protected coupon routes
 router.post("/coupon/create", verifyAuth, createCoupon);
