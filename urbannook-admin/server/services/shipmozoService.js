@@ -66,4 +66,70 @@ async function checkApiHealth() {
   return response.data;
 }
 
-module.exports = { pushOrder, getWarehouses, checkApiHealth };
+/**
+ * Fetch courier rate options for a shipment.
+ * @param {object} payload - Full rate-calculator payload
+ */
+async function getRates(payload) {
+  const response = await shipmozoClient.post("/rate-calculator", payload);
+  return response.data;
+}
+
+/**
+ * Assign a specific courier to an order.
+ * @param {{ order_id: string, courier_id: number }} payload
+ */
+async function assignCourier(payload) {
+  const response = await shipmozoClient.post("/assign-courier", payload);
+  return response.data;
+}
+
+/**
+ * Fetch the shipping label (base64 PNG) for an AWB number.
+ * @param {string} awbNumber
+ */
+async function getLabel(awbNumber) {
+  const response = await shipmozoClient.get(`/get-order-label/${awbNumber}`);
+  return response.data;
+}
+
+/**
+ * Cancel an order on Shipmozo.
+ * @param {{ order_id: string, awb_number: number }} payload — awb_number must be numeric
+ */
+async function cancelOrder(payload) {
+  const response = await shipmozoClient.post("/cancel-order", payload);
+  return response.data;
+}
+
+/**
+ * Track an order by its AWB number.
+ * @param {string} awbNumber
+ */
+async function trackOrder(awbNumber) {
+  const response = await shipmozoClient.get("/track-order", {
+    params: { awb_number: awbNumber },
+  });
+  return response.data;
+}
+
+/**
+ * Schedule a pickup for an order (for couriers that don't auto-schedule).
+ * @param {string} orderId
+ */
+async function schedulePickup(orderId) {
+  const response = await shipmozoClient.post("/schedule-pickup", { order_id: orderId });
+  return response.data;
+}
+
+module.exports = {
+  pushOrder,
+  getWarehouses,
+  checkApiHealth,
+  getRates,
+  assignCourier,
+  getLabel,
+  cancelOrder,
+  trackOrder,
+  schedulePickup,
+};

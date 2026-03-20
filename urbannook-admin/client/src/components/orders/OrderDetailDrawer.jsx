@@ -327,6 +327,7 @@ export default function OrderDetailDrawer({ order, onClose }) {
                 key={order.orderId}
                 orderId={order.orderId}
                 orderType={isInstagram ? "INSTAGRAM" : "WEBSITE"}
+                order={order}
               />
             </div>
           )}

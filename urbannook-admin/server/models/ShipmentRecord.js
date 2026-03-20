@@ -45,6 +45,13 @@ const shipmentRecordSchema = new mongoose.Schema(
       ],
       default: "PUSHED",
     },
+    // Pincodes captured at push time — required for Rate Calculator API
+    deliveryPincode: { type: String, default: null }, // consignee 6-digit pincode
+    pickupPincode:   { type: String, default: null }, // warehouse pincode
+    // Shipmozo's own generated order_id (returned as data.order_id in push-order response).
+    // Our UUID is demoted to data.refrence_id (Shipmozo typo) and cannot be used for
+    // subsequent API calls (assign-courier, rate-calculator, cancel-order).
+    shipmozoOrderId: { type: String, default: null },
     // Populated in later phases
     awbNumber: { type: String, default: null },
     courierCompany: { type: String, default: null },
