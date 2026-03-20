@@ -1,7 +1,8 @@
 import { useEffect, useRef, useCallback, useState } from "react";
-import { X, MapPin, CreditCard, Package, Globe, Camera } from "lucide-react";
+import { X, MapPin, CreditCard, Package, Globe, Camera, Pencil } from "lucide-react";
 import OrderStatusBadge from "./OrderStatusBadge";
 import ShipmentSection from "./ShipmentSection";
+import EditOrderDrawer from "./EditOrderDrawer";
 
 // Instagram orders have customerName; website orders have userId
 function ChannelBadge({ isInstagram }) {
@@ -30,8 +31,9 @@ function ChannelBadge({ isInstagram }) {
  *  - On close: `visible` → false, a 300ms timeout matches the CSS transition
  *    duration before calling `onClose` (which sets selectedOrder = null → unmounts).
  */
-export default function OrderDetailDrawer({ order, onClose }) {
-  const [visible, setVisible] = useState(false);
+export default function OrderDetailDrawer({ order, onClose, onOrderUpdated }) {
+  const [visible,    setVisible]    = useState(false);
+  const [editOpen,   setEditOpen]   = useState(false);
   const closeTimerRef = useRef(null);
   const rafRef = useRef(null);
 
@@ -123,13 +125,25 @@ export default function OrderDetailDrawer({ order, onClose }) {
               </p>
             )}
           </div>
-          <button
-            onClick={handleClose}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors ml-4 shrink-0"
-            aria-label="Close drawer"
-          >
-            <X className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-1 ml-4 shrink-0">
+            {isInstagram && (
+              <button
+                onClick={() => setEditOpen(true)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                aria-label="Edit order"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Edit
+              </button>
+            )}
+            <button
+              onClick={handleClose}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+              aria-label="Close drawer"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
         {/* Scrollable body */}
@@ -333,6 +347,19 @@ export default function OrderDetailDrawer({ order, onClose }) {
           )}
         </div>
       </aside>
+
+      {/* Edit drawer — mounts on top when open (Instagram only) */}
+      {editOpen && (
+        <EditOrderDrawer
+          order={order}
+          onClose={() => setEditOpen(false)}
+          onSuccess={() => {
+            setEditOpen(false);
+            onOrderUpdated?.();
+            handleClose();
+          }}
+        />
+      )}
     </>
   );
 }

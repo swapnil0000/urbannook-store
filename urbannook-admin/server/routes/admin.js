@@ -21,6 +21,7 @@ import {
 import {
   getAllInstagramOrders,
   createInstagramOrder,
+  updateInstagramOrder,
   streamInstagramOrders,
 } from "../controllers/instagramOrder.js";
 import {
@@ -106,6 +107,7 @@ router.get("/orders/stream", verifyAuth, streamOrders);
 router.get("/orders/instagram/stream", verifyAuth, streamInstagramOrders);
 router.get("/orders/instagram", verifyAuth, getAllInstagramOrders);
 router.post("/orders/instagram", verifyAuth, createInstagramOrder);
+router.put("/orders/instagram/:orderId", verifyAuth, updateInstagramOrder);
 router.get("/orders", verifyAuth, getAllOrders);
 router.get("/orders/:orderId", verifyAuth, getOrderById);
 router.patch("/orders/:orderId/status", verifyAuth, updateOrderStatus);
