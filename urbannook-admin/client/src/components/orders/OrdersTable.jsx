@@ -8,6 +8,7 @@ const COLUMNS = [
   { label: "Total", field: "amount" },
   { label: "Status", field: null },
   { label: "Date", field: "createdAt" },
+  { label: "Actions", field: null },
 ];
 
 /**
