@@ -361,6 +361,5 @@ const updateInstagramOrder = async (req, res, next) => {
 export {
   getAllInstagramOrders,
   createInstagramOrder,
-  updateInstagramOrder,
   streamInstagramOrders,
 };
