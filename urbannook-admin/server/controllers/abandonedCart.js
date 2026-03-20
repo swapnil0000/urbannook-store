@@ -1,10 +1,11 @@
 import Cart from "../models/AbandonedCart.js";
+import Order from "../models/Order.js";
 import User from "../models/User.js";
 import { ApiResponse } from "../utils/apiResponse.js";
 
 // GET /admin/abandoned-carts
 // Case 1 (never_ordered): non-empty cart + user has NEVER placed a PAID order
-// Case 2 (re_abandoned):  non-empty cart + cart.updatedAt > user's last PAID order createdAt
+// Case 2 (re_abandoned):  non-empty cart + cart.updatedAt > user's last PAID order
 export const getAbandonedCarts = async (req, res) => {
   const rawPage = parseInt(req.query.page, 10);
   const rawLimit = parseInt(req.query.limit, 10);
@@ -12,89 +13,74 @@ export const getAbandonedCarts = async (req, res) => {
   const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 50) : 20;
   const skip = (page - 1) * limit;
 
-  const pipeline = [
-    // Stage 1: non-empty products only
-    {
-      $match: { products: { $exists: true, $not: { $size: 0 } } },
-    },
+  // Step 1: fetch all carts that have products (non-null, non-empty)
+  const allCarts = await Cart.find({
+    products: { $exists: true, $ne: null },
+  })
+    .sort({ updatedAt: -1 })
+    .lean();
 
-    // Stage 2: lookup the user's most recent PAID order
-    // NOTE: use $$uid (double-dollar) to reference the let variable
-    {
-      $lookup: {
-        from: "orders",
-        let: { uid: "$userId" },
-        pipeline: [
-          {
-            $match: {
-              $expr: {
-                $and: [
-                  { $eq: ["$userId", "$$uid"] },
-                  { $eq: ["$paymentStatus", "PAID"] },
-                ],
-              },
-            },
-          },
-          { $sort: { createdAt: -1 } },
-          { $limit: 1 },
-          { $project: { _id: 0, createdAt: 1 } },
-        ],
-        as: "lastPaidOrder",
-      },
-    },
+  // Filter out carts where products is empty array or empty object
+  const nonEmptyCarts = allCarts.filter((cart) => {
+    const p = cart.products;
+    if (!p) return false;
+    if (Array.isArray(p)) return p.length > 0;
+    if (typeof p === "object") return Object.keys(p).length > 0;
+    return false;
+  });
 
-    // Stage 3: keep cart if:
-    //   - user has NO paid order ever (case 1), OR
-    //   - cart updatedAt is AFTER their last paid order (case 2)
-    {
-      $match: {
-        $expr: {
-          $or: [
-            { $eq: [{ $size: "$lastPaidOrder" }, 0] },
-            {
-              $gt: [
-                "$updatedAt",
-                { $arrayElemAt: ["$lastPaidOrder.createdAt", 0] },
-              ],
-            },
-          ],
-        },
-      },
-    },
+  if (nonEmptyCarts.length === 0) {
+    return res.status(200).json(
+      new ApiResponse(200, "Carts fetched", {
+        carts: [],
+        pagination: { currentPage: page, totalPages: 0, total: 0, limit },
+      })
+    );
+  }
 
-    // Stage 4: tag each cart with which case it belongs to
-    {
-      $addFields: {
-        cartCase: {
-          $cond: {
-            if: { $eq: [{ $size: "$lastPaidOrder" }, 0] },
-            then: "never_ordered",
-            else: "re_abandoned",
-          },
-        },
-      },
-    },
+  // Step 2: get all unique userIds from these carts
+  const userIds = [...new Set(nonEmptyCarts.map((c) => c.userId).filter(Boolean))];
 
-    // Stage 5: drop the joined array
-    { $project: { lastPaidOrder: 0 } },
-  ];
+  // Step 3: for each userId, find their last PAID order
+  const paidOrders = await Order.find(
+    { userId: { $in: userIds }, status: "PAID" },
+    { userId: 1, createdAt: 1 }
+  )
+    .sort({ createdAt: -1 })
+    .lean();
 
-  const [countResult, carts] = await Promise.all([
-    Cart.aggregate([...pipeline, { $count: "total" }]),
-    Cart.aggregate([
-      ...pipeline,
-      { $sort: { updatedAt: -1 } },
-      { $skip: skip },
-      { $limit: limit },
-    ]),
-  ]);
+  // Build map: userId -> most recent PAID order createdAt
+  const lastPaidMap = {};
+  for (const o of paidOrders) {
+    if (!lastPaidMap[o.userId]) {
+      lastPaidMap[o.userId] = o.createdAt;
+    }
+  }
 
-  const total = countResult[0]?.total ?? 0;
+  // Step 4: classify each cart
+  const classified = nonEmptyCarts
+    .map((cart) => {
+      const lastPaid = lastPaidMap[cart.userId];
+      if (!lastPaid) {
+        return { ...cart, cartCase: "never_ordered" };
+      }
+      // re-abandoned: cart was updated AFTER their last paid order
+      if (cart.updatedAt > lastPaid) {
+        return { ...cart, cartCase: "re_abandoned" };
+      }
+      // cart is older than last paid order — not abandoned, skip
+      return null;
+    })
+    .filter(Boolean);
 
-  const userIds = carts.map((c) => c.userId).filter(Boolean);
-  const users = userIds.length
+  const total = classified.length;
+  const paginated = classified.slice(skip, skip + limit);
+
+  // Step 5: enrich with user info
+  const pageUserIds = [...new Set(paginated.map((c) => c.userId).filter(Boolean))];
+  const users = pageUserIds.length
     ? await User.find(
-        { userId: { $in: userIds } },
+        { userId: { $in: pageUserIds } },
         { userId: 1, name: 1, email: 1, mobileNumber: 1 }
       ).lean()
     : [];
@@ -102,7 +88,7 @@ export const getAbandonedCarts = async (req, res) => {
   const userMap = {};
   for (const u of users) userMap[u.userId] = u;
 
-  const enriched = carts.map((cart) => {
+  const enriched = paginated.map((cart) => {
     const u = userMap[cart.userId] || {};
     return {
       ...cart,
