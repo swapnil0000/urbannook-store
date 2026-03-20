@@ -87,7 +87,11 @@ function validate(form) {
   const errors = {};
   if (!form.customerName.trim()) errors.customerName = "Required";
   if (!form.contactNumber.trim()) errors.contactNumber = "Required";
-  if (!form.deliveryAddress.trim()) errors.deliveryAddress = "Required";
+  if (!form.deliveryAddress.trim()) {
+    errors.deliveryAddress = "Delivery address is required";
+  } else if (!/\b\d{6}\b/.test(form.deliveryAddress)) {
+    errors.deliveryAddress = "Address must include a 6-digit pincode";
+  }
 
   form.items.forEach((item, i) => {
     if (!item.productId) errors[`items[${i}].productId`] = "Select a product";
@@ -193,6 +197,7 @@ export default function CreateOrderDrawer({ open, onClose }) {
     const errors = validate(state.form);
     if (Object.keys(errors).length > 0) {
       dispatch({ type: "SET_ERRORS", payload: errors });
+      if (errors.deliveryAddress) showToast(errors.deliveryAddress, "error");
       return;
     }
 

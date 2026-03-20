@@ -1,5 +1,10 @@
 import { useState, useEffect } from "react";
-import { useParams, useLocation, useNavigate, Navigate } from "react-router-dom";
+import {
+  useParams,
+  useLocation,
+  useNavigate,
+  Navigate,
+} from "react-router-dom";
 import {
   ArrowLeft,
   Package,
@@ -8,6 +13,7 @@ import {
   Truck,
   Loader2,
   AlertCircle,
+  AlertTriangle,
   CheckCircle2,
   Camera,
   Globe,
@@ -18,6 +24,18 @@ import { useToast } from "../context/ToastContext";
 
 // Must match SHIPMOZO_DEFAULT_WAREHOUSE_ID in server .env
 const DEFAULT_WAREHOUSE_ID = "109337";
+
+// Fixed physical specs per product (weight in grams, dimensions in cm)
+const PRODUCT_DIMENSIONS = {
+  "BMW Brake Caliper Lamp": { weight: 1000, length: 27, width: 26, height: 12 },
+  "Stationery Suit Pen Stand": {
+    weight: 1000,
+    length: 12,
+    width: 12,
+    height: 12,
+  },
+};
+// add here new products size
 
 function InfoRow({ label, value, mono = false }) {
   return (
@@ -51,26 +69,45 @@ function SectionCard({ icon: Icon, title, badge, children }) {
 
 export default function CreateShipment() {
   const { orderId } = useParams();
-  const location    = useLocation();
-  const navigate    = useNavigate();
+  const location = useLocation();
+  const navigate = useNavigate();
   const { showToast } = useToast();
 
   // Order is passed via navigation state from the Orders table row
   const order = location.state?.order;
 
-  const [warehouses,   setWarehouses]   = useState([]);
-  const [submitting,   setSubmitting]   = useState(false);
-  const [submitError,  setSubmitError]  = useState(null);
-  const [success,      setSuccess]      = useState(false);
+  const [warehouses, setWarehouses] = useState([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
+  const [success, setSuccess] = useState(false);
 
-  const [form, setForm] = useState({
-    paymentType: "PREPAID",
-    weight:      "500",
-    length:      "10",
-    width:       "10",
-    height:      "10",
-    warehouseId: DEFAULT_WAREHOUSE_ID,
+  // Auto-detect product from first item for pre-fill
+  const firstProductName =
+    order?.items?.[0]?.productSnapshot?.productName ?? "";
+  const [dimensionPreset, setDimensionPreset] = useState(
+    PRODUCT_DIMENSIONS[firstProductName] ? firstProductName : "",
+  );
+
+  const [form, setForm] = useState(() => {
+    const dims = PRODUCT_DIMENSIONS[firstProductName] ?? null;
+    return {
+      paymentType: "PREPAID",
+      weight: dims ? String(dims.weight) : "500",
+      length: dims ? String(dims.length) : "10",
+      width: dims ? String(dims.width) : "10",
+      height: dims ? String(dims.height) : "10",
+      warehouseId: DEFAULT_WAREHOUSE_ID,
+    };
   });
+
+  // Warn when order contains multiple distinct products
+  const distinctProducts = [
+    ...new Set(
+      (order?.items ?? [])
+        .map((i) => i.productSnapshot?.productName)
+        .filter(Boolean),
+    ),
+  ];
 
   // Fetch warehouses once on mount
   useEffect(() => {
@@ -81,7 +118,8 @@ export default function CreateShipment() {
         if (Array.isArray(list) && list.length > 0) {
           setWarehouses(list);
           const match = list.find(
-            (w) => String(w.id ?? w.warehouse_id ?? "") === DEFAULT_WAREHOUSE_ID,
+            (w) =>
+              String(w.id ?? w.warehouse_id ?? "") === DEFAULT_WAREHOUSE_ID,
           );
           const preselect = match
             ? DEFAULT_WAREHOUSE_ID
@@ -100,23 +138,23 @@ export default function CreateShipment() {
   }
 
   const isInstagram = Boolean(order.customerName);
-  const orderType   = isInstagram ? "INSTAGRAM" : "WEBSITE";
+  const orderType = isInstagram ? "INSTAGRAM" : "WEBSITE";
 
   // ── Derived display values ─────────────────────────────────────────────────
-  const customerName  = isInstagram ? order.customerName : null;
+  const customerName = isInstagram ? order.customerName : null;
   const customerPhone = isInstagram ? order.contactNumber : null;
   const address = isInstagram
     ? order.deliveryAddress
-    : order.deliveryAddress?.formattedAddress ?? null;
+    : (order.deliveryAddress?.formattedAddress ?? null);
   const formattedAmount =
     typeof order.amount === "number"
       ? `₹${order.amount.toLocaleString()}`
       : "—";
   const formattedDate = order.createdAt
     ? new Date(order.createdAt).toLocaleDateString("en-IN", {
-        day:   "2-digit",
+        day: "2-digit",
         month: "long",
-        year:  "numeric",
+        year: "numeric",
       })
     : "—";
 
@@ -126,31 +164,60 @@ export default function CreateShipment() {
     setSubmitError(null);
   };
 
+  const handlePresetChange = (name) => {
+    setDimensionPreset(name);
+    if (name && PRODUCT_DIMENSIONS[name]) {
+      const d = PRODUCT_DIMENSIONS[name];
+      setForm((f) => ({
+        ...f,
+        weight: String(d.weight),
+        length: String(d.length),
+        width: String(d.width),
+        height: String(d.height),
+      }));
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitError(null);
 
-    const w  = Number(form.weight);
-    const l  = Number(form.length);
+    const w = Number(form.weight);
+    const l = Number(form.length);
     const wi = Number(form.width);
-    const h  = Number(form.height);
+    const h = Number(form.height);
 
-    if (!w  || w  <= 0) { setSubmitError("Weight must be a positive number (grams)."); return; }
-    if (!l  || l  <= 0) { setSubmitError("Length must be a positive number (cm)."); return; }
-    if (!wi || wi <= 0) { setSubmitError("Width must be a positive number (cm)."); return; }
-    if (!h  || h  <= 0) { setSubmitError("Height must be a positive number (cm)."); return; }
-    if (!form.warehouseId.trim()) { setSubmitError("Warehouse is required."); return; }
+    if (!w || w <= 0) {
+      setSubmitError("Weight must be a positive number (grams).");
+      return;
+    }
+    if (!l || l <= 0) {
+      setSubmitError("Length must be a positive number (cm).");
+      return;
+    }
+    if (!wi || wi <= 0) {
+      setSubmitError("Width must be a positive number (cm).");
+      return;
+    }
+    if (!h || h <= 0) {
+      setSubmitError("Height must be a positive number (cm).");
+      return;
+    }
+    if (!form.warehouseId.trim()) {
+      setSubmitError("Warehouse is required.");
+      return;
+    }
 
     setSubmitting(true);
     try {
       await apiClient.post("/admin/shipmozo/push-order", {
-        orderId:     order.orderId,
+        orderId: order.orderId,
         orderType,
         warehouseId: form.warehouseId.trim(),
         paymentType: form.paymentType,
         weight: w,
         length: l,
-        width:  wi,
+        width: wi,
         height: h,
       });
       setSuccess(true);
@@ -174,10 +241,12 @@ export default function CreateShipment() {
           <CheckCircle2 className="h-8 w-8 text-green-600" />
         </div>
         <div className="text-center">
-          <h2 className="text-xl font-semibold text-gray-900">Shipment Created!</h2>
+          <h2 className="text-xl font-semibold text-gray-900">
+            Shipment Created!
+          </h2>
           <p className="text-sm text-gray-500 mt-1">
-            Order <span className="font-mono">{order.orderId}</span> has been pushed to
-            Shipmozo.
+            Order <span className="font-mono">{order.orderId}</span> has been
+            pushed to Shipmozo.
           </p>
           <p className="text-xs text-gray-400 mt-1.5">
             Redirecting to Shipments dashboard…
@@ -212,16 +281,16 @@ export default function CreateShipment() {
               {isInstagram ? "Instagram" : "Website"}
             </span>
           </div>
-          <p className="text-xs font-mono text-gray-400 mt-0.5">{order.orderId}</p>
+          <p className="text-xs font-mono text-gray-400 mt-0.5">
+            {order.orderId}
+          </p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} noValidate>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-
           {/* ══ Left column — order summary (read-only) ══ */}
           <div className="space-y-4">
-
             {/* Customer */}
             <SectionCard icon={User} title="Customer Details" badge="Read-only">
               <div className="space-y-3">
@@ -239,15 +308,23 @@ export default function CreateShipment() {
                 </div>
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-gray-400">Order value</p>
-                  <p className="text-base font-semibold text-gray-900">{formattedAmount}</p>
+                  <p className="text-base font-semibold text-gray-900">
+                    {formattedAmount}
+                  </p>
                 </div>
               </div>
             </SectionCard>
 
             {/* Delivery address */}
             {address && (
-              <SectionCard icon={MapPin} title="Delivery Address" badge="Read-only">
-                <p className="text-sm text-gray-600 leading-relaxed">{address}</p>
+              <SectionCard
+                icon={MapPin}
+                title="Delivery Address"
+                badge="Read-only"
+              >
+                <p className="text-sm text-gray-600 leading-relaxed">
+                  {address}
+                </p>
               </SectionCard>
             )}
 
@@ -309,9 +386,22 @@ export default function CreateShipment() {
           {/* ══ Right column — package form + action ══ */}
           <div className="space-y-4">
             <SectionCard icon={Box} title="Package Details">
+              {/* Multi-product warning */}
+              {distinctProducts.length > 1 && (
+                <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 mb-4">
+                  <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-700">
+                    Order has {distinctProducts.length} different products —
+                    verify dimensions before pushing.
+                  </p>
+                </div>
+              )}
+
               {/* Payment type */}
               <div className="mb-5">
-                <p className="text-xs font-medium text-gray-600 mb-2">Payment Type</p>
+                <p className="text-xs font-medium text-gray-600 mb-2">
+                  Payment Type
+                </p>
                 <div className="flex gap-2">
                   {["PREPAID", "COD"].map((type) => (
                     <button
@@ -350,12 +440,14 @@ export default function CreateShipment() {
               <div className="mb-4">
                 <p className="text-xs font-medium text-gray-600 mb-1.5">
                   Dimensions{" "}
-                  <span className="font-normal text-gray-400">(cm) — L × W × H</span>
+                  <span className="font-normal text-gray-400">
+                    (cm) — L × W × H
+                  </span>
                 </p>
                 <div className="grid grid-cols-3 gap-2">
                   {[
                     { field: "length", label: "Length" },
-                    { field: "width",  label: "Width" },
+                    { field: "width", label: "Width" },
                     { field: "height", label: "Height" },
                   ].map(({ field, label }) => (
                     <div key={field}>
@@ -375,6 +467,30 @@ export default function CreateShipment() {
                 </div>
               </div>
 
+              {/* OR divider + autofill preset */}
+              <div className="mb-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="flex-1 h-px bg-gray-200" />
+                  <span className="text-xs font-medium text-gray-400">OR</span>
+                  <div className="flex-1 h-px bg-gray-200" />
+                </div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                  Select package to autofill dimensions
+                </label>
+                <select
+                  value={dimensionPreset}
+                  onChange={(e) => handlePresetChange(e.target.value)}
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                >
+                  <option value="">— select to pre-fill —</option>
+                  {Object.entries(PRODUCT_DIMENSIONS).map(([name, d]) => (
+                    <option key={name} value={name}>
+                      {name} ({d.length} × {d.width} × {d.height}) cm
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               {/* Warehouse */}
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1.5">
@@ -383,16 +499,19 @@ export default function CreateShipment() {
                 {warehouses.length > 0 ? (
                   <select
                     value={form.warehouseId}
-                    onChange={(e) => handleChange("warehouseId", e.target.value)}
+                    onChange={(e) =>
+                      handleChange("warehouseId", e.target.value)
+                    }
                     className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                   >
                     {warehouses.map((w) => {
-                      const id    = String(w.id ?? w.warehouse_id ?? "");
+                      const id = String(w.id ?? w.warehouse_id ?? "");
                       const title = w.address_title ?? w.name ?? id;
-                      const city  = w.city ? ` · ${w.city}` : "";
+                      const city = w.city ? ` · ${w.city}` : "";
                       return (
                         <option key={id} value={id}>
-                          {title}{city}
+                          {title}
+                          {city}
                         </option>
                       );
                     })}
@@ -401,7 +520,9 @@ export default function CreateShipment() {
                   <input
                     type="text"
                     value={form.warehouseId}
-                    onChange={(e) => handleChange("warehouseId", e.target.value)}
+                    onChange={(e) =>
+                      handleChange("warehouseId", e.target.value)
+                    }
                     placeholder="Warehouse ID"
                     className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900"
                   />
@@ -437,8 +558,8 @@ export default function CreateShipment() {
             </button>
 
             <p className="text-xs text-center text-gray-400">
-              Customer and item details are auto-filled from your database.
-              Only specify the physical package dimensions.
+              Customer and item details are auto-filled from your database. Only
+              specify the physical package dimensions.
             </p>
           </div>
         </div>
