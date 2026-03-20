@@ -7,6 +7,8 @@ import Products from "./pages/Products";
 import Waitlist from "./pages/Waitlist";
 import Orders from "./pages/Orders";
 import Coupons from "./pages/Coupons";
+import Shipments from "./pages/Shipments";
+import CreateShipment from "./pages/CreateShipment";
 
 function App() {
   return (
@@ -19,6 +21,8 @@ function App() {
           <Route path="/admin/waitlist" element={<Waitlist />} />
           <Route path="/admin/orders" element={<Orders />} />
           <Route path="/admin/coupons" element={<Coupons />} />
+          <Route path="/admin/shipments" element={<Shipments />} />
+          <Route path="/admin/shipment/create/:orderId" element={<CreateShipment />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />

@@ -5,6 +5,7 @@ import {
   Users,
   ShoppingCart,
   Ticket,
+  Truck,
   LogOut,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
@@ -12,8 +13,9 @@ import { useAuth } from "../context/AuthContext";
 const navLinks = [
   { to: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/admin/products", label: "Products", icon: Package },
-  { to: "/admin/orders", label: "Orders", icon: ShoppingCart },
-  { to: "/admin/coupons", label: "Coupons", icon: Ticket },
+  { to: "/admin/orders",     label: "Orders",     icon: ShoppingCart },
+  { to: "/admin/shipments", label: "Shipments", icon: Truck },
+  { to: "/admin/coupons",   label: "Coupons",   icon: Ticket },
   { to: "/admin/waitlist", label: "Waitlist", icon: Users },
 ];
 

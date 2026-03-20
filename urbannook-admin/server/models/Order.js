@@ -34,4 +34,9 @@ const orderSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Indexes for high-performance filtered + sorted queries
+orderSchema.index({ createdAt: -1 });
+orderSchema.index({ status: 1 });
+orderSchema.index({ createdAt: -1, status: 1 }); // compound: filtering by status + sorting by date
+
 module.exports = mongoose.model("Order", orderSchema);
