@@ -16,6 +16,7 @@ const { getAllOrders, streamOrders } = require("../controllers/order");
 const {
   getAllInstagramOrders,
   createInstagramOrder,
+  updateInstagramOrder,
   streamInstagramOrders,
 } = require("../controllers/instagramOrder");
 const {
@@ -91,6 +92,7 @@ router.get("/orders/stream", verifyAuth, streamOrders);
 router.get("/orders/instagram", verifyAuth, getAllInstagramOrders);
 router.get("/orders/instagram/stream", verifyAuth, streamInstagramOrders);
 router.post("/orders/instagram", verifyAuth, createInstagramOrder);
+router.put("/orders/instagram/:orderId", verifyAuth, updateInstagramOrder);
 
 // Shipmozo shipping routes (verifyAuth applied to entire sub-router)
 router.use("/shipmozo", verifyAuth, shipmozoRoutes);
