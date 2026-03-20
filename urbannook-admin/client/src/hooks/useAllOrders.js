@@ -4,8 +4,8 @@ import { useToast } from "../context/ToastContext";
 
 const BASE =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1";
-const WEB_SSE_URL = `${BASE}/admin/orders/stream`;
-const IG_SSE_URL = `${BASE}/admin/orders/instagram/stream`;
+const WEB_SSE_URL = `${BASE}admin/orders/stream`;
+const IG_SSE_URL = `${BASE}admin/orders/instagram/stream`;
 
 const FETCH_LIMIT = 500;
 const PAGE_SIZE = 20;
