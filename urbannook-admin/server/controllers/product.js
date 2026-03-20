@@ -1,7 +1,7 @@
-const { uuidv7 } = require("uuidv7");
-const Product = require("../models/Product");
-const Counter = require("../models/Counter");
-const { ApiResponse, ApiError } = require("../utils/apiResponse");
+import { uuidv7 } from "uuidv7";
+import Product from "../models/Product.js";
+import Counter from "../models/Counter.js";
+import { ApiResponse, ApiError } from "../utils/apiResponse.js";
 
 const getAllProducts = async (req, res, next) => {
   try {
@@ -246,7 +246,7 @@ const getHomepageProducts = async (req, res, next) => {
   }
 };
 
-module.exports = {
+export {
   getAllProducts,
   addProduct,
   updateProduct,

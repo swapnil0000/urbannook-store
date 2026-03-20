@@ -50,4 +50,4 @@ function parseAddress(raw) {
   return { addressLine1, city, state, pincode, parseSuccess: true };
 }
 
-module.exports = { parseAddress };
+export { parseAddress };

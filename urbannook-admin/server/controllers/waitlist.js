@@ -1,5 +1,5 @@
-const Waitlist = require("../models/Waitlist");
-const { ApiResponse } = require("../utils/apiResponse");
+import Waitlist from "../models/Waitlist.js";
+import { ApiResponse } from "../utils/apiResponse.js";
 
 const getWaitlistUsers = async (req, res) => {
   const users = await Waitlist.find();
@@ -13,4 +13,4 @@ const getWaitlistUsers = async (req, res) => {
   );
 };
 
-module.exports = { getWaitlistUsers };
+export { getWaitlistUsers };

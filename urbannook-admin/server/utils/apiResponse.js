@@ -1,4 +1,4 @@
-class ApiResponse {
+export class ApiResponse {
   constructor(statusCode, message, data = null) {
     this.statusCode = statusCode;
     this.message = message;
@@ -7,7 +7,7 @@ class ApiResponse {
   }
 }
 
-class ApiError extends Error {
+export class ApiError extends Error {
   constructor(statusCode, message) {
     super(message);
     this.statusCode = statusCode;
@@ -15,5 +15,3 @@ class ApiError extends Error {
     this.success = false;
   }
 }
-
-module.exports = { ApiResponse, ApiError };

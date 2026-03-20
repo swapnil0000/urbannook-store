@@ -152,7 +152,7 @@ function reducer(state, action) {
 }
 
 //   Hook
-export function useAllOrders() {
+export function useAllOrders({ refreshKey = 0 } = {}) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const { showToast } = useToast();
 
@@ -266,7 +266,7 @@ export function useAllOrders() {
     [showToast],
   );
 
-  //   Re-fetch when server-side filters change
+  //   Re-fetch when server-side filters change OR env switches
   // channel is client-side only — changing it does NOT trigger a re-fetch
   useEffect(() => {
     const f = {
@@ -283,6 +283,7 @@ export function useAllOrders() {
     state.filters.endDate,
     fetchWebsite,
     fetchInstagram,
+    refreshKey,
   ]);
 
   //   SSE — website stream

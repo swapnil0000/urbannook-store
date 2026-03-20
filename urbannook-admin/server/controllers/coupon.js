@@ -1,6 +1,6 @@
-const { uuidv7 } = require("uuidv7");
-const Coupon = require("../models/Coupon");
-const { ApiResponse, ApiError } = require("../utils/apiResponse");
+import { uuidv7 } from "uuidv7";
+import Coupon from "../models/Coupon.js";
+import { ApiResponse, ApiError } from "../utils/apiResponse.js";
 
 const createCoupon = async (req, res) => {
   const { name, discountType, discountValue, maxDiscount, minCartValue, desc } = req.body;
@@ -120,7 +120,7 @@ const deleteCoupon = async (req, res) => {
   res.status(200).json(new ApiResponse(200, "Coupon deleted successfully", coupon));
 };
 
-module.exports = {
+export {
   createCoupon,
   listCoupons,
   editCoupon,

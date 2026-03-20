@@ -1,7 +1,7 @@
-const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
-const Admin = require("../models/Admin");
-const { ApiResponse, ApiError } = require("../utils/apiResponse");
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import Admin from "../models/Admin.js";
+import { ApiResponse, ApiError } from "../utils/apiResponse.js";
 
 const login = async (req, res) => {
   const { email, password } = req.body;
@@ -52,4 +52,4 @@ const logout = async (req, res) => {
     .json(new ApiResponse(200, "Logout successful"));
 };
 
-module.exports = { login, logout };
+export { login, logout };

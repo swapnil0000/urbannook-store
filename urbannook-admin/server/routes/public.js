@@ -1,14 +1,15 @@
-const express = require("express");
-const router = express.Router();
-const {
+import express from "express";
+import {
   getProducts,
   getProductById,
   getHomepageProducts,
-} = require("../controllers/product");
+} from "../controllers/product.js";
+
+const router = express.Router();
 
 // Public product routes (no auth middleware)
 router.get("/products", getProducts);
 router.get("/product/:productId", getProductById);
 router.get("/products/homepage", getHomepageProducts);
 
-module.exports = router;
+export default router;

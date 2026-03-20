@@ -1,30 +1,40 @@
-const express = require("express");
-const router = express.Router();
-const multer = require("multer");
-const { login, logout } = require("../controllers/auth");
-const { verifyAuth } = require("../middleware/auth");
-const shipmozoRoutes = require("./shipmozo");
-const {
+import express from "express";
+import multer from "multer";
+import { login, logout } from "../controllers/auth.js";
+import { verifyAuth } from "../middleware/auth.js";
+import {
   getAllProducts,
   addProduct,
   updateProduct,
   deleteProduct,
-} = require("../controllers/product");
-const { uploadImage, uploadMultipleImages } = require("../controllers/upload");
-const { getWaitlistUsers } = require("../controllers/waitlist");
-const { getAllOrders, streamOrders } = require("../controllers/order");
-const {
+} from "../controllers/product.js";
+import { uploadImage, uploadMultipleImages } from "../controllers/upload.js";
+import { getWaitlistUsers } from "../controllers/waitlist.js";
+import {
+  getAllOrders,
+  getOrderById,
+  updateOrderStatus,
+  updateOrderTracking,
+  getDashboardStats,
+  streamOrders,
+} from "../controllers/order.js";
+import {
   getAllInstagramOrders,
   createInstagramOrder,
   streamInstagramOrders,
-} = require("../controllers/instagramOrder");
-const {
+} from "../controllers/instagramOrder.js";
+import {
   createCoupon,
   listCoupons,
   editCoupon,
   togglePublish,
   deleteCoupon,
-} = require("../controllers/coupon");
+} from "../controllers/coupon.js";
+import { getEnv, switchEnv } from "../controllers/envSwitch.js";
+import { getAbandonedCarts } from "../controllers/abandonedCart.js";
+import shipmozoRoutes from "./shipmozo.js";
+
+const router = express.Router();
 
 // Multer config — store in memory, max 5MB per file
 const upload = multer({
@@ -39,7 +49,7 @@ const upload = multer({
   },
 });
 
-// Wrap multer for Express 5 compatibility (multer uses callbacks, Express 5 needs promises)
+// Wrap multer for Express 5 compatibility
 function multerSingle(fieldName) {
   return (req, res, next) => {
     return new Promise((resolve, reject) => {
@@ -81,19 +91,25 @@ router.delete("/delete/inventory/:productId", verifyAuth, deleteProduct);
 // Protected waitlist routes
 router.get("/joined/waitlist", verifyAuth, getWaitlistUsers);
 
-// Protected website order routes
-router.get("/orders", verifyAuth, getAllOrders);
-// SSE stream — must be declared before any wildcard routes
+// Env switcher
+router.get("/env", verifyAuth, getEnv);
+router.post("/env/switch", verifyAuth, switchEnv);
+
+// Dashboard stats
+router.get("/dashboard/stats", verifyAuth, getDashboardStats);
+
+// Abandoned carts
+router.get("/abandoned-carts", verifyAuth, getAbandonedCarts);
+
+// Protected order routes — specific paths before wildcard /:orderId
 router.get("/orders/stream", verifyAuth, streamOrders);
-
-// Protected Instagram order routes
-// Specific paths declared before any wildcard — order matters in Express
-router.get("/orders/instagram", verifyAuth, getAllInstagramOrders);
 router.get("/orders/instagram/stream", verifyAuth, streamInstagramOrders);
+router.get("/orders/instagram", verifyAuth, getAllInstagramOrders);
 router.post("/orders/instagram", verifyAuth, createInstagramOrder);
-
-// Shipmozo shipping routes (verifyAuth applied to entire sub-router)
-router.use("/shipmozo", verifyAuth, shipmozoRoutes);
+router.get("/orders", verifyAuth, getAllOrders);
+router.get("/orders/:orderId", verifyAuth, getOrderById);
+router.patch("/orders/:orderId/status", verifyAuth, updateOrderStatus);
+router.patch("/orders/:orderId/tracking", verifyAuth, updateOrderTracking);
 
 // Protected coupon routes
 router.post("/coupon/create", verifyAuth, createCoupon);
@@ -102,4 +118,7 @@ router.put("/coupon/edit/:couponCodeId", verifyAuth, editCoupon);
 router.patch("/coupon/toggle/:couponCodeId", verifyAuth, togglePublish);
 router.delete("/coupon/delete/:couponCodeId", verifyAuth, deleteCoupon);
 
-module.exports = router;
+// Shipmozo shipping routes
+router.use("/shipmozo", verifyAuth, shipmozoRoutes);
+
+export default router;

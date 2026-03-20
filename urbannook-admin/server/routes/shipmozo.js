@@ -1,6 +1,5 @@
-const express = require("express");
-const router = express.Router();
-const {
+import express from "express";
+import {
   pushOrderToCourier,
   getShipmentByOrderId,
   listWarehouses,
@@ -10,7 +9,9 @@ const {
   getLabelForShipment,
   trackShipment,
   cancelShipment,
-} = require("../controllers/shipmozo");
+} from "../controllers/shipmozo.js";
+
+const router = express.Router();
 
 // Phase 1 — push order flow (used by OrderDetailDrawer)
 router.post("/push-order",           pushOrderToCourier);
@@ -25,4 +26,4 @@ router.get("/shipments/:id/label",            getLabelForShipment);
 router.get("/shipments/:id/track",            trackShipment);
 router.post("/shipments/:id/cancel",          cancelShipment);
 
-module.exports = router;
+export default router;
