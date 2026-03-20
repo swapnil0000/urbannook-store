@@ -286,8 +286,104 @@ const streamInstagramOrders = (req, res) => {
   });
 };
 
+// PUT /admin/orders/instagram/:orderId
+// Updates an existing Instagram order. Product snapshots are rebuilt from current
+// product data so prices are always current. orderId is immutable.
+const updateInstagramOrder = async (req, res, next) => {
+  try {
+    const { customerName, contactNumber, deliveryAddress, notes, status, items } = req.body;
+
+    // ── Validate ──────────────────────────────────────────────────────────────
+    const validationErrors = [];
+
+    if (!customerName || typeof customerName !== "string" || !customerName.trim()) {
+      validationErrors.push("Customer name is required.");
+    }
+    if (!contactNumber || typeof contactNumber !== "string" || !contactNumber.trim()) {
+      validationErrors.push("Contact number is required.");
+    }
+    if (!deliveryAddress || typeof deliveryAddress !== "string" || !deliveryAddress.trim()) {
+      validationErrors.push("Delivery address is required.");
+    }
+    if (!Array.isArray(items) || items.length === 0) {
+      validationErrors.push("At least one item is required.");
+    } else {
+      items.forEach((item, i) => {
+        if (!item.productId || typeof item.productId !== "string" || !item.productId.trim()) {
+          validationErrors.push(`Item ${i + 1}: product is required.`);
+        }
+        const qty = parseInt(item.quantity, 10);
+        if (!Number.isFinite(qty) || qty < 1) {
+          validationErrors.push(`Item ${i + 1}: quantity must be at least 1.`);
+        }
+      });
+    }
+    if (status !== undefined && !ALLOWED_STATUSES.has(status)) {
+      validationErrors.push(`Status must be one of: ${[...ALLOWED_STATUSES].join(", ")}.`);
+    }
+
+    if (validationErrors.length > 0) {
+      throw new ApiError(400, validationErrors.join(" "));
+    }
+
+    // ── Find order ────────────────────────────────────────────────────────────
+    const order = await InstagramOrder.findOne({ orderId: req.params.orderId });
+    if (!order) throw new ApiError(404, `Instagram order "${req.params.orderId}" not found.`);
+
+    // ── Rebuild items with fresh product snapshots ────────────────────────────
+    const productIds = items.map((i) => i.productId.trim());
+    const products = await Product.find({ productId: { $in: productIds } }).lean();
+    const productMap = new Map(products.map((p) => [p.productId, p]));
+
+    const missingIds = productIds.filter((id) => !productMap.has(id));
+    if (missingIds.length > 0) {
+      throw new ApiError(400, `Products not found: ${missingIds.join(", ")}`);
+    }
+
+    const builtItems = items.map((item) => {
+      const p = productMap.get(item.productId.trim());
+      const quantity = parseInt(item.quantity, 10);
+      return {
+        productId: p.productId,
+        productSnapshot: {
+          productName:        p.productName,
+          productImg:         p.productImg,
+          quantity,
+          productCategory:    p.productCategory,
+          productSubCategory: p.productSubCategory ?? null,
+          priceAtPurchase:    p.sellingPrice,
+        },
+      };
+    });
+
+    const amount = builtItems.reduce(
+      (sum, item) =>
+        sum + item.productSnapshot.priceAtPurchase * item.productSnapshot.quantity,
+      0,
+    );
+
+    // ── Apply changes ─────────────────────────────────────────────────────────
+    order.customerName    = customerName.trim();
+    order.contactNumber   = contactNumber.trim();
+    order.deliveryAddress = deliveryAddress.trim();
+    order.notes           = notes?.trim() || undefined;
+    order.items           = builtItems;
+    order.amount          = amount;
+    if (status) order.status = status;
+
+    await order.save();
+
+    return res
+      .status(200)
+      .json(new ApiResponse(200, "Instagram order updated successfully.", order));
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getAllInstagramOrders,
   createInstagramOrder,
+  updateInstagramOrder,
   streamInstagramOrders,
 };
