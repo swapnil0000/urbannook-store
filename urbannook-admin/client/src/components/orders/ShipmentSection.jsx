@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Truck, Loader2, ArrowRight } from "lucide-react";
 import apiClient from "../../api/axios";
-import { useToast } from "../../context/ToastContext";
 
 const STATUS_COLORS = {
   PUSHED:             "bg-blue-50 text-blue-700 border-blue-200",
@@ -31,8 +30,7 @@ const STATUS_COLORS = {
  *   • "Create Shipment →" navigation button if none exists
  */
 export default function ShipmentSection({ orderId, orderType, order }) {
-  const navigate    = useNavigate();
-  const { showToast } = useToast();
+  const navigate = useNavigate();
 
   const [shipment,        setShipment]        = useState(undefined); // undefined = loading
   const [loadingShipment, setLoadingShipment] = useState(true);
@@ -142,20 +140,11 @@ export default function ShipmentSection({ orderId, orderType, order }) {
           <p className="text-sm text-gray-500">No shipment created yet.</p>
           <button
             type="button"
-            onClick={() => {
-              // Website orders must be PAID before shipping
-              const isInstagram = Boolean(order?.customerName);
-              if (!isInstagram && order?.status !== "PAID") {
-                showToast(
-                  `Action Denied: Only PAID orders can be shipped. Current status: ${order?.status ?? "unknown"}.`,
-                  "error",
-                );
-                return;
-              }
+            onClick={() =>
               navigate(`/admin/shipment/create/${orderId}`, {
                 state: { order: order ?? { orderId } },
-              });
-            }}
+              })
+            }
             className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-900 hover:text-gray-700 transition-colors"
           >
             <Truck className="h-3.5 w-3.5" />
