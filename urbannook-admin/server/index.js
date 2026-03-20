@@ -1,7 +1,7 @@
-// Load environment variables based on NODE_ENV
-const envFile =
-  process.env.NODE_ENV === "production" ? ".env.production" : ".env";
-require("dotenv").config({ path: envFile });
+// Load environment variables from file only in development
+if (process.env.NODE_ENV !== "production") {
+  require("dotenv").config({ path: ".env" });
+}
 
 const http = require("http");
 const express = require("express");
