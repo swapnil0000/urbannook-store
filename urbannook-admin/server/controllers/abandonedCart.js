@@ -3,8 +3,8 @@ import User from "../models/User.js";
 import { ApiResponse } from "../utils/apiResponse.js";
 
 // GET /admin/abandoned-carts
-// Pure read — no writes to any collection
-// Uses aggregation to avoid $nin on large paidUserIds array
+// Case 1 (never_ordered): non-empty cart + user has NEVER placed a PAID order
+// Case 2 (re_abandoned):  non-empty cart + cart.updatedAt > user's last PAID order createdAt
 export const getAbandonedCarts = async (req, res) => {
   const rawPage = parseInt(req.query.page, 10);
   const rawLimit = parseInt(req.query.limit, 10);
@@ -12,15 +12,14 @@ export const getAbandonedCarts = async (req, res) => {
   const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 50) : 20;
   const skip = (page - 1) * limit;
 
-  // Aggregation pipeline:
-  // 1. Only carts with non-empty products
-  // 2. Left-join orders collection — keep only carts with NO paid order for that userId
-  // 3. Sort, paginate
   const pipeline = [
     // Stage 1: non-empty products only
-    { $match: { products: { $exists: true, $not: { $size: 0 } } } },
+    {
+      $match: { products: { $exists: true, $not: { $size: 0 } } },
+    },
 
-    // Stage 2: lookup paid orders for this userId
+    // Stage 2: lookup the user's most recent PAID order
+    // NOTE: use $$uid (double-dollar) to reference the let variable
     {
       $lookup: {
         from: "orders",
@@ -31,26 +30,55 @@ export const getAbandonedCarts = async (req, res) => {
               $expr: {
                 $and: [
                   { $eq: ["$userId", "$$uid"] },
-                  { $eq: ["$status", "PAID"] },
+                  { $eq: ["$paymentStatus", "PAID"] },
                 ],
               },
             },
           },
-          { $limit: 1 },          // we only need to know if one exists
-          { $project: { _id: 1 } },
+          { $sort: { createdAt: -1 } },
+          { $limit: 1 },
+          { $project: { _id: 0, createdAt: 1 } },
         ],
-        as: "paidOrders",
+        as: "lastPaidOrder",
       },
     },
 
-    // Stage 3: keep only carts with zero paid orders
-    { $match: { paidOrders: { $size: 0 } } },
+    // Stage 3: keep cart if:
+    //   - user has NO paid order ever (case 1), OR
+    //   - cart updatedAt is AFTER their last paid order (case 2)
+    {
+      $match: {
+        $expr: {
+          $or: [
+            { $eq: [{ $size: "$lastPaidOrder" }, 0] },
+            {
+              $gt: [
+                "$updatedAt",
+                { $arrayElemAt: ["$lastPaidOrder.createdAt", 0] },
+              ],
+            },
+          ],
+        },
+      },
+    },
 
-    // Stage 4: drop the joined array — not needed in output
-    { $project: { paidOrders: 0 } },
+    // Stage 4: tag each cart with which case it belongs to
+    {
+      $addFields: {
+        cartCase: {
+          $cond: {
+            if: { $eq: [{ $size: "$lastPaidOrder" }, 0] },
+            then: "never_ordered",
+            else: "re_abandoned",
+          },
+        },
+      },
+    },
+
+    // Stage 5: drop the joined array
+    { $project: { lastPaidOrder: 0 } },
   ];
 
-  // Run count + paginated fetch in parallel
   const [countResult, carts] = await Promise.all([
     Cart.aggregate([...pipeline, { $count: "total" }]),
     Cart.aggregate([
@@ -63,9 +91,7 @@ export const getAbandonedCarts = async (req, res) => {
 
   const total = countResult[0]?.total ?? 0;
 
-  // Enrich with user details — single read query
   const userIds = carts.map((c) => c.userId).filter(Boolean);
-
   const users = userIds.length
     ? await User.find(
         { userId: { $in: userIds } },
@@ -74,9 +100,7 @@ export const getAbandonedCarts = async (req, res) => {
     : [];
 
   const userMap = {};
-  for (const u of users) {
-    userMap[u.userId] = u;
-  }
+  for (const u of users) userMap[u.userId] = u;
 
   const enriched = carts.map((cart) => {
     const u = userMap[cart.userId] || {};

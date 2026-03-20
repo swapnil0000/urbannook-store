@@ -4,6 +4,11 @@ import apiClient from "../api/axios";
 import { useToast } from "../context/ToastContext";
 import { useEnv } from "../context/EnvContext";
 
+const TABS = [
+  { key: "never_ordered", label: "Never Ordered", desc: "Added to cart but never placed any paid order" },
+  { key: "re_abandoned", label: "Re-Abandoned", desc: "Placed an order before, then added to cart again and left" },
+];
+
 export default function AbandonedCarts() {
   const { showToast } = useToast();
   const { refreshKey } = useEnv();
@@ -13,12 +18,13 @@ export default function AbandonedCarts() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
+  const [activeTab, setActiveTab] = useState("never_ordered");
 
   const fetchCarts = useCallback(async (p = 1) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await apiClient.get("/admin/abandoned-carts", { params: { page: p, limit: 20 } });
+      const res = await apiClient.get("/admin/abandoned-carts", { params: { page: p, limit: 50 } });
       const data = res.data.data;
       setCarts(data.carts || []);
       setPagination(data.pagination || { currentPage: p, totalPages: 0, total: 0 });
@@ -41,6 +47,10 @@ export default function AbandonedCarts() {
     setPage(p);
     fetchCarts(p);
   };
+
+  const filteredCarts = carts.filter((c) => c.cartCase === activeTab);
+  const neverCount = carts.filter((c) => c.cartCase === "never_ordered").length;
+  const reAbandonedCount = carts.filter((c) => c.cartCase === "re_abandoned").length;
 
   if (loading) {
     return (
@@ -68,29 +78,69 @@ export default function AbandonedCarts() {
       <div className="flex items-center gap-3 mb-4">
         <ShoppingCart className="h-6 w-6 text-gray-700" />
         <h1 className="text-2xl font-bold text-gray-900">Abandoned Carts</h1>
-        <span className="ml-auto text-sm text-gray-500">{pagination.total} total</span>
+        <span className="ml-auto text-sm text-gray-500">
+          {pagination.total} total across both tabs (current page)
+        </span>
       </div>
 
       {/* Info note */}
-      <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-6 text-sm text-amber-800 space-y-1">
+      <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-5 text-sm text-amber-800 space-y-1">
         <p className="font-semibold">Who is shown here?</p>
         <ul className="list-disc list-inside space-y-0.5 text-amber-700">
           <li>Users who have at least one product in their cart (non-empty)</li>
-          <li>Users who have never completed a successful payment (no PAID order)</li>
+          <li><span className="font-medium">Never Ordered</span> — never completed a successful payment (no PAID order ever)</li>
+          <li><span className="font-medium">Re-Abandoned</span> — placed a paid order before, then added to cart again and left</li>
         </ul>
         <p className="font-semibold mt-1">Details available:</p>
         <ul className="list-disc list-inside space-y-0.5 text-amber-700">
           <li>Name &amp; Email — available for all users</li>
-          <li>Phone number — only for users who signed up with email (not available for Google login users)</li>
+          <li>Phone number — only for email sign-up users (not available for Google login users)</li>
           <li>Products in cart and applied coupon (if any)</li>
         </ul>
-        <p className="mt-2 text-amber-600 italic">Need different filters or more details? Contact the super admin. 😄</p>
+        <p className="font-semibold mt-1">About the total count:</p>
+        <ul className="list-disc list-inside space-y-0.5 text-amber-700">
+          <li>The <span className="font-medium">{pagination.total} total</span> shown is the combined count of both tabs (Never Ordered + Re-Abandoned) fetched in the current page batch (up to 50 per page)</li>
+          <li>Each tab's badge shows how many of those are in that category on this page</li>
+          <li>To see all carts, paginate through — each page fetches up to 50 records sorted by last active</li>
+        </ul>
+        <p className="mt-2 text-amber-600 italic">Need different filters or more details? Contact the admin.</p>
       </div>
 
-      {carts.length === 0 ? (
+      {/* Tabs */}
+      <div className="flex gap-1 mb-5 border-b border-gray-200">
+        {TABS.map((tab) => {
+          const count = tab.key === "never_ordered" ? neverCount : reAbandonedCount;
+          const isActive = activeTab === tab.key;
+          return (
+            <button
+              key={tab.key}
+              onClick={() => { setActiveTab(tab.key); setExpandedId(null); }}
+              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
+                isActive
+                  ? "border-gray-900 text-gray-900"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              {tab.label}
+              <span className={`px-1.5 py-0.5 rounded-full text-xs font-semibold ${
+                isActive ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-600"
+              }`}>
+                {count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Tab description */}
+      <p className="text-sm text-gray-500 mb-4">
+        {TABS.find((t) => t.key === activeTab)?.desc}
+      </p>
+
+      {filteredCarts.length === 0 ? (
         <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
           <ShoppingCart className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500 font-medium">No abandoned carts</p>
+          <p className="text-gray-500 font-medium">No carts in this category</p>
         </div>
       ) : (
         <>
@@ -110,7 +160,7 @@ export default function AbandonedCarts() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {carts.map((cart) => (
+                  {filteredCarts.map((cart) => (
                     <CartRow
                       key={cart._id}
                       cart={cart}
