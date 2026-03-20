@@ -209,7 +209,7 @@ export default function Orders() {
       )}
 
       {/*   Drawers     */}
-      <OrderDetailDrawer order={selectedOrder} onClose={closeDrawer} onOrderUpdated={refetch} />
+      <OrderDetailDrawer order={selectedOrder} onClose={closeDrawer} />
       <CreateOrderDrawer
         open={createOpen}
         onClose={() => setCreateOpen(false)}

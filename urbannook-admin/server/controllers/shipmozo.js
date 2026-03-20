@@ -93,26 +93,11 @@ const pushOrderToCourier = async (req, res, next) => {
       consigneePhone = parseInt(rawDigits.slice(-10), 10);
       rawAddress     = order.deliveryAddress;
     } else {
-      // WEBSITE: name/phone are provided by admin in the Create Shipment form.
-      // Fall back to env vars only if not supplied (legacy / batch scripts).
-      const bodyName  = typeof req.body.consigneeName  === "string" ? req.body.consigneeName.trim()  : "";
-      const bodyPhone = typeof req.body.consigneePhone === "string" ? req.body.consigneePhone.trim() : "";
-
-      if (!bodyName) {
-        throw new ApiError(400, "consigneeName is required for website orders.");
-      }
-      if (!bodyPhone) {
-        throw new ApiError(400, "consigneePhone is required for website orders.");
-      }
-
-      consigneeName  = bodyName;
-      const rawDigits = bodyPhone.replace(/\D/g, "");
-      consigneePhone = parseInt(rawDigits.slice(-10), 10);
-      if (!Number.isFinite(consigneePhone)) {
-        throw new ApiError(400, "consigneePhone must contain at least 10 digits.");
-      }
-
-      rawAddress = order.deliveryAddress?.formattedAddress || "";
+      // WEBSITE: name/phone not stored in Order model — use env var fallbacks.
+      // TODO: replace with actual DB lookup once customer data is available here.
+      consigneeName  = process.env.SHIPMOZO_FALLBACK_NAME  || "UrbanNook Customer";
+      consigneePhone = parseInt(process.env.SHIPMOZO_FALLBACK_PHONE, 10) || 9999999999;
+      rawAddress     = order.deliveryAddress?.formattedAddress || "";
     }
 
     // ── 5. Parse address string ───────────────────────────────────────────────
@@ -541,19 +526,13 @@ const cancelShipment = async (req, res, next) => {
       throw new ApiError(400, "Shipment is already cancelled.");
     }
 
-    const shipmozoOrderId = record.shipmozoOrderId || record.sourceOrderId;
+    // Shipmozo requires awb_number as a number; use 0 for PUSHED orders with no AWB
+    const awbNum = record.awbNumber ? parseInt(record.awbNumber, 10) : 0;
 
-    // Build cancel payload. Only include awb_number when we actually have one —
-    // sending 0 causes Shipmozo to return result:"1" without actually cancelling.
-    const cancelPayload = { order_id: shipmozoOrderId };
-    if (record.awbNumber) {
-      const awbNum = parseInt(record.awbNumber, 10);
-      if (!isNaN(awbNum)) cancelPayload.awb_number = awbNum;
-    }
-
-    console.log("[Shipmozo] Cancel payload:", JSON.stringify(cancelPayload));
-    const cancelResult = await shipmozoService.cancelOrder(cancelPayload);
-    console.log("[Shipmozo] Cancel response:", JSON.stringify(cancelResult));
+    await shipmozoService.cancelOrder({
+      order_id:   record.shipmozoOrderId || record.sourceOrderId,
+      awb_number: isNaN(awbNum) ? 0 : awbNum,
+    });
 
     record.shipmentStatus = "CANCELLED";
     record.isCancelled    = true;

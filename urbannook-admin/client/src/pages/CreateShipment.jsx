@@ -64,14 +64,12 @@ export default function CreateShipment() {
   const [success,      setSuccess]      = useState(false);
 
   const [form, setForm] = useState({
-    consigneeName:  "",
-    consigneePhone: "",
-    paymentType:    "PREPAID",
-    weight:         "500",
-    length:         "10",
-    width:          "10",
-    height:         "10",
-    warehouseId:    DEFAULT_WAREHOUSE_ID,
+    paymentType: "PREPAID",
+    weight:      "500",
+    length:      "10",
+    width:       "10",
+    height:      "10",
+    warehouseId: DEFAULT_WAREHOUSE_ID,
   });
 
   // Fetch warehouses once on mount
@@ -137,8 +135,6 @@ export default function CreateShipment() {
     const wi = Number(form.width);
     const h  = Number(form.height);
 
-    if (!isInstagram && !form.consigneeName.trim()) { setSubmitError("Customer name is required."); return; }
-    if (!isInstagram && !form.consigneePhone.trim()) { setSubmitError("Customer phone is required."); return; }
     if (!w  || w  <= 0) { setSubmitError("Weight must be a positive number (grams)."); return; }
     if (!l  || l  <= 0) { setSubmitError("Length must be a positive number (cm)."); return; }
     if (!wi || wi <= 0) { setSubmitError("Width must be a positive number (cm)."); return; }
@@ -156,11 +152,6 @@ export default function CreateShipment() {
         length: l,
         width:  wi,
         height: h,
-        // Website-only: admin-entered consignee details
-        ...(!isInstagram && {
-          consigneeName:  form.consigneeName.trim(),
-          consigneePhone: form.consigneePhone.trim(),
-        }),
       });
       setSuccess(true);
       showToast("Shipment pushed to Shipmozo!", "success");
@@ -232,11 +223,7 @@ export default function CreateShipment() {
           <div className="space-y-4">
 
             {/* Customer */}
-            <SectionCard
-              icon={User}
-              title="Customer Details"
-              badge={isInstagram ? "Read-only" : undefined}
-            >
+            <SectionCard icon={User} title="Customer Details" badge="Read-only">
               <div className="space-y-3">
                 {isInstagram ? (
                   <>
@@ -244,34 +231,7 @@ export default function CreateShipment() {
                     <InfoRow label="Phone" value={customerPhone} />
                   </>
                 ) : (
-                  <>
-                    <InfoRow label="Customer ID" value={order.userId} mono />
-                    {/* Editable consignee fields for website orders */}
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">
-                        Consignee Name <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={form.consigneeName}
-                        onChange={(e) => handleChange("consigneeName", e.target.value)}
-                        placeholder="e.g. Rahul Sharma"
-                        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">
-                        Consignee Phone <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={form.consigneePhone}
-                        onChange={(e) => handleChange("consigneePhone", e.target.value)}
-                        placeholder="e.g. +91 98765 43210"
-                        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                      />
-                    </div>
-                  </>
+                  <InfoRow label="Customer ID" value={order.userId} mono />
                 )}
                 <div className="flex items-center justify-between pt-2 border-t border-gray-100">
                   <p className="text-xs text-gray-400">Order date</p>
@@ -477,9 +437,8 @@ export default function CreateShipment() {
             </button>
 
             <p className="text-xs text-center text-gray-400">
-              {isInstagram
-                ? "Customer and item details are auto-filled. Only specify the physical package dimensions."
-                : "Enter the consignee name and phone, then specify the physical package dimensions."}
+              Customer and item details are auto-filled from your database.
+              Only specify the physical package dimensions.
             </p>
           </div>
         </div>
