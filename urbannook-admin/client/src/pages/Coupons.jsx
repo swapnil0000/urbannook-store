@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { Ticket, Plus, Pencil, Trash2, Loader2, AlertCircle, RefreshCw, Eye, EyeOff } from "lucide-react";
 import apiClient from "../api/axios";
 import { useToast } from "../context/ToastContext";
-
+// coupon
 export default function Coupons() {
   const { showToast } = useToast();
   const [coupons, setCoupons] = useState([]);
