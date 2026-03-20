@@ -1,6 +1,7 @@
 import ShipmentRecord from "../models/ShipmentRecord.js";
 import InstagramOrder from "../models/InstagramOrder.js";
 import Order from "../models/Order.js";
+import User from "../models/User.js";
 import { ApiResponse, ApiError } from "../utils/apiResponse.js";
 import { parseAddress } from "../utils/addressParser.js";
 import * as shipmozoService from "../services/shipmozoService.js";
@@ -119,11 +120,22 @@ const pushOrderToCourier = async (req, res, next) => {
       consigneePhone = parseInt(rawDigits.slice(-10), 10);
       rawAddress = order.deliveryAddress;
     } else {
-      // WEBSITE: name/phone not stored in Order model — use env var fallbacks.
-      // TODO: replace with actual DB lookup once customer data is available here.
-      consigneeName  = process.env.SHIPMOZO_FALLBACK_NAME  || "UrbanNook Customer";
-      consigneePhone = parseInt(process.env.SHIPMOZO_FALLBACK_PHONE, 10) || 9999999999;
-      rawAddress     = order.deliveryAddress?.formattedAddress || "";
+      // WEBSITE: look up customer name and mobile from the User collection (read-only)
+      const user = await User.findOne({ userId: order.userId }, { name: 1, mobileNumber: 1 }).lean();
+      if (!user) {
+        throw new ApiError(404, `User not found for order "${cleanOrderId}". Cannot build consignee details.`);
+      }
+      if (!user.name) {
+        throw new ApiError(400, `User "${order.userId}" has no name on record.`);
+      }
+      if (!user.mobileNumber) {
+        throw new ApiError(400, `User "${order.userId}" has no mobile number on record.`);
+      }
+      consigneeName = user.name;
+      // mobileNumber is stored as Number in prod — convert to string, strip non-digits, take last 10
+      const rawDigits = String(user.mobileNumber).replace(/\D/g, "");
+      consigneePhone = parseInt(rawDigits.slice(-10), 10);
+      rawAddress = order.deliveryAddress?.formattedAddress || "";
     }
 
     // ── 5. Parse address string ───────────────────────────────────────────────
@@ -605,13 +617,19 @@ const cancelShipment = async (req, res, next) => {
       throw new ApiError(400, "Shipment is already cancelled.");
     }
 
-    // Shipmozo requires awb_number as a number; use 0 for PUSHED orders with no AWB
-    const awbNum = record.awbNumber ? parseInt(record.awbNumber, 10) : 0;
+    const shipmozoOrderId = record.shipmozoOrderId || record.sourceOrderId;
 
-    await shipmozoService.cancelOrder({
-      order_id:   record.shipmozoOrderId || record.sourceOrderId,
-      awb_number: isNaN(awbNum) ? 0 : awbNum,
-    });
+    // Only include awb_number when we have a real one — sending 0 causes
+    // Shipmozo to return result:"1" without actually cancelling the order.
+    const cancelPayload = { order_id: shipmozoOrderId };
+    if (record.awbNumber) {
+      const awbNum = parseInt(record.awbNumber, 10);
+      if (!isNaN(awbNum)) cancelPayload.awb_number = awbNum;
+    }
+
+    console.log("[Shipmozo] Cancel payload:", JSON.stringify(cancelPayload));
+    const cancelResult = await shipmozoService.cancelOrder(cancelPayload);
+    console.log("[Shipmozo] Cancel response:", JSON.stringify(cancelResult));
 
     record.shipmentStatus = "CANCELLED";
     record.isCancelled = true;
