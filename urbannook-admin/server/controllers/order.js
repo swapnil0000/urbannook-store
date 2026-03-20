@@ -1,6 +1,7 @@
 import Order from "../models/Order.js";
 import Product from "../models/Product.js";
 import Waitlist from "../models/Waitlist.js";
+import User from "../models/User.js";
 import { ApiResponse, ApiError } from "../utils/apiResponse.js";
 import orderEventEmitter from "../utils/orderEvents.js";
 

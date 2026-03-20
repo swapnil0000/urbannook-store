@@ -1,7 +1,10 @@
-// Load environment variables based on NODE_ENV
+// Load environment variables from file only in development
 import dotenv from "dotenv";
-const envFile = process.env.NODE_ENV === "production" ? ".env.production" : ".env";
-dotenv.config({ path: envFile });
+if (process.env.NODE_ENV !== "production") {
+  dotenv.config({
+    path: ".env",
+  });
+}
 
 import http from "http";
 import express from "express";
@@ -54,7 +57,9 @@ app.use((err, _req, res, _next) => {
   }
   const statusCode = err.statusCode || 500;
   const message = err.message || "Internal Server Error";
-  res.status(statusCode).json({ statusCode, message, data: null, success: false });
+  res
+    .status(statusCode)
+    .json({ statusCode, message, data: null, success: false });
 });
 
 let changeStreamRetryTimer = null;
@@ -91,7 +96,10 @@ function setupOrderChangeStream() {
 
     console.log("[ChangeStream] Watching Order collection for inserts");
   } catch (err) {
-    console.warn("[ChangeStream] Unavailable — real-time sync disabled.", `Reason: ${err.message}`);
+    console.warn(
+      "[ChangeStream] Unavailable — real-time sync disabled.",
+      `Reason: ${err.message}`,
+    );
   }
 }
 
@@ -105,7 +113,9 @@ function setupInstagramChangeStream() {
     changeStream.on("change", (change) => {
       if (change.fullDocument) {
         orderEventEmitter.emit("new_instagram_order", change.fullDocument);
-        console.log(`[ChangeStream:Instagram] New order: ${change.fullDocument.orderId}`);
+        console.log(
+          `[ChangeStream:Instagram] New order: ${change.fullDocument.orderId}`,
+        );
       }
     });
 
@@ -120,9 +130,14 @@ function setupInstagramChangeStream() {
       setTimeout(setupInstagramChangeStream, 5000);
     });
 
-    console.log("[ChangeStream] Watching InstagramOrder collection for inserts");
+    console.log(
+      "[ChangeStream] Watching InstagramOrder collection for inserts",
+    );
   } catch (err) {
-    console.warn("[ChangeStream:Instagram] Unavailable.", `Reason: ${err.message}`);
+    console.warn(
+      "[ChangeStream:Instagram] Unavailable.",
+      `Reason: ${err.message}`,
+    );
   }
 }
 

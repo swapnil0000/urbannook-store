@@ -2,8 +2,9 @@ import { ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import OrderRow from "./OrderRow";
 
 const COLUMNS = [
-  { label: "Order ID", field: null },           // not sortable (arbitrary string)
+  { label: "Order ID", field: null },
   { label: "Customer", field: null },
+  { label: "Name", field: null },
   { label: "Items", field: null },
   { label: "Total", field: "amount" },
   { label: "Status", field: null },

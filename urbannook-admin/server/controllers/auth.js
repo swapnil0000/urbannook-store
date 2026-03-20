@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import Admin from "../models/Admin.js";
 import { ApiResponse, ApiError } from "../utils/apiResponse.js";
+import { cookieOptions } from "../config/cookieOptions.js";
 
 const login = async (req, res) => {
   const { email, password } = req.body;
@@ -28,11 +29,7 @@ const login = async (req, res) => {
 
   res
     .status(200)
-    .cookie("adminAccessToken", adminAccessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-    })
+    .cookie("adminAccessToken", adminAccessToken, cookieOptions)
     .json(
       new ApiResponse(200, "Login successful", {
         userEmail: admin.email,
@@ -44,11 +41,7 @@ const login = async (req, res) => {
 const logout = async (req, res) => {
   res
     .status(200)
-    .clearCookie("adminAccessToken", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-    })
+    .clearCookie("adminAccessToken", cookieOptions)
     .json(new ApiResponse(200, "Logout successful"));
 };
 
