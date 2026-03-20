@@ -1,30 +1,25 @@
-import { createContext, useContext, useState, useEffect } from "react";
-import { useCookies } from "react-cookie";
+import { createContext, useContext, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import apiClient from "../api/axios";
 
 const AuthContext = createContext(null);
 
+function getTokenFromCookie() {
+  const match = document.cookie.match(/(?:^|;\s*)adminAccessToken=([^;]+)/);
+  return match ? match[1] : null;
+}
+
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [cookies, setCookie, removeCookie] = useCookies(["adminAccessToken"]);
+  const [user, setUser] = useState(() =>
+    getTokenFromCookie() ? { email: "admin" } : null
+  );
   const navigate = useNavigate();
 
-  // On mount, check if cookie exists and set initial auth state
-  useEffect(() => {
-    if (cookies.adminAccessToken && !user) {
-      setUser({ email: "admin" });
-    }
-  }, []);
-
-  const isAuthenticated = !!cookies.adminAccessToken;
+  const isAuthenticated = !!user;
 
   const login = async (email, password) => {
     const response = await apiClient.post("/admin/login", { email, password });
     setUser({ email: response.data.data.userEmail });
-    setCookie("adminAccessToken", response.data.data.adminAccessToken, {
-      path: "/",
-    });
     navigate("/admin/dashboard");
     return response;
   };
@@ -35,7 +30,6 @@ export function AuthProvider({ children }) {
     } catch {
       // Proceed with client-side logout even if server call fails
     }
-    removeCookie("adminAccessToken", { path: "/" });
     setUser(null);
     navigate("/admin/login");
   };

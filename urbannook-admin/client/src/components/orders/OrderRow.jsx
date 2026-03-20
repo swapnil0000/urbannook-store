@@ -51,10 +51,15 @@ export default function OrderRow({ order, isSelected, onSelect }) {
     navigate(`/admin/shipment/create/${order.orderId}`, { state: { order } });
   };
 
-  // Customer column: name for Instagram, userId for website
+  // Customer column: userId for website, N/A for Instagram
   const customerDisplay = isInstagram
-    ? order.customerName || "—"
+    ? "N/A"
     : order.userId || "—";
+
+  // Name column: customerName for Instagram, userName for website
+  const nameDisplay = isInstagram
+    ? order.customerName || "—"
+    : order.userName || "—";
 
   return (
     <tr
@@ -80,8 +85,12 @@ export default function OrderRow({ order, isSelected, onSelect }) {
           <span title={order.orderId}>{displayOrderId}</span>
         </div>
       </td>
+      
       <td className="px-6 py-4 text-sm text-gray-600 max-w-[160px] truncate">
         {customerDisplay}
+      </td>
+      <td className="px-6 py-4 text-sm text-gray-900 max-w-[160px] truncate">
+        {nameDisplay}
       </td>
       <td className="px-6 py-4 text-sm text-gray-600">
         {itemCount} {itemCount === 1 ? "item" : "items"}

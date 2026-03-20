@@ -1,9 +1,9 @@
-const ShipmentRecord = require("../models/ShipmentRecord");
-const InstagramOrder = require("../models/InstagramOrder");
-const Order = require("../models/Order");
-const { ApiResponse, ApiError } = require("../utils/apiResponse");
-const { parseAddress } = require("../utils/addressParser");
-const shipmozoService = require("../services/shipmozoService");
+import ShipmentRecord from "../models/ShipmentRecord.js";
+import InstagramOrder from "../models/InstagramOrder.js";
+import Order from "../models/Order.js";
+import { ApiResponse, ApiError } from "../utils/apiResponse.js";
+import { parseAddress } from "../utils/addressParser.js";
+import * as shipmozoService from "../services/shipmozoService.js";
 
 // Valid payment types accepted by Shipmozo
 const ALLOWED_PAYMENT_TYPES = new Set(["PREPAID", "COD"]);
@@ -12,17 +12,21 @@ const ALLOWED_PAYMENT_TYPES = new Set(["PREPAID", "COD"]);
 const ALLOWED_ORDER_TYPES = new Set(["WEBSITE", "INSTAGRAM"]);
 
 // Statuses from which cancellation is not allowed
-const NON_CANCELLABLE_STATUSES = new Set(["DELIVERED", "CANCELLED", "RTO_DELIVERED"]);
+const NON_CANCELLABLE_STATUSES = new Set([
+  "DELIVERED",
+  "CANCELLED",
+  "RTO_DELIVERED",
+]);
 
 // Map Shipmozo tracking status strings → our ShipmentRecord enum values
 const TRACKING_STATUS_MAP = {
-  "IN_TRANSIT":        "IN_TRANSIT",
-  "OUT_FOR_DELIVERY":  "OUT_FOR_DELIVERY",
-  "DELIVERED":         "DELIVERED",
-  "RTO_INITIATED":     "RTO_INITIATED",
-  "RTO_DELIVERED":     "RTO_DELIVERED",
-  "CANCELLED":         "CANCELLED",
-  "EXCEPTION":         "EXCEPTION",
+  IN_TRANSIT: "IN_TRANSIT",
+  OUT_FOR_DELIVERY: "OUT_FOR_DELIVERY",
+  DELIVERED: "DELIVERED",
+  RTO_INITIATED: "RTO_INITIATED",
+  RTO_DELIVERED: "RTO_DELIVERED",
+  CANCELLED: "CANCELLED",
+  EXCEPTION: "EXCEPTION",
 };
 
 // POST /admin/shipmozo/push-order
@@ -30,8 +34,16 @@ const TRACKING_STATUS_MAP = {
 // Customer name/address are auto-mapped from the DB — zero manual typing.
 const pushOrderToCourier = async (req, res, next) => {
   try {
-    const { orderId, orderType, warehouseId, paymentType, weight, length, width, height } =
-      req.body;
+    const {
+      orderId,
+      orderType,
+      warehouseId,
+      paymentType,
+      weight,
+      length,
+      width,
+      height,
+    } = req.body;
 
     // ── 1. Validate all 8 required fields ─────────────────────────────────────
     const errors = [];
@@ -40,24 +52,36 @@ const pushOrderToCourier = async (req, res, next) => {
       errors.push("orderId is required.");
     }
     if (!orderType || !ALLOWED_ORDER_TYPES.has(orderType)) {
-      errors.push(`orderType must be one of: ${[...ALLOWED_ORDER_TYPES].join(", ")}.`);
+      errors.push(
+        `orderType must be one of: ${[...ALLOWED_ORDER_TYPES].join(", ")}.`,
+      );
     }
-    if (!warehouseId || typeof warehouseId !== "string" || !warehouseId.trim()) {
+    if (
+      !warehouseId ||
+      typeof warehouseId !== "string" ||
+      !warehouseId.trim()
+    ) {
       errors.push("warehouseId is required.");
     }
     if (!paymentType || !ALLOWED_PAYMENT_TYPES.has(paymentType)) {
-      errors.push(`paymentType must be one of: ${[...ALLOWED_PAYMENT_TYPES].join(", ")}.`);
+      errors.push(
+        `paymentType must be one of: ${[...ALLOWED_PAYMENT_TYPES].join(", ")}.`,
+      );
     }
 
     const numWeight = Number(weight);
     const numLength = Number(length);
-    const numWidth  = Number(width);
+    const numWidth = Number(width);
     const numHeight = Number(height);
 
-    if (!Number.isFinite(numWeight) || numWeight <= 0) errors.push("weight must be a positive number (grams).");
-    if (!Number.isFinite(numLength) || numLength <= 0) errors.push("length must be a positive number (cm).");
-    if (!Number.isFinite(numWidth)  || numWidth  <= 0) errors.push("width must be a positive number (cm).");
-    if (!Number.isFinite(numHeight) || numHeight <= 0) errors.push("height must be a positive number (cm).");
+    if (!Number.isFinite(numWeight) || numWeight <= 0)
+      errors.push("weight must be a positive number (grams).");
+    if (!Number.isFinite(numLength) || numLength <= 0)
+      errors.push("length must be a positive number (cm).");
+    if (!Number.isFinite(numWidth) || numWidth <= 0)
+      errors.push("width must be a positive number (cm).");
+    if (!Number.isFinite(numHeight) || numHeight <= 0)
+      errors.push("height must be a positive number (cm).");
 
     if (errors.length > 0) {
       throw new ApiError(400, errors.join(" "));
@@ -66,7 +90,9 @@ const pushOrderToCourier = async (req, res, next) => {
     const cleanOrderId = orderId.trim();
 
     // ── 2. Duplicate check ────────────────────────────────────────────────────
-    const existing = await ShipmentRecord.findOne({ sourceOrderId: cleanOrderId });
+    const existing = await ShipmentRecord.findOne({
+      sourceOrderId: cleanOrderId,
+    });
     if (existing) {
       throw new ApiError(400, "Shipment already exists for this order.");
     }
@@ -87,11 +113,11 @@ const pushOrderToCourier = async (req, res, next) => {
     let consigneeName, consigneePhone, rawAddress;
 
     if (orderType === "INSTAGRAM") {
-      consigneeName  = order.customerName;
+      consigneeName = order.customerName;
       // Strip non-digits, then take last 10 digits to drop country code (91/+91)
       const rawDigits = order.contactNumber.replace(/\D/g, "");
       consigneePhone = parseInt(rawDigits.slice(-10), 10);
-      rawAddress     = order.deliveryAddress;
+      rawAddress = order.deliveryAddress;
     } else {
       // WEBSITE: name/phone not stored in Order model — use env var fallbacks.
       // TODO: replace with actual DB lookup once customer data is available here.
@@ -116,72 +142,89 @@ const pushOrderToCourier = async (req, res, next) => {
       const warehouses = warehouseData?.data ?? warehouseData ?? [];
       const match = Array.isArray(warehouses)
         ? warehouses.find(
-            (w) => String(w.id ?? w.warehouse_id ?? "").trim() === warehouseId.trim(),
+            (w) =>
+              String(w.id ?? w.warehouse_id ?? "").trim() ===
+              warehouseId.trim(),
           )
         : null;
       if (match) {
         pickupPincode =
-          String(match.pincode ?? match.zip ?? match.postal_code ?? "").trim() || null;
+          String(
+            match.pincode ?? match.zip ?? match.postal_code ?? "",
+          ).trim() || null;
       }
     } catch {
-      console.warn("[Shipmozo] Could not resolve warehouse pincode — pickupPincode will be null");
+      console.warn(
+        "[Shipmozo] Could not resolve warehouse pincode — pickupPincode will be null",
+      );
     }
 
     // ── 6. Build product_detail array ────────────────────────────────────────
     const productDetail = (order.items || []).map((item) => ({
-      name:             item.productSnapshot?.productName  || "Product",
-      sku_number:       item.productId                     || "",
-      quantity:         item.productSnapshot?.quantity     || 1,
-      unit_price:       item.productSnapshot?.priceAtPurchase || 0,
-      discount:         "",
+      name: item.productSnapshot?.productName || "Product",
+      sku_number: item.productId || "",
+      quantity: item.productSnapshot?.quantity || 1,
+      unit_price: item.productSnapshot?.priceAtPurchase || 0,
+      discount: "",
       product_category: item.productSnapshot?.productCategory || "Other",
     }));
 
     // ── 7. Build Shipmozo payload ─────────────────────────────────────────────
     const shipmozoPayload = {
-      order_id:                    cleanOrderId,
-      order_date:                  new Date().toISOString().split("T")[0],
-      consignee_name:              consigneeName,
-      consignee_phone:             consigneePhone,
-      consignee_address_line_one:  parsed.addressLine1,
-      consignee_pin_code:          parseInt(parsed.pincode, 10),
-      consignee_city:              parsed.city,
-      consignee_state:             parsed.state,
-      product_detail:              productDetail,
-      payment_type:                paymentType,
-      weight:                      numWeight,
-      length:                      numLength,
-      width:                       numWidth,
-      height:                      numHeight,
-      warehouse_id:                warehouseId.trim(),
+      order_id: cleanOrderId,
+      order_date: new Date().toISOString().split("T")[0],
+      consignee_name: consigneeName,
+      consignee_phone: consigneePhone,
+      consignee_address_line_one: parsed.addressLine1,
+      consignee_pin_code: parseInt(parsed.pincode, 10),
+      consignee_city: parsed.city,
+      consignee_state: parsed.state,
+      product_detail: productDetail,
+      payment_type: paymentType,
+      weight: numWeight,
+      length: numLength,
+      width: numWidth,
+      height: numHeight,
+      warehouse_id: warehouseId.trim(),
     };
 
     // ── 8. Push to Shipmozo ───────────────────────────────────────────────────
-    console.log("[Shipmozo] Target URL:", `${process.env.SHIPMOZO_BASE_URL}/push-order`);
-    console.log("[Shipmozo] Pushing order payload:", JSON.stringify(shipmozoPayload, null, 2));
+    console.log(
+      "[Shipmozo] Target URL:",
+      `${process.env.SHIPMOZO_BASE_URL}/push-order`,
+    );
+    console.log(
+      "[Shipmozo] Pushing order payload:",
+      JSON.stringify(shipmozoPayload, null, 2),
+    );
     const shipmozoResponse = await shipmozoService.pushOrder(shipmozoPayload);
-    console.log("[Shipmozo] Success response:", JSON.stringify(shipmozoResponse, null, 2));
+    console.log(
+      "[Shipmozo] Success response:",
+      JSON.stringify(shipmozoResponse, null, 2),
+    );
 
     // Shipmozo generates its own order_id (e.g. "48321AP367463468983").
     // Our UUID is stored as data.refrence_id (their typo) and is NOT accepted by
     // assign-courier, rate-calculator, or cancel-order — we must use their ID.
     const shipmozoGeneratedId = shipmozoResponse?.data?.order_id ?? null;
     if (!shipmozoGeneratedId) {
-      console.warn("[Shipmozo] push-order response did not include data.order_id — shipmozoOrderId will be null");
+      console.warn(
+        "[Shipmozo] push-order response did not include data.order_id — shipmozoOrderId will be null",
+      );
     }
 
     // ── 9. Persist shipment record ────────────────────────────────────────────
     const record = await ShipmentRecord.create({
-      sourceOrderId:   cleanOrderId,
+      sourceOrderId: cleanOrderId,
       sourceOrderType: orderType,
       shipmozoOrderId: shipmozoGeneratedId,
-      warehouseId:     warehouseId.trim(),
+      warehouseId: warehouseId.trim(),
       paymentType,
-      weight:          numWeight,
-      length:          numLength,
-      width:           numWidth,
-      height:          numHeight,
-      shipmentStatus:  "PUSHED",
+      weight: numWeight,
+      length: numLength,
+      width: numWidth,
+      height: numHeight,
+      shipmentStatus: "PUSHED",
       deliveryPincode: parsed.pincode,
       pickupPincode,
     });
@@ -230,14 +273,20 @@ const listWarehouses = async (req, res, next) => {
 // Query params: status (comma-separated), page, limit
 const listShipments = async (req, res, next) => {
   try {
-    const page  = Math.max(1, parseInt(req.query.page,  10) || 1);
-    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 20));
-    const skip  = (page - 1) * limit;
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(
+      50,
+      Math.max(1, parseInt(req.query.limit, 10) || 20),
+    );
+    const skip = (page - 1) * limit;
 
     // Build status match — supports single value or comma-separated for tab groups
     const matchStage = {};
     if (req.query.status) {
-      const statuses = req.query.status.split(",").map((s) => s.trim()).filter(Boolean);
+      const statuses = req.query.status
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
       if (statuses.length === 1) {
         matchStage.shipmentStatus = statuses[0];
       } else if (statuses.length > 1) {
@@ -274,7 +323,7 @@ const listShipments = async (req, res, next) => {
           $addFields: {
             _sourceOrder: {
               $cond: {
-                if:   { $eq: ["$sourceOrderType", "INSTAGRAM"] },
+                if: { $eq: ["$sourceOrderType", "INSTAGRAM"] },
                 then: { $arrayElemAt: ["$_igOrder", 0] },
                 else: { $arrayElemAt: ["$_webOrder", 0] },
               },
@@ -284,9 +333,9 @@ const listShipments = async (req, res, next) => {
         // Drop the raw lookup arrays + heavy fields not needed in list view
         {
           $project: {
-            _webOrder:      0,
-            _igOrder:       0,
-            labelBase64:    0,
+            _webOrder: 0,
+            _igOrder: 0,
+            labelBase64: 0,
             trackingHistory: 0,
           },
         },
@@ -299,7 +348,7 @@ const listShipments = async (req, res, next) => {
         shipments: records,
         pagination: {
           currentPage: page,
-          totalPages:  Math.max(1, Math.ceil(totalCount / limit)),
+          totalPages: Math.max(1, Math.ceil(totalCount / limit)),
           totalRecords: totalCount,
           limit,
         },
@@ -336,30 +385,36 @@ const getRatesForShipment = async (req, res, next) => {
     try {
       const sourceOrder =
         record.sourceOrderType === "INSTAGRAM"
-          ? await InstagramOrder.findOne({ orderId: record.sourceOrderId }, { amount: 1 }).lean()
-          : await Order.findOne({ orderId: record.sourceOrderId }, { amount: 1 }).lean();
+          ? await InstagramOrder.findOne(
+              { orderId: record.sourceOrderId },
+              { amount: 1 },
+            ).lean()
+          : await Order.findOne(
+              { orderId: record.sourceOrderId },
+              { amount: 1 },
+            ).lean();
       orderAmount = sourceOrder?.amount ?? 0;
     } catch {
       // Non-fatal — proceed with 0
     }
 
     const ratePayload = {
-      order_id:         record.shipmozoOrderId || record.sourceOrderId,
-      pickup_pincode:   parseInt(record.pickupPincode,   10),
+      order_id: record.shipmozoOrderId || record.sourceOrderId,
+      pickup_pincode: parseInt(record.pickupPincode, 10),
       delivery_pincode: parseInt(record.deliveryPincode, 10),
-      payment_type:     record.paymentType,
-      shipment_type:    "FORWARD",
-      order_amount:     orderAmount,
-      type_of_package:  "SPS",
-      rov_type:         "ROV_OWNER",
-      cod_amount:       record.paymentType === "COD" ? String(orderAmount) : "",
-      weight:           record.weight,
+      payment_type: record.paymentType,
+      shipment_type: "FORWARD",
+      order_amount: orderAmount,
+      type_of_package: "SPS",
+      rov_type: "ROV_OWNER",
+      cod_amount: record.paymentType === "COD" ? String(orderAmount) : "",
+      weight: record.weight,
       dimensions: [
         {
           no_of_box: "1",
-          length:    String(record.length),
-          width:     String(record.width),
-          height:    String(record.height),
+          length: String(record.length),
+          width: String(record.width),
+          height: String(record.height),
         },
       ],
     };
@@ -391,7 +446,7 @@ const assignCourierToShipment = async (req, res, next) => {
     }
 
     const result = await shipmozoService.assignCourier({
-      order_id:   record.shipmozoOrderId || record.sourceOrderId,
+      order_id: record.shipmozoOrderId || record.sourceOrderId,
       courier_id: Number(courierId),
     });
 
@@ -400,13 +455,14 @@ const assignCourierToShipment = async (req, res, next) => {
     const courierName =
       typeof result.data?.courier === "string"
         ? result.data.courier
-        : result.data?.courier?.name ?? null;
+        : (result.data?.courier?.name ?? null);
 
     record.shipmentStatus = "ASSIGNED";
     record.courierCompany = courierName;
 
     // Prefer awb_number from assign response; fall back to reference_id
-    const awbFromAssign = result.data?.awb_number ?? result.data?.reference_id ?? null;
+    const awbFromAssign =
+      result.data?.awb_number ?? result.data?.reference_id ?? null;
     if (awbFromAssign && !record.awbNumber) {
       record.awbNumber = String(awbFromAssign);
     }
@@ -427,7 +483,10 @@ const assignCourierToShipment = async (req, res, next) => {
         }
       } catch (pickupErr) {
         // Non-fatal — AWB may arrive later via tracking webhook
-        console.warn("[Shipmozo] schedulePickup failed (non-fatal):", pickupErr?.message);
+        console.warn(
+          "[Shipmozo] schedulePickup failed (non-fatal):",
+          pickupErr?.message,
+        );
       }
     }
 
@@ -435,7 +494,13 @@ const assignCourierToShipment = async (req, res, next) => {
 
     return res
       .status(200)
-      .json(new ApiResponse(200, "Courier assigned successfully.", record.toObject()));
+      .json(
+        new ApiResponse(
+          200,
+          "Courier assigned successfully.",
+          record.toObject(),
+        ),
+      );
   } catch (err) {
     next(err);
   }
@@ -448,14 +513,21 @@ const getLabelForShipment = async (req, res, next) => {
     const record = await ShipmentRecord.findById(req.params.id).lean();
     if (!record) throw new ApiError(404, "Shipment record not found.");
     if (!record.awbNumber) {
-      throw new ApiError(400, "No AWB number — courier has not been assigned yet.");
+      throw new ApiError(
+        400,
+        "No AWB number — courier has not been assigned yet.",
+      );
     }
 
     // Return cached label without hitting Shipmozo again
     if (record.labelBase64) {
       return res
         .status(200)
-        .json(new ApiResponse(200, "Label fetched (cached).", { label: record.labelBase64 }));
+        .json(
+          new ApiResponse(200, "Label fetched (cached).", {
+            label: record.labelBase64,
+          }),
+        );
     }
 
     const data = await shipmozoService.getLabel(record.awbNumber);
@@ -482,17 +554,24 @@ const trackShipment = async (req, res, next) => {
     const record = await ShipmentRecord.findById(req.params.id).lean();
     if (!record) throw new ApiError(404, "Shipment record not found.");
     if (!record.awbNumber) {
-      throw new ApiError(400, "No AWB number to track — courier has not been assigned yet.");
+      throw new ApiError(
+        400,
+        "No AWB number to track — courier has not been assigned yet.",
+      );
     }
 
-    const result   = await shipmozoService.trackOrder(record.awbNumber);
+    const result = await shipmozoService.trackOrder(record.awbNumber);
     const trackData = result?.data ?? result;
 
     // Sync status and dates back to our record
     const updateFields = { lastTrackedAt: new Date() };
 
-    if (trackData?.current_status && TRACKING_STATUS_MAP[trackData.current_status]) {
-      updateFields.shipmentStatus = TRACKING_STATUS_MAP[trackData.current_status];
+    if (
+      trackData?.current_status &&
+      TRACKING_STATUS_MAP[trackData.current_status]
+    ) {
+      updateFields.shipmentStatus =
+        TRACKING_STATUS_MAP[trackData.current_status];
     }
     if (trackData?.expected_delivery_date) {
       const parsed = new Date(trackData.expected_delivery_date);
@@ -535,7 +614,7 @@ const cancelShipment = async (req, res, next) => {
     });
 
     record.shipmentStatus = "CANCELLED";
-    record.isCancelled    = true;
+    record.isCancelled = true;
     await record.save();
 
     return res
@@ -546,7 +625,7 @@ const cancelShipment = async (req, res, next) => {
   }
 };
 
-module.exports = {
+export {
   pushOrderToCourier,
   getShipmentByOrderId,
   listWarehouses,

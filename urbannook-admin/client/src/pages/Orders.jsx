@@ -13,8 +13,11 @@ import OrdersTable from "../components/orders/OrdersTable";
 import OrderDetailDrawer from "../components/orders/OrderDetailDrawer";
 import Pagination from "../components/orders/Pagination";
 import CreateOrderDrawer from "../components/orders/CreateOrderDrawer";
+import { useEnv } from "../context/EnvContext";
 
 export default function Orders() {
+  const { refreshKey } = useEnv();
+
   const {
     orders,
     loading,
@@ -32,7 +35,7 @@ export default function Orders() {
     closeDrawer,
     dismissPending,
     refetch,
-  } = useAllOrders();
+  } = useAllOrders({ refreshKey });
 
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -80,6 +83,7 @@ export default function Orders() {
     filters.startDate ||
     filters.endDate ||
     (filters.channel && filters.channel !== "all");
+
   const isEmpty = !loading && orders.length === 0;
 
   return (
@@ -142,7 +146,7 @@ export default function Orders() {
         </div>
       )}
 
-      {/*   Toolbar with channel filter      */}
+      {/*   Toolbar  */}
       <OrdersToolbar
         filters={filters}
         sort={sort}
@@ -154,15 +158,13 @@ export default function Orders() {
         showChannelFilter
       />
 
-      {/*   Orders table or empty state      */}
+      {/*   Orders table or empty state  */}
       {isEmpty ? (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
           <ShoppingCart className="h-12 w-12 text-gray-300 mx-auto mb-4" />
           {hasActiveFilters ? (
             <>
-              <p className="text-gray-500 font-medium">
-                No orders match your filters
-              </p>
+              <p className="text-gray-500 font-medium">No orders match your filters</p>
               <p className="text-sm text-gray-400 mt-1 mb-4">
                 Try adjusting or clearing your filter criteria.
               </p>
@@ -208,7 +210,7 @@ export default function Orders() {
         </div>
       )}
 
-      {/*   Drawers     */}
+      {/*   Drawers  */}
       <OrderDetailDrawer order={selectedOrder} onClose={closeDrawer} />
       <CreateOrderDrawer
         open={createOpen}

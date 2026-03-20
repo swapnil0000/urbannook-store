@@ -2,9 +2,11 @@ import { useEffect, useState, useCallback } from "react";
 import { Users, Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import apiClient from "../api/axios";
 import { useToast } from "../context/ToastContext";
+import { useEnv } from "../context/EnvContext";
 
 export default function Waitlist() {
   const { showToast } = useToast();
+  const { refreshKey } = useEnv();
   const [users, setUsers] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -30,7 +32,7 @@ export default function Waitlist() {
 
   useEffect(() => {
     fetchWaitlist();
-  }, [fetchWaitlist]);
+  }, [fetchWaitlist, refreshKey]);
 
   if (loading) {
     return (

@@ -1,8 +1,8 @@
-const { PutObjectCommand } = require("@aws-sdk/client-s3");
-const s3Client = require("../config/s3");
-const { ApiResponse, ApiError } = require("../utils/apiResponse");
-const { uuidv7 } = require("uuidv7");
-const path = require("path");
+import { PutObjectCommand } from "@aws-sdk/client-s3";
+import s3Client from "../config/s3.js";
+import { ApiResponse, ApiError } from "../utils/apiResponse.js";
+import { uuidv7 } from "uuidv7";
+import path from "path";
 
 /**
  * Upload a single image to S3.
@@ -66,4 +66,4 @@ const uploadMultipleImages = async (req, res) => {
     .json(new ApiResponse(200, "Images uploaded successfully", { urls }));
 };
 
-module.exports = { uploadImage, uploadMultipleImages };
+export { uploadImage, uploadMultipleImages };

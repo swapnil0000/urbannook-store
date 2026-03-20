@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 const instagramOrderSchema = new mongoose.Schema(
   {
     orderId: { type: String, unique: true },
@@ -34,4 +34,4 @@ instagramOrderSchema.index({ createdAt: -1 });
 instagramOrderSchema.index({ status: 1 });
 instagramOrderSchema.index({ createdAt: -1, status: 1 });
 
-module.exports = mongoose.model("InstagramOrder", instagramOrderSchema);
+export default mongoose.model("InstagramOrder", instagramOrderSchema);

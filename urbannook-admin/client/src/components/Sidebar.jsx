@@ -7,20 +7,25 @@ import {
   Ticket,
   Truck,
   LogOut,
+  FlaskConical,
+  ShoppingBag,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { useEnv } from "../context/EnvContext";
 
 const navLinks = [
   { to: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/admin/products", label: "Products", icon: Package },
-  { to: "/admin/orders",     label: "Orders",     icon: ShoppingCart },
+  { to: "/admin/orders", label: "Orders", icon: ShoppingCart },
   { to: "/admin/shipments", label: "Shipments", icon: Truck },
-  { to: "/admin/coupons",   label: "Coupons",   icon: Ticket },
+  { to: "/admin/abandoned-carts", label: "Abandoned Carts", icon: ShoppingBag },
+  { to: "/admin/coupons", label: "Coupons", icon: Ticket },
   { to: "/admin/waitlist", label: "Waitlist", icon: Users },
 ];
 
 export default function Sidebar({ onNavigate }) {
   const { logout } = useAuth();
+  const { env, switching, switchEnv } = useEnv();
 
   const handleLogout = async () => {
     if (onNavigate) onNavigate();
@@ -54,6 +59,41 @@ export default function Sidebar({ onNavigate }) {
           </NavLink>
         ))}
       </nav>
+
+      {/* Env Switcher */}
+      <div className="px-3 pb-3 border-t border-gray-200 pt-3">
+        <p className="text-xs text-gray-400 mb-2 px-1 flex items-center gap-1">
+          <FlaskConical size={12} />
+          Data Source
+        </p>
+        <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs font-medium">
+          <button
+            onClick={() => switchEnv("dev")}
+            disabled={switching || env === null}
+            className={`flex-1 py-1.5 transition-colors disabled:opacity-50 ${
+              env === "dev"
+                ? "bg-amber-500 text-white"
+                : "bg-white text-gray-500 hover:bg-gray-50"
+            }`}
+          >
+            DEV
+          </button>
+          <button
+            onClick={() => switchEnv("prod")}
+            disabled={switching || env === null}
+            className={`flex-1 py-1.5 transition-colors disabled:opacity-50 ${
+              env === "prod"
+                ? "bg-green-600 text-white"
+                : "bg-white text-gray-500 hover:bg-gray-50"
+            }`}
+          >
+            PROD
+          </button>
+        </div>
+        {switching && (
+          <p className="text-xs text-gray-400 mt-1.5 px-1">Switching...</p>
+        )}
+      </div>
 
       {/* Logout */}
       <div className="px-3 py-4 border-t border-gray-200">

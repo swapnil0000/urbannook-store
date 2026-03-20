@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const trackingEventSchema = new mongoose.Schema(
   {
@@ -69,4 +69,4 @@ const shipmentRecordSchema = new mongoose.Schema(
 shipmentRecordSchema.index({ awbNumber: 1 }, { sparse: true });
 shipmentRecordSchema.index({ isCancelled: 1, shipmentStatus: 1 });
 
-module.exports = mongoose.model("ShipmentRecord", shipmentRecordSchema);
+export default mongoose.model("ShipmentRecord", shipmentRecordSchema);

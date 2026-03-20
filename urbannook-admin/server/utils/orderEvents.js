@@ -1,4 +1,4 @@
-const { EventEmitter } = require("events");
+import { EventEmitter } from "events";
 
 // Singleton emitter that decouples the Change Stream from SSE connections.
 // Any module can emit "new_order"; SSE handlers listen to it.
@@ -8,4 +8,4 @@ const orderEventEmitter = new EventEmitter();
 // without triggering Node's MaxListenersExceededWarning
 orderEventEmitter.setMaxListeners(100);
 
-module.exports = orderEventEmitter;
+export default orderEventEmitter;

@@ -1,19 +1,21 @@
 // Load environment variables from file only in development
+import dotenv from "dotenv";
 if (process.env.NODE_ENV !== "production") {
-  require("dotenv").config({ path: ".env" });
+  dotenv.config({
+    path: ".env",
+  });
 }
 
-const http = require("http");
-const express = require("express");
-const cors = require("cors");
-const cookieParser = require("cookie-parser");
-
-const connectDB = require("./config/db");
-const adminRoutes = require("./routes/admin");
-const publicRoutes = require("./routes/public");
-const Order = require("./models/Order");
-const InstagramOrder = require("./models/InstagramOrder");
-const orderEventEmitter = require("./utils/orderEvents");
+import http from "http";
+import express from "express";
+import cors from "cors";
+import cookieParser from "cookie-parser";
+import connectDB from "./config/db.js";
+import adminRoutes from "./routes/admin.js";
+import publicRoutes from "./routes/public.js";
+import Order from "./models/Order.js";
+import InstagramOrder from "./models/InstagramOrder.js";
+import orderEventEmitter from "./utils/orderEvents.js";
 
 const app = express();
 const server = http.createServer(app);
@@ -101,14 +103,7 @@ function setupOrderChangeStream() {
   }
 }
 
-let igChangeStreamRetryTimer = null;
-
-function setupInstagramOrderChangeStream() {
-  if (igChangeStreamRetryTimer) {
-    clearTimeout(igChangeStreamRetryTimer);
-    igChangeStreamRetryTimer = null;
-  }
-
+function setupInstagramChangeStream() {
   try {
     const changeStream = InstagramOrder.watch(
       [{ $match: { operationType: "insert" } }],
@@ -127,26 +122,20 @@ function setupInstagramOrderChangeStream() {
     changeStream.on("error", (err) => {
       console.error(`[ChangeStream:Instagram] Error: ${err.message}`);
       changeStream.close().catch(() => {});
-      igChangeStreamRetryTimer = setTimeout(
-        setupInstagramOrderChangeStream,
-        5000,
-      );
+      setTimeout(setupInstagramChangeStream, 5000);
     });
 
     changeStream.on("close", () => {
       console.warn("[ChangeStream:Instagram] Closed, restarting in 5s...");
-      igChangeStreamRetryTimer = setTimeout(
-        setupInstagramOrderChangeStream,
-        5000,
-      );
+      setTimeout(setupInstagramChangeStream, 5000);
     });
 
     console.log(
-      "[ChangeStream:Instagram] Watching InstagramOrder collection for inserts",
+      "[ChangeStream] Watching InstagramOrder collection for inserts",
     );
   } catch (err) {
     console.warn(
-      "[ChangeStream:Instagram] Unavailable — real-time sync disabled.",
+      "[ChangeStream:Instagram] Unavailable.",
       `Reason: ${err.message}`,
     );
   }
@@ -156,7 +145,7 @@ const PORT = process.env.PORT || 3000;
 
 connectDB().then(() => {
   setupOrderChangeStream();
-  setupInstagramOrderChangeStream();
+  setupInstagramChangeStream();
 
   server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
@@ -165,8 +154,5 @@ connectDB().then(() => {
 
 process.on("SIGTERM", () => {
   if (changeStreamRetryTimer) clearTimeout(changeStreamRetryTimer);
-  if (igChangeStreamRetryTimer) clearTimeout(igChangeStreamRetryTimer);
   server.close(() => process.exit(0));
 });
-
-module.exports = app;

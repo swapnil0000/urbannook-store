@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "UrbanNook Admin Panel Backend API",
   "main": "index.js",
+  "type":"module",
   "engines": {
     "node": ">=20.0.0"
   },

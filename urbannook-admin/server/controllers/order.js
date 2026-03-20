@@ -1,11 +1,14 @@
-const Order = require("../models/Order");
-const { ApiResponse } = require("../utils/apiResponse");
-const orderEventEmitter = require("../utils/orderEvents");
+import Order from "../models/Order.js";
+import Product from "../models/Product.js";
+import Waitlist from "../models/Waitlist.js";
+import User from "../models/User.js";
+import { ApiResponse, ApiError } from "../utils/apiResponse.js";
+import orderEventEmitter from "../utils/orderEvents.js";
 
 // Whitelisted sort fields — prevents arbitrary field injection
 const ALLOWED_SORT_FIELDS = new Set(["createdAt", "amount"]);
 
-// Valid statuses from the Order schema enum
+// Valid payment statuses from the Order schema enum
 const ALLOWED_STATUSES = new Set(["CREATED", "PAID", "FAILED"]);
 
 //   GET /admin/orders
@@ -29,6 +32,14 @@ const getAllOrders = async (req, res) => {
 
   if (req.query.status && ALLOWED_STATUSES.has(req.query.status)) {
     filter.status = req.query.status;
+  }
+
+  if (req.query.fulfillmentStatus) {
+    filter.fulfillmentStatus = req.query.fulfillmentStatus;
+  }
+
+  if (req.query.search) {
+    filter.orderId = { $regex: req.query.search, $options: "i" };
   }
 
   const rawStart = req.query.startDate;
@@ -77,49 +88,114 @@ const getAllOrders = async (req, res) => {
   );
 };
 
+//   GET /admin/orders/:orderId
+const getOrderById = async (req, res) => {
+  const { orderId } = req.params;
+  const order = await Order.findOne({ orderId });
+  if (!order) throw new ApiError(404, "Order not found");
+  return res.status(200).json(new ApiResponse(200, "Order fetched successfully", order));
+};
+
+//   PATCH /admin/orders/:orderId/status
+const updateOrderStatus = async (req, res) => {
+  const { orderId } = req.params;
+  const { fulfillmentStatus } = req.body;
+
+  const validStatuses = ["PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED"];
+  if (!validStatuses.includes(fulfillmentStatus)) {
+    throw new ApiError(400, `Invalid status. Must be one of: ${validStatuses.join(", ")}`);
+  }
+
+  const order = await Order.findOneAndUpdate(
+    { orderId },
+    { fulfillmentStatus },
+    { new: true },
+  );
+  if (!order) throw new ApiError(404, "Order not found");
+
+  return res.status(200).json(new ApiResponse(200, "Order status updated", order));
+};
+
+//   PATCH /admin/orders/:orderId/tracking
+const updateOrderTracking = async (req, res) => {
+  const { orderId } = req.params;
+  const { carrier, trackingNumber } = req.body;
+
+  if (!carrier || !trackingNumber) {
+    throw new ApiError(400, "Carrier and tracking number are required");
+  }
+
+  const order = await Order.findOneAndUpdate(
+    { orderId },
+    { tracking: { carrier, trackingNumber, updatedAt: new Date() } },
+    { new: true },
+  );
+  if (!order) throw new ApiError(404, "Order not found");
+
+  return res.status(200).json(new ApiResponse(200, "Tracking info updated", order));
+};
+
+//   GET /admin/dashboard/stats
+const getDashboardStats = async (req, res) => {
+  const [
+    totalOrders,
+    totalProducts,
+    totalWaitlist,
+    revenueResult,
+    pendingOrders,
+    recentOrders,
+  ] = await Promise.all([
+    Order.countDocuments({ status: "PAID" }),
+    Product.countDocuments(),
+    Waitlist.countDocuments(),
+    Order.aggregate([
+      { $match: { status: "PAID" } },
+      { $group: { _id: null, total: { $sum: "$amount" } } },
+    ]),
+    Order.countDocuments({ status: "PAID", fulfillmentStatus: "PROCESSING" }),
+    Order.find({ status: "PAID" }).sort({ createdAt: -1 }).limit(5).lean(),
+  ]);
+
+  const totalRevenue = revenueResult[0]?.total || 0;
+
+  return res.status(200).json(
+    new ApiResponse(200, "Dashboard stats fetched", {
+      totalOrders,
+      totalProducts,
+      totalWaitlist,
+      totalRevenue,
+      pendingOrders,
+      recentOrders,
+    }),
+  );
+};
+
 //   GET /admin/orders/stream  (Server-Sent Events)
-// Keeps an HTTP connection open and pushes new orders to the client as they
-// arrive via the Change Stream → orderEventEmitter pipeline.
-//
-// Why SSE over WebSocket:
-//   • Plain HTTP — no upgrade handshake, no protocol switch
-//   • Browser EventSource auto-reconnects on drop with no extra code
-//   • Credentials (cookies) are sent automatically — no manual token plumbing
-//   • One-directional by design: server → client only
 const streamOrders = (req, res) => {
-  //   SSE headers
   res.writeHead(200, {
     "Content-Type": "text/event-stream",
     "Cache-Control": "no-cache, no-transform",
     Connection: "keep-alive",
-    // Prevent nginx / proxies from buffering the stream
     "X-Accel-Buffering": "no",
   });
 
-  // Flush initial bytes so the browser opens the stream immediately
   res.write(":\n\n");
 
-  //   Heartbeat
-  // Send a comment line every 25 seconds to keep the connection alive through
-  // proxies/load-balancers that would otherwise close idle connections
   const heartbeat = setInterval(() => {
-    // SSE comment syntax — browsers silently ignore this
     res.write(":\n\n");
   }, 25_000);
 
-  //   Forward new orders to this SSE client
   const sendOrder = (order) => {
     try {
       res.write(`event: new_order\ndata: ${JSON.stringify(order)}\n\n`);
     } catch {
-      // Client disconnected between the heartbeat and this write — cleanup runs below
+      // client disconnected
     }
   };
 
   orderEventEmitter.on("new_order", sendOrder);
   console.log(`[SSE] Client connected (${req.admin?.email ?? "unknown"})`);
 
-  //   Cleanup on disconnect
   req.on("close", () => {
     clearInterval(heartbeat);
     orderEventEmitter.off("new_order", sendOrder);
@@ -127,4 +203,11 @@ const streamOrders = (req, res) => {
   });
 };
 
-module.exports = { getAllOrders, streamOrders };
+export {
+  getAllOrders,
+  getOrderById,
+  updateOrderStatus,
+  updateOrderTracking,
+  getDashboardStats,
+  streamOrders,
+};

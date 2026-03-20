@@ -1,5 +1,5 @@
-const axios = require("axios");
-const { ApiError } = require("../utils/apiResponse");
+import axios from "axios";
+import { ApiError } from "../utils/apiResponse.js";
 
 // Created once at module load — never recreated per request
 const shipmozoClient = axios.create({
@@ -20,7 +20,10 @@ const shipmozoClient = axios.create({
 shipmozoClient.interceptors.response.use(
   (response) => {
     if (response.data && response.data.result === "0") {
-      console.error("[Shipmozo] API logical failure:", JSON.stringify(response.data));
+      console.error(
+        "[Shipmozo] API logical failure:",
+        JSON.stringify(response.data),
+      );
       // Prefer the nested data.error detail over the top-level message (which is often just "Error")
       const detail =
         (response.data.data && Object.values(response.data.data)[0]) ||
@@ -36,7 +39,11 @@ shipmozoClient.interceptors.response.use(
       error.response?.data?.message ||
       error.message ||
       "Shipmozo API request failed.";
-    console.error("[Shipmozo] HTTP error:", status, JSON.stringify(error.response?.data));
+    console.error(
+      "[Shipmozo] HTTP error:",
+      status,
+      JSON.stringify(error.response?.data),
+    );
     throw new ApiError(status, message);
   },
 );
@@ -118,11 +125,13 @@ async function trackOrder(awbNumber) {
  * @param {string} orderId
  */
 async function schedulePickup(orderId) {
-  const response = await shipmozoClient.post("/schedule-pickup", { order_id: orderId });
+  const response = await shipmozoClient.post("/schedule-pickup", {
+    order_id: orderId,
+  });
   return response.data;
 }
 
-module.exports = {
+export {
   pushOrder,
   getWarehouses,
   checkApiHealth,

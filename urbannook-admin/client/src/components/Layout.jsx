@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { Outlet } from "react-router-dom";
-import { Menu, X } from "lucide-react";
+import { Menu, X, Loader2 } from "lucide-react";
 import Sidebar from "./Sidebar";
+import { useEnv } from "../context/EnvContext";
 
 export default function Layout() {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const { switching, env } = useEnv();
 
   const openDrawer = () => setDrawerOpen(true);
   const closeDrawer = () => setDrawerOpen(false);
@@ -59,7 +61,16 @@ export default function Layout() {
       {/* Main Content */}
       <main className="md:ml-60 pt-14 md:pt-0 min-h-screen">
         <div className="p-6">
-          <Outlet />
+          {switching ? (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
+              <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+              <p className="text-sm text-gray-500">
+                Switching to <span className="font-semibold">{env === "dev" ? "PROD" : "DEV"}</span> environment...
+              </p>
+            </div>
+          ) : (
+            <Outlet />
+          )}
         </div>
       </main>
     </div>

@@ -1,10 +1,9 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
-import { useCookies } from "react-cookie";
+import { useAuth } from "../context/AuthContext";
 
 export default function AuthGuard() {
-  const [cookies] = useCookies(["adminAccessToken"]);
+  const { isAuthenticated } = useAuth();
   const location = useLocation();
-  const isAuthenticated = !!cookies.adminAccessToken;
   const isLoginPage = location.pathname === "/admin/login";
 
   if (!isAuthenticated && !isLoginPage) {
