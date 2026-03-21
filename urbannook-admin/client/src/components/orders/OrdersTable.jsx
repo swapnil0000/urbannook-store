@@ -19,7 +19,10 @@ const COLUMNS = [
 function SortableHeader({ label, field, activeSort, onSort }) {
   if (!field) {
     return (
-      <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-6 py-3">
+      <th
+        className="text-left px-6 py-4 text-[11px] font-bold uppercase tracking-widest"
+        style={{ color: "var(--color-urban-text-muted)" }}
+      >
         {label}
       </th>
     );
@@ -30,30 +33,32 @@ function SortableHeader({ label, field, activeSort, onSort }) {
 
   const handleClick = () => {
     if (isActive) {
-      // Toggle direction on the same column
       onSort({ sortBy: field, sortOrder: isAsc ? "desc" : "asc" });
     } else {
-      // New column — default to descending
       onSort({ sortBy: field, sortOrder: "desc" });
     }
   };
 
   return (
-    <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-6 py-3">
+    <th
+      className="text-left px-6 py-4 text-[11px] font-bold uppercase tracking-widest"
+      style={{ color: "var(--color-urban-text-muted)" }}
+    >
       <button
         onClick={handleClick}
-        className="inline-flex items-center gap-1.5 hover:text-gray-900 transition-colors focus:outline-none focus-visible:underline"
+        className="inline-flex items-center gap-1.5 transition-colors focus:outline-none focus-visible:underline"
+        style={{ color: "var(--color-urban-text-muted)" }}
         aria-label={`Sort by ${label}`}
       >
         {label}
         {isActive ? (
           isAsc ? (
-            <ArrowUp className="h-3 w-3 text-gray-900" />
+            <ArrowUp className="h-3 w-3" style={{ color: "var(--color-urban-neon)" }} />
           ) : (
-            <ArrowDown className="h-3 w-3 text-gray-900" />
+            <ArrowDown className="h-3 w-3" style={{ color: "var(--color-urban-neon)" }} />
           )
         ) : (
-          <ArrowUpDown className="h-3 w-3 text-gray-300" />
+          <ArrowUpDown className="h-3 w-3" style={{ color: "var(--color-urban-border)" }} />
         )}
       </button>
     </th>
@@ -69,7 +74,7 @@ export default function OrdersTable({ orders, sort, selectedOrder, onSort, onSel
     <div className="overflow-x-auto">
       <table className="w-full" role="grid">
         <thead>
-          <tr className="border-b border-gray-200 bg-gray-50">
+          <tr style={{ background: "color-mix(in srgb, var(--color-urban-raised) 80%, transparent)" }}>
             {COLUMNS.map((col) => (
               <SortableHeader
                 key={col.label}
@@ -81,7 +86,7 @@ export default function OrdersTable({ orders, sort, selectedOrder, onSort, onSel
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100">
+        <tbody>
           {orders.map((order) => (
             <OrderRow
               key={order.orderId ?? order._id}

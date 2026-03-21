@@ -45,24 +45,25 @@ export default function LabelModal({ state, onClose, onRetry }) {
     >
       {/* Modal */}
       <div
-        className="relative rounded-xl border shadow-2xl w-full max-w-md flex flex-col"
-        style={{ backgroundColor: "#1A1A1A", borderColor: "#2A2A2A" }}
+        className="relative rounded-xl shadow-2xl w-full max-w-md flex flex-col"
+        style={{ background: "var(--color-urban-panel)", border: "1px solid var(--color-urban-border)" }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div
-          className="flex items-center justify-between px-5 py-4 border-b rounded-t-xl"
-          style={{ borderColor: "#2A2A2A", backgroundColor: "#111111" }}
+          className="flex items-center justify-between px-5 py-4 rounded-t-xl"
+          style={{ background: "var(--color-urban-raised)", borderBottom: "1px solid var(--color-urban-border)" }}
         >
           <div>
-            <h2 className="text-sm font-semibold text-white">Shipping Label</h2>
+            <h2 className="text-sm font-bold" style={{ color: "var(--color-urban-text)" }}>Shipping Label</h2>
             {awb !== "label" && (
-              <p className="text-xs font-mono text-gray-500 mt-0.5">AWB: {awb}</p>
+              <p className="text-xs font-mono mt-0.5" style={{ color: "var(--color-urban-text-muted)" }}>AWB: {awb}</p>
             )}
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-gray-500 hover:text-gray-200 hover:bg-white/10 transition-colors"
+            className="p-1.5 rounded-lg transition-colors"
+            style={{ color: "var(--color-urban-text-muted)" }}
           >
             <X className="h-4 w-4" />
           </button>
@@ -72,60 +73,65 @@ export default function LabelModal({ state, onClose, onRetry }) {
         <div className="p-5">
           {state.loading ? (
             <div className="flex flex-col items-center justify-center py-12 gap-3">
-              <Loader2 className="h-6 w-6 text-gray-400 animate-spin" />
-              <p className="text-sm text-gray-500">Fetching shipping label…</p>
+              <Loader2 className="h-6 w-6 animate-spin" style={{ color: "var(--color-urban-neon)" }} />
+              <p className="text-sm" style={{ color: "var(--color-urban-text-sec)" }}>Fetching shipping label…</p>
             </div>
           ) : state.error ? (
             <div className="space-y-3">
               <div
-                className="flex items-start gap-3 p-4 rounded-xl border"
-                style={{ backgroundColor: "#2A1515", borderColor: "#4A2020" }}
+                className="flex items-start gap-3 p-4 rounded-xl"
+                style={{ background: "#fee2e2", border: "1px solid #fca5a5" }}
               >
-                <AlertCircle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
-                <p className="text-sm text-red-400">{state.error}</p>
+                <AlertCircle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+                <p className="text-sm text-red-600">{state.error}</p>
               </div>
               {onRetry && (
                 <button
                   onClick={() => onRetry(state.shipment)}
-                  className="w-full py-2 rounded-lg text-sm text-gray-400 border transition-colors hover:text-white"
-                  style={{ borderColor: "#333" }}
+                  className="w-full py-2 rounded-lg text-sm font-semibold transition-colors"
+                  style={{
+                    border: "1px solid var(--color-urban-border)",
+                    color: "var(--color-urban-text-sec)",
+                    background: "var(--color-urban-raised)",
+                  }}
                 >
                   Retry
                 </button>
               )}
             </div>
           ) : state.label ? (
-            /* Label image — tagged for print isolation */
             <div data-print-target="">
               <img
                 src={state.label}
                 alt="Shipping label"
-                className="w-full rounded-lg border"
-                style={{ borderColor: "#2A2A2A" }}
+                className="w-full rounded-lg"
+                style={{ border: "1px solid var(--color-urban-border)" }}
               />
             </div>
           ) : (
-            <p className="text-sm text-gray-500 text-center py-8">Label data is empty.</p>
+            <p className="text-sm text-center py-8" style={{ color: "var(--color-urban-text-muted)" }}>Label data is empty.</p>
           )}
         </div>
 
         {/* Footer actions */}
         {state.label && !state.loading && (
-          <div
-            className="flex items-center gap-2 px-5 pb-5"
-          >
+          <div className="flex items-center gap-2 px-5 pb-5">
             <button
               onClick={handlePrint}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors text-gray-300 hover:text-white"
-              style={{ borderColor: "#333" }}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-colors"
+              style={{
+                border: "1px solid var(--color-urban-border)",
+                color: "var(--color-urban-text-sec)",
+                background: "var(--color-urban-raised)",
+              }}
             >
               <Printer className="h-4 w-4" />
               Print
             </button>
             <button
               onClick={handleDownload}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-colors"
-              style={{ backgroundColor: "white", color: "black" }}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold text-white transition-all hover:opacity-90"
+              style={{ background: "var(--gradient-urban-accent)" }}
             >
               <Download className="h-4 w-4" />
               Download

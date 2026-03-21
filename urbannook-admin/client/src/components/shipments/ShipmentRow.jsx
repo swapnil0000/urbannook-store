@@ -85,15 +85,15 @@ export default function ShipmentRow({
 
   return (
     <tr
-      className="border-b transition-colors"
-      style={{ borderColor: "#1E1E1E", backgroundColor: "#111111" }}
-      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "#1A1A1A"; }}
-      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "#111111"; }}
+      className="transition-colors"
+      style={{ borderTop: "1px solid var(--color-urban-border)" }}
+      onMouseEnter={(e) => { e.currentTarget.style.background = "color-mix(in srgb, var(--color-urban-neon) 4%, transparent)"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
     >
       {/* Order Date */}
       <td className="px-4 py-3 whitespace-nowrap">
-        <p className="text-xs text-gray-300">{formatDate(shipment.createdAt)}</p>
-        <p className="text-xs text-gray-500 mt-0.5">{formatTime(shipment.createdAt)}</p>
+        <p className="text-xs font-medium" style={{ color: "var(--color-urban-text)" }}>{formatDate(shipment.createdAt)}</p>
+        <p className="text-xs mt-0.5" style={{ color: "var(--color-urban-text-muted)" }}>{formatTime(shipment.createdAt)}</p>
       </td>
 
       {/* Order Details */}
@@ -103,23 +103,23 @@ export default function ShipmentRow({
             ? <Camera className="h-3 w-3 text-pink-400 shrink-0" />
             : <Globe   className="h-3 w-3 text-blue-400 shrink-0" />
           }
-          <p className="text-xs font-mono text-gray-300 truncate">{shipment.sourceOrderId}</p>
+          <p className="text-xs font-mono truncate" style={{ color: "var(--color-urban-text-sec)" }}>{shipment.sourceOrderId}</p>
         </div>
         <ShipmentStatusBadge status={shipment.shipmentStatus} />
       </td>
 
       {/* Product Details */}
       <td className="px-4 py-3 max-w-[160px]">
-        <p className="text-xs text-gray-300 truncate">{productSummary}</p>
+        <p className="text-xs truncate" style={{ color: "var(--color-urban-text)" }}>{productSummary}</p>
         {items.length > 0 && (
-          <p className="text-xs text-gray-500 mt-0.5">{items.length} item{items.length !== 1 ? "s" : ""}</p>
+          <p className="text-xs mt-0.5" style={{ color: "var(--color-urban-text-muted)" }}>{items.length} item{items.length !== 1 ? "s" : ""}</p>
         )}
       </td>
 
       {/* Package Details */}
       <td className="px-4 py-3 whitespace-nowrap">
-        <p className="text-xs text-gray-300">{shipment.weight}g</p>
-        <p className="text-xs text-gray-500 mt-0.5">
+        <p className="text-xs" style={{ color: "var(--color-urban-text)" }}>{shipment.weight}g</p>
+        <p className="text-xs mt-0.5" style={{ color: "var(--color-urban-text-muted)" }}>
           {shipment.length}×{shipment.width}×{shipment.height} cm
         </p>
       </td>
@@ -127,13 +127,17 @@ export default function ShipmentRow({
       {/* Payment */}
       <td className="px-4 py-3 whitespace-nowrap">
         {shipment.paymentType === "PREPAID" ? (
-          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
-            style={{ backgroundColor: "#1C2A1C", color: "#4ade80" }}>
+          <span
+            className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold uppercase"
+            style={{ background: "#dcfce7", color: "#15803d" }}
+          >
             Prepaid
           </span>
         ) : (
-          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
-            style={{ backgroundColor: "#2A2310", color: "#facc15" }}>
+          <span
+            className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold uppercase"
+            style={{ background: "#fef9c3", color: "#92400e" }}
+          >
             COD
           </span>
         )}
@@ -141,23 +145,23 @@ export default function ShipmentRow({
 
       {/* Shipping Details */}
       <td className="px-4 py-3 max-w-[180px]">
-        <p className="text-xs text-gray-300 truncate">{customerName}</p>
+        <p className="text-xs truncate" style={{ color: "var(--color-urban-text)" }}>{customerName}</p>
         {customerPhone && (
-          <p className="text-xs text-gray-500 mt-0.5">{customerPhone}</p>
+          <p className="text-xs mt-0.5" style={{ color: "var(--color-urban-text-sec)" }}>{customerPhone}</p>
         )}
         {shipment.awbNumber && (
-          <p className="text-xs font-mono text-gray-500 mt-1 truncate">{shipment.awbNumber}</p>
+          <p className="text-xs font-mono mt-1 truncate" style={{ color: "var(--color-urban-text-muted)" }}>{shipment.awbNumber}</p>
         )}
         {shipment.courierCompany && (
-          <p className="text-xs text-gray-600 mt-0.5 truncate">{shipment.courierCompany}</p>
+          <p className="text-xs mt-0.5 truncate" style={{ color: "var(--color-urban-text-muted)" }}>{shipment.courierCompany}</p>
         )}
       </td>
 
       {/* Pickup Address */}
       <td className="px-4 py-3 whitespace-nowrap">
-        <p className="text-xs text-gray-500">WH: {shipment.warehouseId}</p>
+        <p className="text-xs" style={{ color: "var(--color-urban-text-sec)" }}>WH: {shipment.warehouseId}</p>
         {shipment.pickupPincode && (
-          <p className="text-xs text-gray-600 mt-0.5">PIN: {shipment.pickupPincode}</p>
+          <p className="text-xs mt-0.5" style={{ color: "var(--color-urban-text-muted)" }}>PIN: {shipment.pickupPincode}</p>
         )}
       </td>
 
@@ -168,7 +172,8 @@ export default function ShipmentRow({
             <button
               ref={buttonRef}
               onClick={() => onOpenMenu(shipment._id)}
-              className="p-1.5 rounded-md text-gray-500 hover:text-gray-200 hover:bg-white/10 transition-colors"
+              className="p-1.5 rounded-md transition-colors"
+              style={{ color: "var(--color-urban-text-muted)" }}
               aria-label="Actions"
             >
               <MoreVertical className="h-4 w-4" />
@@ -178,49 +183,61 @@ export default function ShipmentRow({
             {isMenuOpen && (
               <div
                 ref={menuRef}
-                className="fixed z-[9999] min-w-[168px] rounded-lg shadow-2xl py-1 border"
+                className="fixed z-[9999] min-w-[168px] rounded-lg shadow-2xl py-1"
                 style={{
-                  top:             menuPos.top,
-                  right:           menuPos.right,
-                  backgroundColor: "#1A1A1A",
-                  borderColor:     "#2A2A2A",
+                  top:        menuPos.top,
+                  right:      menuPos.right,
+                  background: "var(--color-urban-surface)",
+                  border:     "1px solid var(--color-urban-border)",
                 }}
               >
                 {canAssign && (
                   <button
                     onClick={() => { onCloseMenu(); onAssign(shipment); }}
-                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-200 hover:bg-white/10 transition-colors"
+                    className="flex items-center gap-2 w-full px-3 py-2 text-sm transition-colors"
+                    style={{ color: "var(--color-urban-text)" }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = "var(--color-urban-raised)"}
+                    onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                   >
-                    <Truck className="h-4 w-4 text-gray-400" />
+                    <Truck className="h-4 w-4" style={{ color: "var(--color-urban-text-muted)" }} />
                     Assign Courier
                   </button>
                 )}
                 {canLabel && (
                   <button
                     onClick={() => { onCloseMenu(); onPrintLabel(shipment); }}
-                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-200 hover:bg-white/10 transition-colors"
+                    className="flex items-center gap-2 w-full px-3 py-2 text-sm transition-colors"
+                    style={{ color: "var(--color-urban-text)" }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = "var(--color-urban-raised)"}
+                    onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                   >
-                    <Printer className="h-4 w-4 text-gray-400" />
+                    <Printer className="h-4 w-4" style={{ color: "var(--color-urban-text-muted)" }} />
                     Print Label
                   </button>
                 )}
                 {canTrack && (
                   <button
                     onClick={() => { onCloseMenu(); onTrack(shipment); }}
-                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-200 hover:bg-white/10 transition-colors"
+                    className="flex items-center gap-2 w-full px-3 py-2 text-sm transition-colors"
+                    style={{ color: "var(--color-urban-text)" }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = "var(--color-urban-raised)"}
+                    onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                   >
-                    <MapPin className="h-4 w-4 text-gray-400" />
+                    <MapPin className="h-4 w-4" style={{ color: "var(--color-urban-text-muted)" }} />
                     Track Package
                   </button>
                 )}
                 {canCancel && (
                   <>
                     {(canAssign || canLabel || canTrack) && (
-                      <div className="my-1 border-t" style={{ borderColor: "#2A2A2A" }} />
+                      <div className="my-1" style={{ borderTop: "1px solid var(--color-urban-border)" }} />
                     )}
                     <button
                       onClick={() => { onCloseMenu(); onCancel(shipment); }}
-                      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-400 hover:bg-white/10 transition-colors"
+                      className="flex items-center gap-2 w-full px-3 py-2 text-sm transition-colors"
+                      style={{ color: "#ef4444" }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "var(--color-urban-raised)"}
+                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                     >
                       <XCircle className="h-4 w-4" />
                       Cancel Shipment

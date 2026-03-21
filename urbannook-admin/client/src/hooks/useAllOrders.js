@@ -122,13 +122,15 @@ export function useAllOrders({ refreshKey = 0 } = {}) {
     } else if (state.filters.channel === "instagram") {
       merged = merged.filter((o) => o._channel === "instagram");
     }
+    const effectiveDateOf = (o) =>
+      o._channel === "instagram" ? (o.orderedAt || o.createdAt) : o.createdAt;
     merged.sort((a, b) => {
       let av, bv;
       if (state.sort.sortBy === "amount") {
         av = a.amount ?? 0; bv = b.amount ?? 0;
       } else {
-        av = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        bv = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        av = effectiveDateOf(a) ? new Date(effectiveDateOf(a)).getTime() : 0;
+        bv = effectiveDateOf(b) ? new Date(effectiveDateOf(b)).getTime() : 0;
       }
       return state.sort.sortOrder === "desc" ? bv - av : av - bv;
     });

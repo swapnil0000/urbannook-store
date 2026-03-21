@@ -8,7 +8,7 @@ const ALLOWED_SORT_FIELDS = new Set(["createdAt", "amount"]);
 const ALLOWED_STATUSES = new Set(["CREATED", "PAID", "FAILED"]);
 
 //   GET /admin/orders/instagram from ig new changes
- const getAllInstagramOrders = async (req, res, next) => {
+const getAllInstagramOrders = async (req, res, next) => {
   try {
     const rawPage = parseInt(req.query.page, 10);
     const rawLimit = parseInt(req.query.limit, 10);
@@ -22,52 +22,61 @@ const ALLOWED_STATUSES = new Set(["CREATED", "PAID", "FAILED"]);
       : "createdAt";
     const sortOrder = req.query.sortOrder === "asc" ? 1 : -1;
 
-    const filter = {};
-    if (req.query.status && ALLOWED_STATUSES.has(req.query.status)) {
-      filter.status = req.query.status;
-    }
-
-    const startDate = req.query.startDate
-      ? new Date(req.query.startDate)
-      : null;
-    const endDate = req.query.endDate ? new Date(req.query.endDate) : null;
+    const startDate = req.query.startDate ? new Date(req.query.startDate) : null;
+    const endDate   = req.query.endDate   ? new Date(req.query.endDate)   : null;
     const startValid = startDate && !isNaN(startDate.getTime());
-    const endValid = endDate && !isNaN(endDate.getTime());
+    const endValid   = endDate   && !isNaN(endDate.getTime());
 
     if (startValid && endValid && startDate > endDate) {
       return res.status(200).json(
         new ApiResponse(200, "Instagram orders fetched successfully", {
           orders: [],
-          pagination: {
-            currentPage: page,
-            totalPages: 0,
-            totalOrders: 0,
-            limit,
-          },
+          pagination: { currentPage: page, totalPages: 0, totalOrders: 0, limit },
         }),
       );
     }
 
+    // Build aggregation pipeline so we can sort/filter by effectiveDate
+    // (orderedAt when admin set it; createdAt as fallback for legacy records)
+    const pipeline = [];
+
+    // Step 1 — compute effectiveDate
+    pipeline.push({
+      $addFields: { effectiveDate: { $ifNull: ["$orderedAt", "$createdAt"] } },
+    });
+
+    // Step 2 — match filters
+    const matchStage = {};
+    if (req.query.status && ALLOWED_STATUSES.has(req.query.status)) {
+      matchStage.status = req.query.status;
+    }
     if (startValid || endValid) {
-      filter.createdAt = {};
-      if (startValid) filter.createdAt.$gte = startDate;
+      matchStage.effectiveDate = {};
+      if (startValid) matchStage.effectiveDate.$gte = startDate;
       if (endValid) {
         const endOfDay = new Date(endDate);
         endOfDay.setHours(23, 59, 59, 999);
-        filter.createdAt.$lte = endOfDay;
+        matchStage.effectiveDate.$lte = endOfDay;
       }
     }
+    if (Object.keys(matchStage).length) pipeline.push({ $match: matchStage });
 
-    const [orders, totalOrders] = await Promise.all([
-      InstagramOrder.find(filter)
-        .sort({ [sortBy]: sortOrder })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-      InstagramOrder.countDocuments(filter),
-    ]);
+    // Step 3 — sort (date sorts use effectiveDate; amount sorts normally)
+    const sortField = sortBy === "createdAt" ? "effectiveDate" : sortBy;
+    pipeline.push({ $sort: { [sortField]: sortOrder } });
 
-    const totalPages = totalOrders > 0 ? Math.ceil(totalOrders / limit) : 0;
+    // Step 4 — paginate + count in one pass
+    pipeline.push({
+      $facet: {
+        orders: [{ $skip: skip }, { $limit: limit }],
+        total:  [{ $count: "n" }],
+      },
+    });
+
+    const [result] = await InstagramOrder.aggregate(pipeline);
+    const orders     = result?.orders ?? [];
+    const totalOrders = result?.total[0]?.n ?? 0;
+    const totalPages  = totalOrders > 0 ? Math.ceil(totalOrders / limit) : 0;
 
     return res.status(200).json(
       new ApiResponse(200, "Instagram orders fetched successfully", {
@@ -81,7 +90,7 @@ const ALLOWED_STATUSES = new Set(["CREATED", "PAID", "FAILED"]);
 };
 
 //  POST /admin/orders/instagram
- const createInstagramOrder = async (req, res, next) => {
+const createInstagramOrder = async (req, res, next) => {
   try {
     const {
       customerName,
@@ -90,6 +99,7 @@ const ALLOWED_STATUSES = new Set(["CREATED", "PAID", "FAILED"]);
       notes,
       status,
       items,
+      orderedAt,
     } = req.body;
 
     const validationErrors = [];
@@ -171,6 +181,11 @@ const ALLOWED_STATUSES = new Set(["CREATED", "PAID", "FAILED"]);
     );
     const orderId = `IG-${String(counter.sequence_value).padStart(4, "0")}`;
 
+    // Always save orderedAt — use the provided date if valid, otherwise default to now
+    const parsedOrderedAt = orderedAt ? new Date(orderedAt) : null;
+    const effectiveOrderedAt =
+      parsedOrderedAt && !isNaN(parsedOrderedAt) ? parsedOrderedAt : new Date();
+
     const order = await InstagramOrder.create({
       orderId,
       customerName: customerName.trim(),
@@ -180,6 +195,7 @@ const ALLOWED_STATUSES = new Set(["CREATED", "PAID", "FAILED"]);
       items: builtItems,
       amount,
       status: status ?? "CREATED",
+      orderedAt: effectiveOrderedAt,
     });
 
     return res
@@ -193,7 +209,7 @@ const ALLOWED_STATUSES = new Set(["CREATED", "PAID", "FAILED"]);
 };
 
 //   GET /admin/orders/instagram/stream  (SSE)
- const streamInstagramOrders = (req, res) => {
+const streamInstagramOrders = (req, res) => {
   res.writeHead(200, {
     "Content-Type": "text/event-stream",
     "Cache-Control": "no-cache, no-transform",
@@ -235,6 +251,7 @@ const ALLOWED_STATUSES = new Set(["CREATED", "PAID", "FAILED"]);
 const updateInstagramOrder = async (req, res, next) => {
   try {
     const {
+      orderedAt,
       customerName,
       contactNumber,
       deliveryAddress,
@@ -243,7 +260,7 @@ const updateInstagramOrder = async (req, res, next) => {
       items,
     } = req.body;
 
-    // ── Validate ──────────────────────────────────────────────────────────────
+    // ── Validate ───────────────
     const validationErrors = [];
 
     if (
@@ -294,7 +311,7 @@ const updateInstagramOrder = async (req, res, next) => {
       throw new ApiError(400, validationErrors.join(" "));
     }
 
-    // ── Find order ────────────────────────────────────────────────────────────
+    // ── Find order ─────────────
     const order = await InstagramOrder.findOne({ orderId: req.params.orderId });
     if (!order)
       throw new ApiError(
@@ -337,7 +354,14 @@ const updateInstagramOrder = async (req, res, next) => {
       0,
     );
 
-    // ── Apply changes ─────────────────────────────────────────────────────────
+    // ── Apply changes ──────────
+    const parsedOrderedAt = orderedAt ? new Date(orderedAt) : null;
+    // Only overwrite if a valid new date was provided; otherwise keep the existing value
+    if (parsedOrderedAt && !isNaN(parsedOrderedAt)) {
+      order.orderedAt = parsedOrderedAt;
+    } else if (!order.orderedAt) {
+      order.orderedAt = order.createdAt ?? new Date(); // backfill if somehow missing
+    }
     order.customerName = customerName.trim();
     order.contactNumber = contactNumber.trim();
     order.deliveryAddress = deliveryAddress.trim();

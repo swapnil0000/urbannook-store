@@ -22,15 +22,19 @@ export default function ShipmentsTable({
   openCancelDialog,
 }) {
   return (
-    <div className="rounded-xl overflow-hidden border" style={{ borderColor: "#2A2A2A" }}>
+    <div
+      className="rounded-xl overflow-hidden"
+      style={{ border: "1px solid var(--color-urban-border)" }}
+    >
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[900px]">
+        <table className="w-full min-w-[900px] text-left border-collapse">
           <thead>
-            <tr style={{ backgroundColor: "#1A1A1A" }}>
+            <tr style={{ background: "color-mix(in srgb, var(--color-urban-raised) 80%, transparent)" }}>
               {HEADERS.map((h) => (
                 <th
                   key={h}
-                  className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500"
+                  className="px-4 py-4 text-[11px] font-bold uppercase tracking-widest"
+                  style={{ color: "var(--color-urban-text-muted)" }}
                 >
                   {h}
                 </th>

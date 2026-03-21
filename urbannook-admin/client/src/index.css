@@ -1,26 +1,340 @@
 @import "tailwindcss";
 
-@theme {
-  --color-primary: #000000;
-  --color-secondary: #ffffff;
-  --color-gray-50: #f9fafb;
-  --color-gray-100: #f3f4f6;
-  --color-gray-200: #e5e7eb;
-  --color-gray-300: #d1d5db;
-  --color-gray-400: #9ca3af;
-  --color-gray-500: #6b7280;
-  --color-gray-600: #4b5563;
-  --color-gray-700: #374151;
-  --color-gray-800: #1f2937;
-  --color-gray-900: #111827;
+/* ─── Dark-mode variant: .dark class on <html> ─────────────────────────── */
+@custom-variant dark (&:is(.dark *));
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DESIGN SYSTEM — UrbanNook  |  Single Source of Truth
+   ──────────────────────────
+   RULE:  Emerald is ACCENT only. All surfaces/text are neutral.
+          Green appears on: CTAs · icons · active nav · border glow · charts.
+   ZONES:
+     --surface  → page cards (can be glass in dark mode)
+     --panel    → drawers & modals (ALWAYS opaque — never glass)
+     --sidebar  → sidebar background (branded)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE  —  Clean canvas  +  vibrant emerald accent
+   ══════════════════════════════════════════════════════════════════════════ */
+:root {
+  /* Surfaces ───────────── */
+  --color-urban-base: #fcfffd; /* page bg     — cool blue-gray  edf2f7  f3fef6   */
+  --color-urban-surface: rgba(255, 255, 255, 0.25);
+  /* page cards  — pure white           */
+  --color-urban-panel: var(--color-urban-base); /* drawers/modals — same as base bg  */
+  --color-urban-sidebar: #ffffff; /* sidebar     — clear mint (brand!)#f0fdf4  */
+  --color-urban-raised: #f3f6fb; /* inputs/chip — slightly elevated    */
+  --color-urban-border: #f3fef6; /* dividers d8e0ea    — visible cool border  */
+
+  /* Text ───────────────── */
+  --color-urban-text: #0f172a; /* headlines   — deep slate           */
+  --color-urban-text-sec: #374151; /* labels      — mid slate            */
+  --color-urban-text-muted: #94a3b8; /* subdued     — light cool-gray      */
+
+  /* Accent — bright, vivid emerald so it pops on white ───────────────── */
+  --color-urban-neon: #059669; /* links/icons — vivid emerald        */
+  --color-urban-neon-hover: #047857; /* hover       — deeper               */
+  --color-urban-muted: #cbd5e1; /* scrollbar                          */
+
+  /* CTA gradient ────────── */
+  --color-urban-accent-from: #10b981; /* bright emerald start               */
+  --color-urban-accent-to: #059669; /* vivid emerald end                  */
+  --gradient-urban-accent: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  --gradient-urban-surface: linear-gradient(180deg, #ffffff 0%, #f3f6fb 100%);
+
+  /* Shadows — strong enough to lift cards off the base ────────────────── */
+  --shadow-urban-card:
+    0 1px 4px rgba(15, 23, 42, 0.1), 0 4px 14px rgba(15, 23, 42, 0.06);
+  --shadow-urban-card-hover: 0 6px 24px rgba(15, 23, 42, 0.12);
+  --glow-urban-card-hover:
+    0 0 0 1px rgba(5, 150, 105, 0.28), 0 4px 16px rgba(5, 150, 105, 0.07);
+
+  /* Backdrop (light = no blur needed) ──────────────────────────────────── */
+  --backdrop-urban-card: none;
+  --bg-urban-scene: var(--color-urban-base);
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   DARK MODE  —  Deep charcoal void  +  emerald atmospheric glow
+   ══════════════════════════════════════════════════════════════════════════ */
+.dark {
+  /* Surfaces — ALL neutral. Zero green tint. ────────────────────────── */
+  --color-urban-base: transparent; /* body scene gradient shows */
+  --color-urban-surface: rgba(255, 255, 255, 0.04); /* page cards — glass     */
+  --color-urban-panel: rgba(13, 13, 22, 0.97); /* drawers/modals — OPAQUE */
+  --color-urban-sidebar: rgb(19, 19, 20); /* sidebar — dimmer glass */
+  --color-urban-raised: rgba(255, 255, 255, 0.07); /* inputs/chips            */
+  --color-urban-border: rgba(255, 255, 255, 0.07); /* micro-fine white border */
+
+  /* Text — pure neutral white spectrum ────────────────────────────────── */
+  --color-urban-text: #f1f5f9; /* headlines — brilliant cool-white   */
+  --color-urban-text-sec: #8b90a8; /* labels    — cool neutral gray      */
+  --color-urban-text-muted: #64748b; /* subdued   — readable cool slate    */
+
+  /* Accent — glowing emerald ───────────────────────────────────────────── */
+  --color-urban-neon: #52b788;
+  --color-urban-neon-hover: #74c69d;
+  --color-urban-muted: rgba(255, 255, 255, 0.15);
+
+  /* CTA gradient ────────── */
+  --color-urban-accent-from: #52b788;
+  --color-urban-accent-to: #2d6a4f;
+  --gradient-urban-accent: linear-gradient(135deg, #52b788 0%, #2d6a4f 100%);
+  --gradient-urban-surface: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.05) 0%,
+    rgba(255, 255, 255, 0.02) 100%
+  );
+
+  /* Glass card shadows ──── */
+  --shadow-urban-card:
+    0 1px 0 0 rgba(255, 255, 255, 0.06) inset, 0 8px 32px rgba(0, 0, 0, 0.45),
+    0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-urban-card-hover:
+    0 1px 0 0 rgba(255, 255, 255, 0.1) inset, 0 12px 48px rgba(0, 0, 0, 0.55);
+  --glow-urban-card-hover:
+    0 0 0 1px rgba(82, 183, 136, 0.4), 0 0 20px rgba(82, 183, 136, 0.1),
+    0 1px 0 0 rgba(255, 255, 255, 0.1) inset;
+
+  /* Glass backdrop ──────── */
+  --backdrop-urban-card: blur(16px) saturate(1.4);
+
+  /* Body scene: deep charcoal void + barely-visible emerald atmosphere ─── */
+  --bg-urban-scene:
+    radial-gradient(
+      ellipse 100% 55% at 50% -15%,
+      rgba(82, 183, 136, 0.06) 0%,
+      transparent 55%
+    ),
+    radial-gradient(
+      ellipse 55% 35% at 88% 98%,
+      rgba(27, 67, 50, 0.05) 0%,
+      transparent 50%
+    ),
+    #0c0c0e;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   TAILWIND v4 @theme  —  This IS the tailwind.config.js (no separate file)
+   ══════════════════════════════════════════════════════════════════════════ */
+@theme inline {
+  --color-urban-base: var(--color-urban-base);
+  --color-urban-surface: var(--color-urban-surface);
+  --color-urban-panel: var(--color-urban-panel);
+  --color-urban-sidebar: var(--color-urban-sidebar);
+  --color-urban-raised: var(--color-urban-raised);
+  --color-urban-border: var(--color-urban-border);
+  --color-urban-text: var(--color-urban-text);
+  --color-urban-text-sec: var(--color-urban-text-sec);
+  --color-urban-text-muted: var(--color-urban-text-muted);
+  --color-urban-neon: var(--color-urban-neon);
+  --color-urban-neon-hover: var(--color-urban-neon-hover);
+  --color-urban-muted: var(--color-urban-muted);
+  --color-urban-accent-from: var(--color-urban-accent-from);
+  --color-urban-accent-to: var(--color-urban-accent-to);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   BASE
+   ══════════════════════════════════════════════════════════════════════════ */
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-    'Helvetica Neue', Arial, sans-serif;
+  font-family:
+    "Inter",
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    Arial,
+    sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: var(--color-secondary);
-  color: var(--color-primary);
+  min-height: 100dvh;
+  background: var(--bg-urban-scene);
+  color: var(--color-urban-text);
+  transition: color 0.3s ease;
+}
+
+/* Scrollbar ────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-urban-muted);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-urban-neon);
+}
+
+/* Selection ────────────── */
+::selection {
+  background: var(--color-urban-neon);
+  color: #ffffff;
+}
+
+/* Backward-compat aliases  */
+:root {
+  --bg-card: var(--color-urban-surface);
+  --bg-base: var(--color-urban-base);
+  --bg-raised: var(--color-urban-raised);
+  --border: var(--color-urban-border);
+  --text-1: var(--color-urban-text);
+  --text-2: var(--color-urban-text-sec);
+  --text-3: var(--color-urban-text-muted);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   COMPONENT UTILITIES
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* .gradient-accent ────── */
+.gradient-accent {
+  background: var(--gradient-urban-accent);
+}
+
+/* .un-card — page cards only (glass in dark, solid in light) ─────────── */
+.un-card {
+  position: relative;
+  background: var(--color-urban-surface);
+  border: 1px solid var(--color-urban-border);
+  border-radius: 0.75rem;
+  box-shadow: var(--shadow-urban-card);
+  backdrop-filter: var(--backdrop-urban-card);
+  -webkit-backdrop-filter: var(--backdrop-urban-card);
+  transition: box-shadow 0.3s ease;
+}
+
+/* ── Diagonal corner border glow — top-left + bottom-right only ───────── */
+/* Uses gradient-border mask trick: visible only in the 1px border area    */
+.un-card::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    var(--color-urban-neon) 0%,
+    transparent 32%,
+    transparent 68%,
+    var(--color-urban-neon) 100%
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* ── White glass sheen — diagonal wash from top-left ─────────────────── */
+.un-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.25) 0%,
+    rgba(255, 255, 255, 0.07) 45%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.un-card:hover::before,
+.un-card:hover::after {
+  opacity: 1;
+}
+
+.un-card:hover {
+  box-shadow: var(--glow-urban-card-hover);
+}
+
+/* Tables stay clean — no shimmer or corner glow on table-wrapping cards */
+.un-card:has(table)::before,
+.un-card:has(table)::after {
+  display: none;
+}
+
+/* .un-panel — drawers & modals: ALWAYS opaque with blur for depth ─────── */
+.un-panel {
+  background: var(--color-urban-panel);
+  border: 1px solid var(--color-urban-border);
+  border-radius: 0.75rem;
+  backdrop-filter: blur(32px) saturate(1.5);
+  -webkit-backdrop-filter: blur(32px) saturate(1.5);
+}
+
+/* All <aside> drawers in dark mode: force opaque panel, override inline style */
+.dark aside {
+  background: var(--color-urban-panel) !important;
+  backdrop-filter: blur(32px) saturate(1.5) !important;
+  -webkit-backdrop-filter: blur(32px) saturate(1.5) !important;
+}
+
+/* Form inputs in dark mode ─────────────────────────────────────────── */
+.dark
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(
+    [type="submit"]
+  ):not([type="button"]),
+.dark select,
+.dark textarea {
+  color: var(--color-urban-text) !important;
+  background: var(--color-urban-raised) !important;
+  border-color: var(--color-urban-border) !important;
+  color-scheme: dark;
+}
+/* Native dropdown option list in dark mode */
+.dark option {
+  background-color: #1a1b2e;
+  color: var(--color-urban-text);
+}
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: var(--color-urban-text-muted) !important;
+}
+.dark input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(0.8);
+}
+
+/* Table utility ──────── */
+.un-table thead th {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-urban-text-sec);
+  padding: 0.875rem 1.25rem;
+  background: var(--color-urban-raised);
+  border-bottom: 1px solid var(--color-urban-border);
+}
+.un-table tbody td {
+  padding: 0.875rem 1.25rem;
+  font-size: 0.875rem;
+  color: var(--color-urban-text);
+  border-top: 1px solid var(--color-urban-border);
+}
+.un-table tbody tr {
+  transition: background 0.15s ease;
+}
+.un-table tbody tr:hover {
+  background: color-mix(in srgb, var(--color-urban-neon) 5%, transparent);
 }

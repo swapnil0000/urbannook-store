@@ -78,18 +78,30 @@ export default function OrdersToolbar({
     filters.endDate ||
     (showChannelFilter && filters.channel && filters.channel !== "all");
 
+  const inputStyle = {
+    border: "1px solid var(--color-urban-border)",
+    color: "var(--color-urban-text)",
+    background: "var(--color-urban-raised)",
+  };
+
   return (
-    <div className="bg-white border border-gray-200 rounded-lg px-4 py-3 mb-4">
+    <div
+      className="rounded-xl px-4 py-3"
+      style={{
+        background: "var(--color-urban-surface)",
+        border: "1px solid var(--color-urban-border)",
+      }}
+    >
       <div className="flex flex-wrap items-center gap-3">
         {/* Icon + result count */}
         <div className="flex items-center gap-2 mr-auto">
-          <SlidersHorizontal className="h-4 w-4 text-gray-400 shrink-0" />
-          <span className="text-sm text-gray-500">
+          <SlidersHorizontal className="h-4 w-4 shrink-0" style={{ color: "var(--color-urban-text-muted)" }} />
+          <span className="text-sm" style={{ color: "var(--color-urban-text-sec)" }}>
             {loading ? (
               "Loading…"
             ) : (
               <>
-                <span className="font-semibold text-gray-800">
+                <span className="font-semibold" style={{ color: "var(--color-urban-text)" }}>
                   {totalOrders}
                 </span>{" "}
                 {totalOrders === 1 ? "order" : "orders"}
@@ -102,14 +114,13 @@ export default function OrdersToolbar({
         <select
           value={filters.status}
           onChange={(e) => onFilterChange({ status: e.target.value })}
-          className="text-sm border border-gray-200 rounded-lg px-1 py-1.5 text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent cursor-pointer"
+          className="text-sm rounded-lg px-2 py-1.5 focus:outline-none cursor-pointer"
+          style={inputStyle}
           aria-label="Filter by status"
         >
           <option value="">All statuses</option>
           {STATUSES.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
+            <option key={s} value={s}>{s}</option>
           ))}
         </select>
 
@@ -118,7 +129,8 @@ export default function OrdersToolbar({
           <select
             value={filters.channel || "all"}
             onChange={(e) => onFilterChange({ channel: e.target.value })}
-            className="text-sm border border-gray-200 rounded-lg px-1 py-1.5 text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent cursor-pointer"
+            className="text-sm rounded-lg px-2 py-1.5 focus:outline-none cursor-pointer"
+            style={inputStyle}
             aria-label="Filter by channel"
           >
             <option value="all">All channels</option>
@@ -134,16 +146,18 @@ export default function OrdersToolbar({
             value={localStartDate}
             onChange={(e) => setLocalStartDate(e.target.value)}
             max={localEndDate || undefined}
-            className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+            className="text-sm rounded-lg px-3 py-1.5 focus:outline-none"
+            style={inputStyle}
             aria-label="Start date"
           />
-          <span className="text-gray-400 text-sm">→</span>
+          <span className="text-sm" style={{ color: "var(--color-urban-text-muted)" }}>→</span>
           <input
             type="date"
             value={localEndDate}
             onChange={(e) => setLocalEndDate(e.target.value)}
             min={localStartDate || undefined}
-            className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+            className="text-sm rounded-lg px-3 py-1.5 focus:outline-none"
+            style={inputStyle}
             aria-label="End date"
           />
         </div>
@@ -152,14 +166,12 @@ export default function OrdersToolbar({
         <select
           value={currentSortValue}
           onChange={handleSortChange}
-          className="text-sm border border-gray-200 rounded-lg px-1 py-1.5 text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent cursor-pointer"
+          className="text-sm rounded-lg px-2 py-1.5 focus:outline-none cursor-pointer"
+          style={inputStyle}
           aria-label="Sort orders"
         >
           {SORT_OPTIONS.map((opt) => (
-            <option
-              key={`${opt.sortBy}:${opt.sortOrder}`}
-              value={`${opt.sortBy}:${opt.sortOrder}`}
-            >
+            <option key={`${opt.sortBy}:${opt.sortOrder}`} value={`${opt.sortBy}:${opt.sortOrder}`}>
               {opt.label}
             </option>
           ))}
@@ -169,7 +181,8 @@ export default function OrdersToolbar({
         {hasActiveFilters && (
           <button
             onClick={onReset}
-            className="inline-flex items-center gap-1 text-sm text-red-500 hover:text-red-900 transition-colors"
+            className="inline-flex items-center gap-1 text-sm transition-colors"
+            style={{ color: "#ef4444" }}
             aria-label="Clear all filters"
           >
             <X className="h-3.5 w-3.5" />

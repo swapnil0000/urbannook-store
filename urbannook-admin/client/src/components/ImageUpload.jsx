@@ -64,14 +64,16 @@ export default function ImageUpload({ value, onChange, onRemove, label = "Upload
         <img
           src={value}
           alt="Uploaded"
-          className="h-24 w-24 rounded-md object-cover border border-gray-200"
+          className="h-24 w-24 rounded-lg object-cover"
+          style={{ border: "1px solid var(--color-urban-border)" }}
           onError={(e) => { e.target.src = ""; }}
         />
         {onRemove && (
           <button
             type="button"
             onClick={onRemove}
-            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 hover:bg-red-600 transition-colors"
+            className="absolute -top-2 -right-2 text-white rounded-full p-0.5 transition-colors"
+            style={{ background: "#ef4444" }}
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -88,21 +90,21 @@ export default function ImageUpload({ value, onChange, onRemove, label = "Upload
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
-        className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-4 cursor-pointer transition-colors ${
-          dragOver
-            ? "border-gray-900 bg-gray-50"
-            : "border-gray-300 hover:border-gray-400"
-        } ${uploading ? "opacity-50 cursor-not-allowed" : ""}`}
+        className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-4 cursor-pointer transition-colors ${uploading ? "opacity-50 cursor-not-allowed" : ""}`}
+        style={{
+          borderColor: dragOver ? "var(--color-urban-neon)" : "var(--color-urban-border)",
+          background: dragOver ? "color-mix(in srgb, var(--color-urban-neon) 5%, transparent)" : "transparent",
+        }}
       >
         {uploading ? (
-          <Loader2 className="h-6 w-6 animate-spin text-gray-400 mb-1" />
+          <Loader2 className="h-6 w-6 animate-spin mb-1" style={{ color: "var(--color-urban-neon)" }} />
         ) : (
-          <Upload className="h-6 w-6 text-gray-400 mb-1" />
+          <Upload className="h-6 w-6 mb-1" style={{ color: "var(--color-urban-text-muted)" }} />
         )}
-        <span className="text-xs text-gray-500">
+        <span className="text-xs" style={{ color: "var(--color-urban-text-muted)" }}>
           {uploading ? "Uploading..." : label}
         </span>
-        <span className="text-xs text-gray-400 mt-0.5">
+        <span className="text-xs mt-0.5" style={{ color: "var(--color-urban-text-muted)" }}>
           Click or drag & drop
         </span>
       </div>

@@ -27,3 +27,6 @@ dist-ssr
 *.sw?
 .env
 .env.*
+.vscode
+stitch-designs
+.claude

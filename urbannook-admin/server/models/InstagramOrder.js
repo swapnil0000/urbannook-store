@@ -25,6 +25,7 @@ const instagramOrderSchema = new mongoose.Schema(
       enum: ["CREATED", "PAID", "FAILED"],
       default: "CREATED",
     },
+    orderedAt: { type: Date }, // admin-entered order date (when customer actually placed it)
   },
   { timestamps: true },
 );

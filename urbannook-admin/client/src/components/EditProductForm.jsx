@@ -314,20 +314,27 @@ export default function EditProductForm({ product, onClose, onSuccess }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto mx-4">
+      <div
+        className="relative rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto mx-4"
+        style={{ background: "var(--color-urban-panel)", border: "1px solid var(--color-urban-border)" }}
+      >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">
+        <div
+          className="flex items-center justify-between px-6 py-4 sticky top-0 z-10"
+          style={{ background: "var(--color-urban-panel)", borderBottom: "1px solid var(--color-urban-border)" }}
+        >
+          <h2 className="text-lg font-bold" style={{ color: "var(--color-urban-text)" }}>
             Edit Product — {product.uiProductId}
           </h2>
           <button
             onClick={onClose}
-            className="p-1 rounded-md hover:bg-gray-100 transition-colors"
+            className="p-1.5 rounded-lg transition-colors"
+            style={{ color: "var(--color-urban-text-muted)" }}
           >
-            <X className="h-5 w-5 text-gray-500" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
@@ -337,7 +344,7 @@ export default function EditProductForm({ product, onClose, onSuccess }) {
           <div>
             <label
               htmlFor="edit-productName"
-              className="block text-sm font-medium text-gray-700 mb-1"
+              className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}
             >
               Product Name
             </label>
@@ -353,7 +360,7 @@ export default function EditProductForm({ product, onClose, onSuccess }) {
 
           {/* Primary Image */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}>
               Primary Image
             </label>
             <div className="flex items-start gap-3">
@@ -379,7 +386,7 @@ export default function EditProductForm({ product, onClose, onSuccess }) {
 
           {/* Secondary Images */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}>
               Secondary Images
             </label>
             <div className="flex flex-wrap gap-3">
@@ -395,17 +402,18 @@ export default function EditProductForm({ product, onClose, onSuccess }) {
               <button
                 type="button"
                 onClick={addSecondaryImageField}
-                className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg h-24 w-24 hover:border-gray-400 transition-colors"
+                className="flex flex-col items-center justify-center border-2 border-dashed rounded-lg h-24 w-24 transition-colors"
+                style={{ borderColor: "var(--color-urban-border)" }}
               >
-                <Plus className="h-5 w-5 text-gray-400" />
-                <span className="text-xs text-gray-500 mt-1">Add</span>
+                <Plus className="h-5 w-5" style={{ color: "var(--color-urban-text-muted)" }} />
+                <span className="text-xs mt-1" style={{ color: "var(--color-urban-text-muted)" }}>Add</span>
               </button>
             </div>
           </div>
 
           {/* Dimensions */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}>
               Dimensions (cm)
             </label>
             <div className="grid grid-cols-3 gap-3">
@@ -452,7 +460,7 @@ export default function EditProductForm({ product, onClose, onSuccess }) {
           <div>
             <label
               htmlFor="edit-productDes"
-              className="block text-sm font-medium text-gray-700 mb-1"
+              className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}
             >
               Description
             </label>
@@ -471,7 +479,7 @@ export default function EditProductForm({ product, onClose, onSuccess }) {
             <div>
               <label
                 htmlFor="edit-sellingPrice"
-                className="block text-sm font-medium text-gray-700 mb-1"
+                className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}
               >
                 Selling Price (Base)
               </label>
@@ -497,7 +505,7 @@ export default function EditProductForm({ product, onClose, onSuccess }) {
             <div>
               <label
                 htmlFor="edit-listedPrice"
-                className="block text-sm font-medium text-gray-700 mb-1"
+                className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}
               >
                 Listed Price (with 18% GST)
               </label>
@@ -509,7 +517,7 @@ export default function EditProductForm({ product, onClose, onSuccess }) {
                 step="0.01"
                 value={formData.listedPrice}
                 readOnly
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50 cursor-not-allowed"
+                className="w-full px-3 py-2 rounded-lg text-sm cursor-not-allowed" style={{ border: "1px solid var(--color-urban-border)", background: "var(--color-urban-raised)", color: "var(--color-urban-text-muted)" }}
               />
             </div>
           </div>
@@ -518,7 +526,7 @@ export default function EditProductForm({ product, onClose, onSuccess }) {
           <div>
             <label
               htmlFor="edit-productCategory"
-              className="block text-sm font-medium text-gray-700 mb-1"
+              className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}
             >
               Category
             </label>
@@ -536,7 +544,7 @@ export default function EditProductForm({ product, onClose, onSuccess }) {
           <div>
             <label
               htmlFor="edit-productStatus"
-              className="block text-sm font-medium text-gray-700 mb-1"
+              className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}
             >
               Status
             </label>
@@ -559,13 +567,13 @@ export default function EditProductForm({ product, onClose, onSuccess }) {
           </div>
 
           {/* Quantity Controls — separate from other field changes */}
-          <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+          <div className="rounded-lg p-4" style={{ border: "1px solid var(--color-urban-border)", background: "var(--color-urban-raised)" }}>
+            <label className="block text-sm font-medium mb-2" style={{ color: "var(--color-urban-text-sec)" }}>
               Quantity Adjustment
             </label>
-            <p className="text-sm text-gray-500 mb-3">
+            <p className="text-sm mb-3" style={{ color: "var(--color-urban-text-muted)" }}>
               Current quantity:{" "}
-              <span className="font-semibold text-gray-900">
+              <span className="font-semibold" style={{ color: "var(--color-urban-text)" }}>
                 {product.productQuantity}
               </span>
             </p>
@@ -609,7 +617,7 @@ export default function EditProductForm({ product, onClose, onSuccess }) {
 
           {/* Tags (multi-select checkboxes) */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium mb-2" style={{ color: "var(--color-urban-text-sec)" }}>
               Tags
             </label>
             <div className="flex flex-wrap gap-3">
@@ -624,7 +632,7 @@ export default function EditProductForm({ product, onClose, onSuccess }) {
                     onChange={() => handleTagToggle(tag)}
                     className="h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900"
                   />
-                  <span className="text-sm text-gray-700">
+                  <span className="text-sm" style={{ color: "var(--color-urban-text-sec)" }}>
                     {tag
                       .replace(/_/g, " ")
                       .replace(/\b\w/g, (c) => c.toUpperCase())}
@@ -638,7 +646,7 @@ export default function EditProductForm({ product, onClose, onSuccess }) {
           <div>
             <label
               htmlFor="edit-productSubDes"
-              className="block text-sm font-medium text-gray-700 mb-1"
+              className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}
             >
               Sub Description
             </label>
@@ -657,7 +665,7 @@ export default function EditProductForm({ product, onClose, onSuccess }) {
           <div>
             <label
               htmlFor="edit-productSubCategory"
-              className="block text-sm font-medium text-gray-700 mb-1"
+              className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}
             >
               Sub Category
             </label>
@@ -676,7 +684,7 @@ export default function EditProductForm({ product, onClose, onSuccess }) {
           <div>
             <label
               htmlFor="edit-materialAndCare"
-              className="block text-sm font-medium text-gray-700 mb-1"
+              className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}
             >
               Material & Care
             </label>
@@ -701,15 +709,15 @@ export default function EditProductForm({ product, onClose, onSuccess }) {
                 onChange={(e) => setFormData((prev) => ({ ...prev, isPublished: e.target.checked }))}
                 className="h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900"
               />
-              <span className="text-sm font-medium text-gray-700">
+              <span className="text-sm font-medium" style={{ color: "var(--color-urban-text-sec)" }}>
                 Publish product (make visible to users)
               </span>
             </label>
           </div>
 
           {/* Product Specifications */}
-          <div className="border-t border-gray-200 pt-4">
-            <label className="block text-sm font-medium text-gray-700 mb-3">
+          <div className="pt-4" style={{ borderTop: "1px solid var(--color-urban-border)" }}>
+            <label className="block text-sm font-medium mb-3" style={{ color: "var(--color-urban-text-sec)" }}>
               Product Specifications
             </label>
             <div className="space-y-2">
@@ -732,7 +740,7 @@ export default function EditProductForm({ product, onClose, onSuccess }) {
                   <button
                     type="button"
                     onClick={() => removeSpecificationField(index)}
-                    className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    className="p-2 rounded-lg transition-colors" style={{ color: "var(--color-urban-text-muted)" }}
                     title="Remove specification"
                   >
                     <X className="h-4 w-4" />
@@ -743,7 +751,8 @@ export default function EditProductForm({ product, onClose, onSuccess }) {
             <button
               type="button"
               onClick={addSpecificationField}
-              className="mt-3 inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              className="mt-3 inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-colors"
+              style={{ color: "var(--color-urban-text-sec)", background: "var(--color-urban-raised)", border: "1px solid var(--color-urban-border)" }}
             >
               <Plus className="h-4 w-4" />
               Add Specification
@@ -751,8 +760,8 @@ export default function EditProductForm({ product, onClose, onSuccess }) {
           </div>
 
           {/* Color Options */}
-          <div className="border-t border-gray-200 pt-4">
-            <label className="block text-sm font-medium text-gray-700 mb-3">
+          <div className="pt-4" style={{ borderTop: "1px solid var(--color-urban-border)" }}>
+            <label className="block text-sm font-medium mb-3" style={{ color: "var(--color-urban-text-sec)" }}>
               Color Options
             </label>
             <div className="space-y-2">
@@ -768,7 +777,7 @@ export default function EditProductForm({ product, onClose, onSuccess }) {
                   <button
                     type="button"
                     onClick={() => removeColorOptionField(index)}
-                    className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    className="p-2 rounded-lg transition-colors" style={{ color: "var(--color-urban-text-muted)" }}
                     title="Remove color"
                   >
                     <X className="h-4 w-4" />
@@ -779,7 +788,8 @@ export default function EditProductForm({ product, onClose, onSuccess }) {
             <button
               type="button"
               onClick={addColorOptionField}
-              className="mt-3 inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              className="mt-3 inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-colors"
+              style={{ color: "var(--color-urban-text-sec)", background: "var(--color-urban-raised)", border: "1px solid var(--color-urban-border)" }}
             >
               <Plus className="h-4 w-4" />
               Add Color
@@ -787,18 +797,24 @@ export default function EditProductForm({ product, onClose, onSuccess }) {
           </div>
 
           {/* Footer buttons */}
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
+          <div className="flex items-center justify-end gap-3 pt-4" style={{ borderTop: "1px solid var(--color-urban-border)" }}>
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              className="px-4 py-2 text-sm font-semibold rounded-lg transition-colors"
+              style={{
+                border: "1px solid var(--color-urban-border)",
+                color: "var(--color-urban-text-sec)",
+                background: "var(--color-urban-raised)",
+              }}
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white rounded-lg transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ background: "var(--gradient-urban-accent)" }}
             >
               {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
               {submitting ? "Saving..." : "Save Changes"}

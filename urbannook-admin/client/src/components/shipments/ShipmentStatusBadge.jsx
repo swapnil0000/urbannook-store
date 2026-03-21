@@ -1,35 +1,39 @@
+// Inline styles that work in both light and dark modes
 const STATUS_STYLES = {
-  PUSHED:            "bg-blue-900/50 text-blue-400 border border-blue-800",
-  ASSIGNED:          "bg-indigo-900/50 text-indigo-400 border border-indigo-800",
-  PICKUP_SCHEDULED:  "bg-purple-900/50 text-purple-400 border border-purple-800",
-  IN_TRANSIT:        "bg-yellow-900/50 text-yellow-400 border border-yellow-800",
-  OUT_FOR_DELIVERY:  "bg-orange-900/50 text-orange-400 border border-orange-800",
-  DELIVERED:         "bg-green-900/50 text-green-400 border border-green-800",
-  CANCELLED:         "bg-red-900/50 text-red-400 border border-red-800",
-  RTO_INITIATED:     "bg-red-900/50 text-red-400 border border-red-800",
-  RTO_DELIVERED:     "bg-gray-800 text-gray-400 border border-gray-700",
-  EXCEPTION:         "bg-red-900 text-red-300 border border-red-700",
+  PUSHED:           { background: "#dbeafe", color: "#1d4ed8" },
+  ASSIGNED:         { background: "#ede9fe", color: "#6d28d9" },
+  PICKUP_SCHEDULED: { background: "#f3e8ff", color: "#7e22ce" },
+  IN_TRANSIT:       { background: "#fef9c3", color: "#92400e" },
+  OUT_FOR_DELIVERY: { background: "#ffedd5", color: "#c2410c" },
+  DELIVERED:        { background: "#dcfce7", color: "#15803d" },
+  CANCELLED:        { background: "#fee2e2", color: "#b91c1c" },
+  RTO_INITIATED:    { background: "#fee2e2", color: "#b91c1c" },
+  RTO_DELIVERED:    { background: "#f3f4f6", color: "#6b7280" },
+  EXCEPTION:        { background: "#fef2f2", color: "#991b1b" },
 };
 
 const STATUS_LABELS = {
-  PUSHED:            "Pending",
-  ASSIGNED:          "Assigned",
-  PICKUP_SCHEDULED:  "Pickup Scheduled",
-  IN_TRANSIT:        "In Transit",
-  OUT_FOR_DELIVERY:  "Out for Delivery",
-  DELIVERED:         "Delivered",
-  CANCELLED:         "Cancelled",
-  RTO_INITIATED:     "RTO Initiated",
-  RTO_DELIVERED:     "RTO Delivered",
-  EXCEPTION:         "Exception",
+  PUSHED:           "Pending",
+  ASSIGNED:         "Assigned",
+  PICKUP_SCHEDULED: "Pickup Scheduled",
+  IN_TRANSIT:       "In Transit",
+  OUT_FOR_DELIVERY: "Out for Delivery",
+  DELIVERED:        "Delivered",
+  CANCELLED:        "Cancelled",
+  RTO_INITIATED:    "RTO Initiated",
+  RTO_DELIVERED:    "RTO Delivered",
+  EXCEPTION:        "Exception",
 };
 
 export default function ShipmentStatusBadge({ status }) {
-  const styles = STATUS_STYLES[status] ?? "bg-gray-800 text-gray-400 border border-gray-700";
-  const label  = STATUS_LABELS[status] ?? status;
+  const style = STATUS_STYLES[status] ?? { background: "var(--color-urban-raised)", color: "var(--color-urban-text-sec)" };
+  const label = STATUS_LABELS[status] ?? status;
 
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${styles}`}>
+    <span
+      className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase"
+      style={style}
+    >
       {label}
     </span>
   );

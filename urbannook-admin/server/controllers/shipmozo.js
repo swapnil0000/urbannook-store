@@ -90,7 +90,7 @@ const pushOrderToCourier = async (req, res, next) => {
 
     const cleanOrderId = orderId.trim();
 
-    // ── 2. Duplicate check ────────────────────────────────────────────────────
+    // ── 2. Duplicate check ─────
     const existing = await ShipmentRecord.findOne({
       sourceOrderId: cleanOrderId,
     });
@@ -98,7 +98,7 @@ const pushOrderToCourier = async (req, res, next) => {
       throw new ApiError(400, "Shipment already exists for this order.");
     }
 
-    // ── 3. Fetch source order ─────────────────────────────────────────────────
+    // ── 3. Fetch source order ──
     let order;
     if (orderType === "INSTAGRAM") {
       order = await InstagramOrder.findOne({ orderId: cleanOrderId }).lean();
@@ -110,7 +110,7 @@ const pushOrderToCourier = async (req, res, next) => {
       throw new ApiError(404, `Order "${cleanOrderId}" not found.`);
     }
 
-    // ── 4. Build customer data ────────────────────────────────────────────────
+    // ── 4. Build customer data ─
     let consigneeName, consigneePhone, rawAddress;
 
     if (orderType === "INSTAGRAM") {
@@ -121,15 +121,27 @@ const pushOrderToCourier = async (req, res, next) => {
       rawAddress = order.deliveryAddress;
     } else {
       // WEBSITE: look up customer name and mobile from the User collection (read-only)
-      const user = await User.findOne({ userId: order.userId }, { name: 1, mobileNumber: 1 }).lean();
+      const user = await User.findOne(
+        { userId: order.userId },
+        { name: 1, mobileNumber: 1 },
+      ).lean();
       if (!user) {
-        throw new ApiError(404, `User not found for order "${cleanOrderId}". Cannot build consignee details.`);
+        throw new ApiError(
+          404,
+          `User not found for order "${cleanOrderId}". Cannot build consignee details.`,
+        );
       }
       if (!user.name) {
-        throw new ApiError(400, `User "${order.userId}" has no name on record.`);
+        throw new ApiError(
+          400,
+          `User "${order.userId}" has no name on record.`,
+        );
       }
       if (!user.mobileNumber) {
-        throw new ApiError(400, `User "${order.userId}" has no mobile number on record.`);
+        throw new ApiError(
+          400,
+          `User "${order.userId}" has no mobile number on record.`,
+        );
       }
       consigneeName = user.name;
       // mobileNumber is stored as Number in prod — convert to string, strip non-digits, take last 10
@@ -138,7 +150,7 @@ const pushOrderToCourier = async (req, res, next) => {
       rawAddress = order.deliveryAddress?.formattedAddress || "";
     }
 
-    // ── 5. Parse address string ───────────────────────────────────────────────
+    // ── 5. Parse address string
     const parsed = parseAddress(rawAddress);
     if (!parsed.parseSuccess) {
       throw new ApiError(
@@ -200,7 +212,7 @@ const pushOrderToCourier = async (req, res, next) => {
       warehouse_id: warehouseId.trim(),
     };
 
-    // ── 8. Push to Shipmozo ───────────────────────────────────────────────────
+    // ── 8. Push to Shipmozo ────
     console.log(
       "[Shipmozo] Target URL:",
       `${process.env.SHIPMOZO_BASE_URL}/push-order`,
@@ -533,13 +545,11 @@ const getLabelForShipment = async (req, res, next) => {
 
     // Return cached label without hitting Shipmozo again
     if (record.labelBase64) {
-      return res
-        .status(200)
-        .json(
-          new ApiResponse(200, "Label fetched (cached).", {
-            label: record.labelBase64,
-          }),
-        );
+      return res.status(200).json(
+        new ApiResponse(200, "Label fetched (cached).", {
+          label: record.labelBase64,
+        }),
+      );
     }
 
     const data = await shipmozoService.getLabel(record.awbNumber);

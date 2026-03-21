@@ -10,6 +10,7 @@ import Coupons from "./pages/Coupons";
 import AbandonedCarts from "./pages/AbandonedCarts";
 import Shipments from "./pages/Shipments";
 import CreateShipment from "./pages/CreateShipment";
+import { Analytics } from "./pages/Analytics";
 
 function App() {
   return (
@@ -23,8 +24,12 @@ function App() {
           <Route path="/admin/orders" element={<Orders />} />
           <Route path="/admin/coupons" element={<Coupons />} />
           <Route path="/admin/abandoned-carts" element={<AbandonedCarts />} />
+          <Route path="/admin/analytics" element={<Analytics />} />
           <Route path="/admin/shipments" element={<Shipments />} />
-          <Route path="/admin/shipment/create/:orderId" element={<CreateShipment />} />
+          <Route
+            path="/admin/shipment/create/:orderId"
+            element={<CreateShipment />}
+          />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
