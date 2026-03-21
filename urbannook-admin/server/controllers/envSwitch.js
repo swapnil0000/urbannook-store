@@ -1,4 +1,5 @@
 import path from "path";
+import fs from "fs";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 import mongoose from "mongoose";
@@ -6,13 +7,14 @@ import { ApiResponse, ApiError } from "../utils/apiResponse.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Parse both env files at startup — independent of which one is currently loaded
+// Parse env file into object WITHOUT touching process.env
 function parseEnvFile(filename) {
-  const result = dotenv.config({
-    path: path.resolve(__dirname, "..", filename),
-    override: false, // don't overwrite process.env — just parse
-  });
-  return result.parsed || {};
+  try {
+    const content = fs.readFileSync(path.resolve(__dirname, "..", filename));
+    return dotenv.parse(content);
+  } catch {
+    return {};
+  }
 }
 
 const DEV_CONFIG = parseEnvFile(".env");

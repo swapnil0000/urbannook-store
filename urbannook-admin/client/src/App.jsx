@@ -1,15 +1,18 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import AuthGuard from "./components/AuthGuard";
 import Layout from "./components/Layout";
-import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
-import Products from "./pages/Products";
-import Waitlist from "./pages/Waitlist";
-import Orders from "./pages/Orders";
-import Coupons from "./pages/Coupons";
-import AbandonedCarts from "./pages/AbandonedCarts";
-import Shipments from "./pages/Shipments";
-import CreateShipment from "./pages/CreateShipment";
+import {
+  Login,
+  Dashboard,
+  Products,
+  Waitlist,
+  Orders,
+  Coupons,
+  AbandonedCarts,
+  Shipments,
+  CreateShipment,
+  Testimonial,
+} from "./pages/index.js";
 import { Analytics } from "./pages/Analytics";
 
 function App() {
@@ -23,6 +26,7 @@ function App() {
           <Route path="/admin/waitlist" element={<Waitlist />} />
           <Route path="/admin/orders" element={<Orders />} />
           <Route path="/admin/coupons" element={<Coupons />} />
+          <Route path="/admin/testimonials" element={<Testimonial />} />
           <Route path="/admin/abandoned-carts" element={<AbandonedCarts />} />
           <Route path="/admin/analytics" element={<Analytics />} />
           <Route path="/admin/shipments" element={<Shipments />} />

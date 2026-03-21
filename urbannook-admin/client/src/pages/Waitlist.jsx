@@ -1,25 +1,34 @@
 import { useEffect, useState, useCallback } from "react";
-import { Users, Loader2, AlertCircle, RefreshCw } from "lucide-react";
+import { Users, Loader2, AlertCircle, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 import apiClient from "../api/axios";
 import { useToast } from "../context/ToastContext";
 import { useEnv } from "../context/EnvContext";
+
+const TABS = ["all", "pending", "sent"];
+const LIMIT = 20;
 
 export default function Waitlist() {
   const { showToast } = useToast();
   const { refreshKey } = useEnv();
   const [users, setUsers] = useState([]);
-  const [totalCount, setTotalCount] = useState(0);
+  const [counts, setCounts] = useState({ all: 0, sent: 0, pending: 0 });
+  const [pagination, setPagination] = useState({ total: 0, page: 1, totalPages: 1 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [activeTab, setActiveTab] = useState("all");
+  const [page, setPage] = useState(1);
 
   const fetchWaitlist = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await apiClient.get("/admin/joined/waitlist");
+      const res = await apiClient.get("/admin/joined/waitlist", {
+        params: { tab: activeTab, page, limit: LIMIT },
+      });
       const data = res.data.data;
       setUsers(data.users || []);
-      setTotalCount(data.totalJoinedUserWaitList || 0);
+      setPagination(data.pagination);
+      setCounts(data.counts);
     } catch (err) {
       const message = err.response?.data?.message || "Failed to fetch waitlist users";
       setError(message);
@@ -27,31 +36,23 @@ export default function Waitlist() {
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, [activeTab, page, showToast]);
 
   useEffect(() => { fetchWaitlist(); }, [fetchWaitlist, refreshKey]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="h-8 w-8 animate-spin" style={{ color: "var(--color-urban-neon)" }} />
-      </div>
-    );
-  }
+  // Reset to page 1 on tab change
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    setPage(1);
+  };
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center gap-4">
-        <AlertCircle className="h-10 w-10 text-red-400" />
-        <div>
-          <p className="font-semibold" style={{ color: "var(--color-urban-text)" }}>Something went wrong</p>
-          <p className="text-sm mt-1" style={{ color: "var(--color-urban-text-sec)" }}>{error}</p>
-        </div>
-        <button
-          onClick={fetchWaitlist}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white"
-          style={{ background: "var(--gradient-urban-accent)" }}
-        >
+      <div className="p-6 flex flex-col items-center justify-center min-h-[60vh] text-center">
+        <AlertCircle className="h-10 w-10 text-red-500 mb-3" />
+        <p className="text-gray-700 font-medium mb-1">Something went wrong</p>
+        <p className="text-sm text-gray-500 mb-4">{error}</p>
+        <button onClick={fetchWaitlist} className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium">
           <RefreshCw className="h-4 w-4" /> Retry
         </button>
       </div>
@@ -61,100 +62,105 @@ export default function Waitlist() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center"
-            style={{ background: "color-mix(in srgb, var(--color-urban-neon) 12%, transparent)" }}
-          >
-            <Users className="h-5 w-5" style={{ color: "var(--color-urban-neon)" }} />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight" style={{ color: "var(--color-urban-text)" }}>
-              Waitlist Users
-            </h1>
-            <p className="text-sm" style={{ color: "var(--color-urban-text-sec)" }}>
-              {totalCount} total members
-            </p>
-          </div>
+          <Users className="h-6 w-6 text-gray-700" />
+          <h1 className="text-2xl font-bold text-gray-900">Waitlist</h1>
+          <span className="text-sm text-gray-400">({counts.all} total)</span>
         </div>
+        <button onClick={fetchWaitlist} className="inline-flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">
+          <RefreshCw className="h-3.5 w-3.5" /> Refresh
+        </button>
       </div>
 
-      {/* Empty state */}
-      {users.length === 0 ? (
-        <div
-          className="rounded-xl p-16 flex flex-col items-center text-center"
-          style={{ background: "var(--color-urban-surface)", border: "1px solid var(--color-urban-border)" }}
-        >
-          <Users className="h-12 w-12 mb-4" style={{ color: "var(--color-urban-border)" }} />
-          <p className="font-semibold" style={{ color: "var(--color-urban-text)" }}>No waitlist users yet</p>
-          <p className="text-sm mt-1" style={{ color: "var(--color-urban-text-sec)" }}>
-            Users who join the waitlist will appear here.
-          </p>
+      {/* Tabs */}
+      <div className="flex gap-1 mb-6 border-b border-gray-200">
+        {TABS.map((tab) => (
+          <button
+            key={tab}
+            onClick={() => handleTabChange(tab)}
+            className={`px-4 py-2 text-sm font-medium capitalize border-b-2 transition-colors ${
+              activeTab === tab
+                ? "border-gray-900 text-gray-900"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            {tab} <span className="ml-1 text-xs text-gray-400">({counts[tab] ?? 0})</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Table */}
+      {loading ? (
+        <div className="flex items-center justify-center min-h-[40vh]">
+          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+        </div>
+      ) : users.length === 0 ? (
+        <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
+          <Users className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+          <p className="text-gray-500 font-medium">No {activeTab === "all" ? "" : activeTab} users</p>
         </div>
       ) : (
-        <div
-          className="rounded-xl overflow-hidden"
-          style={{
-            background: "var(--color-urban-surface)",
-            border: "1px solid var(--color-urban-border)",
-            boxShadow: "var(--shadow-urban-card)",
-          }}
-        >
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+        <>
+          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <table className="w-full">
               <thead>
-                <tr style={{ background: "color-mix(in srgb, var(--color-urban-raised) 80%, transparent)" }}>
-                  {["Name", "Email", "Joined Date"].map((h) => (
-                    <th
-                      key={h}
-                      className="px-6 py-4 text-[11px] font-bold uppercase tracking-widest"
-                      style={{ color: "var(--color-urban-text-muted)" }}
-                    >
-                      {h}
-                    </th>
-                  ))}
+                <tr className="border-b border-gray-200 bg-gray-50">
+                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-6 py-3">Name</th>
+                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-6 py-3">Email</th>
+                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-6 py-3">Joined</th>
+                  <th className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider px-6 py-3">Email Status</th>
                 </tr>
               </thead>
               <tbody>
                 {users.map((user) => (
-                  <tr
-                    key={user._id || user.userEmail}
-                    style={{ borderTop: "1px solid var(--color-urban-border)" }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = "color-mix(in srgb, var(--color-urban-neon) 4%, transparent)"}
-                    onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                    className="transition-colors"
-                  >
+                  <tr key={user._id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4 text-sm font-medium text-gray-900">{user.userName}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600">{user.userEmail}</td>
+                    <td className="px-6 py-4 text-sm text-gray-500">
+                      {new Date(user.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                    </td>
                     <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
-                          style={{
-                            background: "color-mix(in srgb, var(--color-urban-neon) 15%, transparent)",
-                            color: "var(--color-urban-neon)",
-                          }}
-                        >
-                          {(user.userName || "?").slice(0, 2).toUpperCase()}
-                        </div>
-                        <span className="text-sm font-semibold" style={{ color: "var(--color-urban-text)" }}>
-                          {user.userName}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm font-medium" style={{ color: "var(--color-urban-text-sec)" }}>
-                      {user.userEmail}
-                    </td>
-                    <td className="px-6 py-4 text-sm" style={{ color: "var(--color-urban-text-muted)" }}>
-                      {new Date(user.joinedAt).toLocaleDateString("en-IN", {
-                        day: "numeric", month: "short", year: "numeric",
-                      })}
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                        user.waitListEmailSent ? "bg-green-100 text-green-700" : "bg-yellow-50 text-yellow-700"
+                      }`}>
+                        {user.waitListEmailSent ? "Sent" : "Pending"}
+                      </span>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </div>
+
+          {/* Pagination */}
+          {pagination.totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4">
+              <p className="text-sm text-gray-500">
+                Showing {(pagination.page - 1) * LIMIT + 1}–{Math.min(pagination.page * LIMIT, pagination.total)} of {pagination.total}
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPage((p) => p - 1)}
+                  disabled={pagination.page === 1}
+                  className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <span className="text-sm text-gray-700">
+                  {pagination.page} / {pagination.totalPages}
+                </span>
+                <button
+                  onClick={() => setPage((p) => p + 1)}
+                  disabled={pagination.page === pagination.totalPages}
+                  className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

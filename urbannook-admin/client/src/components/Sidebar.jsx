@@ -12,6 +12,7 @@ import {
   Sun,
   Moon,
   TrendingUp,
+  MessageSquare,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useEnv } from "../context/EnvContext";
@@ -26,6 +27,7 @@ const navLinks = [
   { to: "/admin/coupons", label: "Coupons", icon: Ticket },
   { to: "/admin/waitlist", label: "Waitlist", icon: Users },
   { to: "/admin/analytics", label: "Analytics", icon: TrendingUp },
+  { to: "/admin/testimonials", label: "Testimonials", icon: MessageSquare },
 ];
 
 export default function Sidebar({ onNavigate }) {

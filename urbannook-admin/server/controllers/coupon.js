@@ -52,7 +52,7 @@ const listCoupons = async (req, res) => {
     filter.name = { $regex: search, $options: "i" };
   }
 
-  const coupons = await Coupon.find(filter).sort({ createdAt: -1 });
+  const coupons = await Coupon.find(filter).lean().sort({ createdAt: -1 });
   res.status(200).json(new ApiResponse(200, "Coupons fetched successfully", coupons));
 };
 
