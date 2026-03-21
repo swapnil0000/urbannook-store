@@ -191,27 +191,32 @@ export default function EditOrderDrawer({ order, onClose, onSuccess }) {
 
       {/* Drawer panel */}
       <aside
-        className={`fixed inset-y-0 right-0 w-full sm:w-[560px] bg-white z-[70] flex flex-col shadow-2xl transition-transform duration-300 ease-in-out ${
+        className={`fixed inset-y-0 right-0 w-full sm:w-[560px] z-[70] flex flex-col shadow-2xl transition-transform duration-300 ease-in-out ${
           visible ? "translate-x-0" : "translate-x-full"
         }`}
+        style={{ background: "var(--color-urban-panel)", borderLeft: "1px solid var(--color-urban-border)" }}
         role="dialog"
         aria-modal="true"
         aria-label="Edit Instagram order"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-200 shrink-0">
+        <div
+          className="flex items-center justify-between px-6 py-5 shrink-0"
+          style={{ borderBottom: "1px solid var(--color-urban-border)" }}
+        >
           <div className="flex items-center gap-2.5">
-            <Camera className="h-5 w-5 text-gray-700" />
+            <Camera className="h-5 w-5 text-pink-400" />
             <div>
-              <h2 className="text-base font-semibold text-gray-900">Edit Instagram Order</h2>
+              <h2 className="text-base font-bold" style={{ color: "var(--color-urban-text)" }}>Edit Instagram Order</h2>
               {order.orderId && (
-                <p className="text-xs font-mono text-gray-400 mt-0.5">{order.orderId}</p>
+                <p className="text-xs font-mono mt-0.5" style={{ color: "var(--color-urban-text-muted)" }}>{order.orderId}</p>
               )}
             </div>
           </div>
           <button
             onClick={handleClose}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors ml-4 shrink-0"
+            className="p-1.5 rounded-lg transition-colors ml-4 shrink-0"
+            style={{ color: "var(--color-urban-text-muted)" }}
             aria-label="Close"
           >
             <X className="h-5 w-5" />
@@ -223,17 +228,17 @@ export default function EditOrderDrawer({ order, onClose, onSuccess }) {
           <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
 
             {submitError && (
-              <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
+              <div className="text-sm rounded-xl px-4 py-3" style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#b91c1c" }}>
                 {submitError}
               </div>
             )}
 
             {/* Customer */}
             <section>
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Customer</h3>
+              <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--color-urban-text-muted)" }}>Customer</h3>
               <div className="space-y-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}>
                     Full Name <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -245,7 +250,7 @@ export default function EditOrderDrawer({ order, onClose, onSuccess }) {
                   {errors.customerName && <p className="text-xs text-red-500 mt-1">{errors.customerName}</p>}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}>
                     Contact Number <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -261,10 +266,10 @@ export default function EditOrderDrawer({ order, onClose, onSuccess }) {
 
             {/* Delivery */}
             <section>
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Delivery</h3>
+              <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--color-urban-text-muted)" }}>Delivery</h3>
               <div className="space-y-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}>
                     Address <span className="text-red-500">*</span>
                   </label>
                   <textarea
@@ -276,8 +281,8 @@ export default function EditOrderDrawer({ order, onClose, onSuccess }) {
                   {errors.deliveryAddress && <p className="text-xs text-red-500 mt-1">{errors.deliveryAddress}</p>}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Notes <span className="text-gray-400 font-normal ml-1">(optional)</span>
+                  <label className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}>
+                    Notes <span className="font-normal ml-1" style={{ color: "var(--color-urban-text-muted)" }}>(optional)</span>
                   </label>
                   <textarea
                     value={form.notes}
@@ -292,11 +297,11 @@ export default function EditOrderDrawer({ order, onClose, onSuccess }) {
             {/* Items */}
             <section>
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Items</h3>
+                <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--color-urban-text-muted)" }}>Items</h3>
                 <button
                   type="button"
                   onClick={() => dispatch({ type: "ADD_ITEM" })}
-                  className="inline-flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900 transition-colors"
+                  className="inline-flex items-center gap-1 text-xs font-medium transition-colors" style={{ color: "var(--color-urban-neon)" }}
                 >
                   <Plus className="h-3.5 w-3.5" />
                   Add item
@@ -304,7 +309,7 @@ export default function EditOrderDrawer({ order, onClose, onSuccess }) {
               </div>
 
               {productsLoading ? (
-                <div className="flex items-center gap-2 text-sm text-gray-400 py-2">
+                <div className="flex items-center gap-2 text-sm py-2" style={{ color: "var(--color-urban-text-muted)" }}>
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Loading products…
                 </div>
@@ -318,7 +323,7 @@ export default function EditOrderDrawer({ order, onClose, onSuccess }) {
                         ? selectedProduct.sellingPrice * qty
                         : null;
                     return (
-                      <div key={i} className="border border-gray-200 rounded-lg p-3 space-y-2">
+                      <div key={i} className="rounded-lg p-3 space-y-2" style={{ border: "1px solid var(--color-urban-border)" }}>
                         <div className="flex items-start gap-2">
                           <div className="flex-1 min-w-0">
                             <select
@@ -351,17 +356,17 @@ export default function EditOrderDrawer({ order, onClose, onSuccess }) {
                             type="button"
                             onClick={() => dispatch({ type: "REMOVE_ITEM", index: i })}
                             disabled={form.items.length === 1}
-                            className="p-1.5 mt-0.5 rounded text-gray-400 hover:text-red-500 transition-colors disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+                            className="p-1.5 mt-0.5 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed shrink-0" style={{ color: "var(--color-urban-text-muted)" }}
                             aria-label="Remove item"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
                         {selectedProduct && (
-                          <div className="flex items-center justify-between text-xs text-gray-400 px-0.5">
+                          <div className="flex items-center justify-between text-xs px-0.5" style={{ color: "var(--color-urban-text-muted)" }}>
                             <span>₹{selectedProduct.sellingPrice.toLocaleString()} each</span>
                             {lineTotal !== null && (
-                              <span className="font-medium text-gray-600">= ₹{lineTotal.toLocaleString()}</span>
+                              <span className="font-medium" style={{ color: "var(--color-urban-text-sec)" }}>= ₹{lineTotal.toLocaleString()}</span>
                             )}
                           </div>
                         )}
@@ -374,9 +379,9 @@ export default function EditOrderDrawer({ order, onClose, onSuccess }) {
 
             {/* Status */}
             <section>
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Payment</h3>
+              <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--color-urban-text-muted)" }}>Payment</h3>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                <label className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}>Status</label>
                 <select
                   value={form.status}
                   onChange={(e) => dispatch({ type: "SET_FIELD", field: "status", value: e.target.value })}
@@ -391,13 +396,19 @@ export default function EditOrderDrawer({ order, onClose, onSuccess }) {
           </div>
 
           {/* Sticky footer */}
-          <div className="shrink-0 border-t border-gray-200 px-6 py-4 bg-white">
+          <div
+            className="shrink-0 px-6 py-4"
+            style={{ borderTop: "1px solid var(--color-urban-border)", background: "var(--color-urban-raised)" }}
+          >
             {confirmStep ? (
               <div className="space-y-3">
-                <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+                <div
+                  className="flex items-start gap-2 rounded-lg px-4 py-3"
+                  style={{ background: "#fffbeb", border: "1px solid #fde68a" }}
+                >
                   <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-sm font-medium text-amber-800">Confirm update?</p>
+                    <p className="text-sm font-semibold text-amber-800">Confirm update?</p>
                     <p className="text-xs text-amber-700 mt-0.5">
                       Product prices will be refreshed to current selling prices. This cannot be undone.
                     </p>
@@ -405,8 +416,8 @@ export default function EditOrderDrawer({ order, onClose, onSuccess }) {
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs text-gray-400">New Total</p>
-                    <p className="text-lg font-semibold text-gray-900">
+                    <p className="text-xs" style={{ color: "var(--color-urban-text-muted)" }}>New Total</p>
+                    <p className="text-lg font-bold" style={{ color: "var(--color-urban-neon)" }}>
                       {computedTotal > 0 ? `₹${computedTotal.toLocaleString()}` : "—"}
                     </p>
                   </div>
@@ -415,7 +426,8 @@ export default function EditOrderDrawer({ order, onClose, onSuccess }) {
                       type="button"
                       onClick={() => setConfirmStep(false)}
                       disabled={submitting}
-                      className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                      className="px-4 py-2 text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
+                      style={{ border: "1px solid var(--color-urban-border)", color: "var(--color-urban-text-sec)" }}
                     >
                       Go back
                     </button>
@@ -423,7 +435,8 @@ export default function EditOrderDrawer({ order, onClose, onSuccess }) {
                       type="button"
                       onClick={handleConfirm}
                       disabled={submitting}
-                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white rounded-lg transition-all hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
+                      style={{ background: "var(--gradient-urban-accent)" }}
                     >
                       {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
                       {submitting ? "Saving…" : "Yes, Update"}
@@ -434,8 +447,8 @@ export default function EditOrderDrawer({ order, onClose, onSuccess }) {
             ) : (
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs text-gray-400">Order Total</p>
-                  <p className="text-lg font-semibold text-gray-900">
+                  <p className="text-xs" style={{ color: "var(--color-urban-text-muted)" }}>Order Total</p>
+                  <p className="text-lg font-bold" style={{ color: "var(--color-urban-neon)" }}>
                     {computedTotal > 0 ? `₹${computedTotal.toLocaleString()}` : "—"}
                   </p>
                 </div>
@@ -443,13 +456,15 @@ export default function EditOrderDrawer({ order, onClose, onSuccess }) {
                   <button
                     type="button"
                     onClick={handleClose}
-                    className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                    className="px-4 py-2 text-sm font-semibold rounded-lg transition-colors"
+                    style={{ border: "1px solid var(--color-urban-border)", color: "var(--color-urban-text-sec)" }}
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors"
+                    className="px-4 py-2 text-sm font-bold text-white rounded-lg transition-all hover:opacity-90"
+                    style={{ background: "var(--gradient-urban-accent)" }}
                   >
                     Save Changes
                   </button>

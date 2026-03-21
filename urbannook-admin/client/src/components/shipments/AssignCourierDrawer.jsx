@@ -106,31 +106,32 @@ export default function AssignCourierDrawer({ state, onFetchRates, onConfirm, on
 
       {/* Drawer panel */}
       <aside
-        className={`fixed inset-y-0 right-0 z-50 w-full sm:w-[580px] flex flex-col shadow-2xl transition-transform duration-300 ease-in-out border-l ${
+        className={`fixed inset-y-0 right-0 z-50 w-full sm:w-[580px] flex flex-col shadow-2xl transition-transform duration-300 ease-in-out ${
           visible ? "translate-x-0" : "translate-x-full"
         }`}
-        style={{ backgroundColor: "#1A1A1A", borderColor: "#2A2A2A" }}
+        style={{ background: "var(--color-urban-surface)", borderLeft: "1px solid var(--color-urban-border)" }}
         role="dialog"
         aria-modal="true"
         aria-label="Assign courier"
       >
         {/* Header */}
         <div
-          className="flex items-start justify-between px-6 py-5 border-b shrink-0"
-          style={{ backgroundColor: "#111111", borderColor: "#2A2A2A" }}
+          className="flex items-start justify-between px-6 py-5 shrink-0"
+          style={{ background: "var(--color-urban-raised)", borderBottom: "1px solid var(--color-urban-border)" }}
         >
           <div>
-            <h2 className="text-base font-semibold text-white">Assign Courier</h2>
+            <h2 className="text-base font-bold" style={{ color: "var(--color-urban-text)" }}>Assign Courier</h2>
             {state.shipment && (
               <div className="flex items-center gap-2 mt-1">
-                <p className="text-xs font-mono text-gray-500">{state.shipment.sourceOrderId}</p>
+                <p className="text-xs font-mono" style={{ color: "var(--color-urban-text-muted)" }}>{state.shipment.sourceOrderId}</p>
                 <ShipmentStatusBadge status={state.shipment.shipmentStatus} />
               </div>
             )}
           </div>
           <button
             onClick={handleClose}
-            className="p-1.5 rounded-lg text-gray-500 hover:text-gray-200 hover:bg-white/10 transition-colors ml-4 shrink-0"
+            className="p-1.5 rounded-lg transition-colors ml-4 shrink-0"
+            style={{ color: "var(--color-urban-text-muted)" }}
             aria-label="Close"
           >
             <X className="h-5 w-5" />
@@ -141,32 +142,36 @@ export default function AssignCourierDrawer({ state, onFetchRates, onConfirm, on
         <div className="flex-1 overflow-y-auto px-6 py-5">
           {loadingRates ? (
             <div className="flex flex-col items-center justify-center h-48 gap-3">
-              <Loader2 className="h-6 w-6 text-gray-400 animate-spin" />
-              <p className="text-sm text-gray-500">Fetching available courier rates…</p>
+              <Loader2 className="h-6 w-6 animate-spin" style={{ color: "var(--color-urban-neon)" }} />
+              <p className="text-sm" style={{ color: "var(--color-urban-text-sec)" }}>Fetching available courier rates…</p>
             </div>
           ) : ratesError ? (
             <div
-              className="flex items-start gap-3 p-4 rounded-xl border"
-              style={{ backgroundColor: "#2A1515", borderColor: "#4A2020" }}
+              className="flex items-start gap-3 p-4 rounded-xl"
+              style={{ background: "#fee2e2", border: "1px solid #fca5a5" }}
             >
-              <AlertCircle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
-              <p className="text-sm text-red-400">{ratesError}</p>
+              <AlertCircle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+              <p className="text-sm text-red-600">{ratesError}</p>
             </div>
           ) : (
             <>
-              <p className="text-xs text-gray-500 mb-4">
+              <p className="text-xs mb-4" style={{ color: "var(--color-urban-text-muted)" }}>
                 Select a courier to assign to this shipment. Rates are inclusive of all charges.
               </p>
 
               {/* Rates table */}
-              <div className="rounded-xl overflow-hidden border" style={{ borderColor: "#2A2A2A" }}>
-                <table className="w-full">
+              <div
+                className="rounded-xl overflow-hidden"
+                style={{ border: "1px solid var(--color-urban-border)" }}
+              >
+                <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr style={{ backgroundColor: "#111111" }}>
+                    <tr style={{ background: "color-mix(in srgb, var(--color-urban-raised) 80%, transparent)" }}>
                       {["Courier", "Service", "Price (₹)", "ETA", "Select"].map((h) => (
                         <th
                           key={h}
-                          className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500"
+                          className="px-4 py-3 text-[11px] font-bold uppercase tracking-widest"
+                          style={{ color: "var(--color-urban-text-muted)" }}
                         >
                           {h}
                         </th>
@@ -181,35 +186,35 @@ export default function AssignCourierDrawer({ state, onFetchRates, onConfirm, on
                         <tr
                           key={courierId}
                           onClick={() => setSelectedCourierId(courierId)}
-                          className="cursor-pointer border-t transition-colors"
+                          className="cursor-pointer transition-colors"
                           style={{
-                            borderColor:     "#1E1E1E",
-                            backgroundColor: isSelected ? "#1C2A1C" : "transparent",
+                            borderTop: "1px solid var(--color-urban-border)",
+                            background: isSelected ? "color-mix(in srgb, var(--color-urban-neon) 8%, transparent)" : "transparent",
                           }}
                         >
                           <td className="px-4 py-3">
-                            <p className="text-sm text-gray-200">
+                            <p className="text-sm font-semibold" style={{ color: "var(--color-urban-text)" }}>
                               {rateField(rate, "courier_name", "courier", "name")}
                             </p>
                           </td>
                           <td className="px-4 py-3">
-                            <p className="text-xs text-gray-500">
+                            <p className="text-xs" style={{ color: "var(--color-urban-text-sec)" }}>
                               {rateField(rate, "service_name", "service", "courier_company_service")}
                             </p>
                           </td>
                           <td className="px-4 py-3">
-                            <p className="text-sm text-gray-200 font-medium">
+                            <p className="text-sm font-bold" style={{ color: "var(--color-urban-neon)" }}>
                               ₹{rateField(rate, "total_charges", "rate", "charge", "price")}
                             </p>
                           </td>
                           <td className="px-4 py-3">
-                            <p className="text-xs text-gray-500">
+                            <p className="text-xs" style={{ color: "var(--color-urban-text-sec)" }}>
                               {rateField(rate, "tat", "estimated_days", "eta")}
                               {rate.tat || rate.estimated_days ? " days" : ""}
                             </p>
                           </td>
                           <td className="px-4 py-3">
-                            {isSelected && <CheckCircle className="h-4 w-4 text-green-400" />}
+                            {isSelected && <CheckCircle className="h-4 w-4" style={{ color: "var(--color-urban-neon)" }} />}
                           </td>
                         </tr>
                       );
@@ -220,11 +225,11 @@ export default function AssignCourierDrawer({ state, onFetchRates, onConfirm, on
 
               {assignError && (
                 <div
-                  className="flex items-start gap-3 p-3 rounded-xl border mt-4"
-                  style={{ backgroundColor: "#2A1515", borderColor: "#4A2020" }}
+                  className="flex items-start gap-3 p-3 rounded-xl mt-4"
+                  style={{ background: "#fee2e2", border: "1px solid #fca5a5" }}
                 >
-                  <AlertCircle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
-                  <p className="text-sm text-red-400">{assignError}</p>
+                  <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                  <p className="text-sm text-red-600">{assignError}</p>
                 </div>
               )}
             </>
@@ -234,25 +239,28 @@ export default function AssignCourierDrawer({ state, onFetchRates, onConfirm, on
         {/* Footer */}
         {!loadingRates && !ratesError && (
           <div
-            className="px-6 py-4 border-t flex items-center justify-between gap-3 shrink-0"
-            style={{ borderColor: "#2A2A2A", backgroundColor: "#111111" }}
+            className="px-6 py-4 flex items-center justify-between gap-3 shrink-0"
+            style={{ borderTop: "1px solid var(--color-urban-border)", background: "var(--color-urban-raised)" }}
           >
-            <p className="text-xs text-gray-600">
+            <p className="text-xs" style={{ color: "var(--color-urban-text-muted)" }}>
               {selectedCourierId ? "1 courier selected" : "Select a courier above"}
             </p>
             <div className="flex gap-2">
               <button
                 onClick={handleClose}
-                className="px-4 py-2 rounded-lg text-sm text-gray-400 border transition-colors hover:text-white"
-                style={{ borderColor: "#333" }}
+                className="px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+                style={{
+                  border: "1px solid var(--color-urban-border)",
+                  color: "var(--color-urban-text-sec)",
+                }}
               >
                 Cancel
               </button>
               <button
                 onClick={handleAssign}
                 disabled={!selectedCourierId || assigning}
-                className="px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
-                style={{ backgroundColor: "white", color: "black" }}
+                className="px-4 py-2 rounded-lg text-sm font-bold text-white transition-all hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+                style={{ background: "var(--gradient-urban-accent)" }}
               >
                 {assigning && <Loader2 className="h-4 w-4 animate-spin" />}
                 Assign Courier

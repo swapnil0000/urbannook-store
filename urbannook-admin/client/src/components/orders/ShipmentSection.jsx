@@ -4,17 +4,17 @@ import { Truck, Loader2, ArrowRight } from "lucide-react";
 import apiClient from "../../api/axios";
 import { useToast } from "../../context/ToastContext";
 
-const STATUS_COLORS = {
-  PUSHED:             "bg-blue-50 text-blue-700 border-blue-200",
-  ASSIGNED:           "bg-indigo-50 text-indigo-700 border-indigo-200",
-  PICKUP_SCHEDULED:   "bg-purple-50 text-purple-700 border-purple-200",
-  IN_TRANSIT:         "bg-yellow-50 text-yellow-700 border-yellow-200",
-  OUT_FOR_DELIVERY:   "bg-orange-50 text-orange-700 border-orange-200",
-  DELIVERED:          "bg-green-50 text-green-700 border-green-200",
-  CANCELLED:          "bg-red-50 text-red-700 border-red-200",
-  RTO_INITIATED:      "bg-red-50 text-red-700 border-red-200",
-  RTO_DELIVERED:      "bg-gray-100 text-gray-600 border-gray-200",
-  EXCEPTION:          "bg-red-100 text-red-800 border-red-300",
+const STATUS_STYLES = {
+  PUSHED: { background: "#dbeafe", color: "#1d4ed8" },
+  ASSIGNED: { background: "#e0e7ff", color: "#4338ca" },
+  PICKUP_SCHEDULED: { background: "#f3e8ff", color: "#7e22ce" },
+  IN_TRANSIT: { background: "#fef9c3", color: "#92400e" },
+  OUT_FOR_DELIVERY: { background: "#fff7ed", color: "#c2410c" },
+  DELIVERED: { background: "#dcfce7", color: "#15803d" },
+  CANCELLED: { background: "#fee2e2", color: "#b91c1c" },
+  RTO_INITIATED: { background: "#fee2e2", color: "#b91c1c" },
+  RTO_DELIVERED: { background: "#f3f4f6", color: "#6b7280" },
+  EXCEPTION: { background: "#fecaca", color: "#991b1b" },
 };
 
 /**
@@ -31,10 +31,10 @@ const STATUS_COLORS = {
  *   • "Create Shipment →" navigation button if none exists
  */
 export default function ShipmentSection({ orderId, orderType, order }) {
-  const navigate    = useNavigate();
+  const navigate = useNavigate();
   const { showToast } = useToast();
 
-  const [shipment,        setShipment]        = useState(undefined); // undefined = loading
+  const [shipment, setShipment] = useState(undefined); // undefined = loading
   const [loadingShipment, setLoadingShipment] = useState(true);
 
   // ── Check for existing shipment on mount ─────────────────────────────────
@@ -55,19 +55,35 @@ export default function ShipmentSection({ orderId, orderType, order }) {
         if (!cancelled) setLoadingShipment(false);
       });
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [orderId]);
 
-  // ── Loading ───────────────────────────────────────────────────────────────
+  // ── Loading ────────────────
   if (loadingShipment) {
     return (
       <section aria-label="Shipment">
         <div className="flex items-center gap-2 mb-3">
-          <Truck className="h-4 w-4 text-gray-400" />
-          <h3 className="text-sm font-semibold text-gray-700">Shipment</h3>
+          <Truck
+            className="h-4 w-4"
+            style={{ color: "var(--color-urban-text-muted)" }}
+          />
+          <h3
+            className="text-sm font-semibold"
+            style={{ color: "var(--color-urban-text-sec)" }}
+          >
+            Shipment
+          </h3>
         </div>
-        <div className="flex items-center gap-2 text-sm text-gray-400">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        <div
+          className="flex items-center gap-2 text-sm"
+          style={{ color: "var(--color-urban-text-muted)" }}
+        >
+          <Loader2
+            className="h-3.5 w-3.5 animate-spin"
+            style={{ color: "var(--color-urban-neon)" }}
+          />
           Checking shipment…
         </div>
       </section>
@@ -77,60 +93,101 @@ export default function ShipmentSection({ orderId, orderType, order }) {
   return (
     <section aria-label="Shipment">
       <div className="flex items-center gap-2 mb-3">
-        <Truck className="h-4 w-4 text-gray-400" />
-        <h3 className="text-sm font-semibold text-gray-700">Shipment</h3>
+        <Truck
+          className="h-4 w-4"
+          style={{ color: "var(--color-urban-text-muted)" }}
+        />
+        <h3
+          className="text-sm font-semibold"
+          style={{ color: "var(--color-urban-text-sec)" }}
+        >
+          Shipment
+        </h3>
       </div>
 
       {/* ── Existing shipment record ───────────────────────────────────────── */}
       {shipment ? (
-        <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+        <div
+          className="rounded-xl p-4 space-y-3"
+          style={{
+            background: "var(--color-urban-raised)",
+            border: "1px solid var(--color-urban-border)",
+          }}
+        >
           <div className="flex items-center justify-between">
             <span
-              className={`inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-full border ${
-                STATUS_COLORS[shipment.shipmentStatus] ??
-                "bg-gray-100 text-gray-600 border-gray-200"
-              }`}
+              className="inline-flex items-center text-[10px] font-bold uppercase px-2.5 py-1 rounded-full"
+              style={
+                STATUS_STYLES[shipment.shipmentStatus] ?? {
+                  background: "#f3f4f6",
+                  color: "#6b7280",
+                }
+              }
             >
               {shipment.shipmentStatus}
             </span>
             {shipment.awbNumber && (
-              <span className="text-xs font-mono text-gray-500">
+              <span
+                className="text-xs font-mono"
+                style={{ color: "var(--color-urban-text-muted)" }}
+              >
                 AWB: {shipment.awbNumber}
               </span>
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs text-gray-500">
+          <div
+            className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs"
+            style={{ color: "var(--color-urban-text-muted)" }}
+          >
             <span>
               Payment:{" "}
-              <span className="font-medium text-gray-700">
+              <span
+                className="font-medium"
+                style={{ color: "var(--color-urban-text-sec)" }}
+              >
                 {shipment.paymentType}
               </span>
             </span>
             <span>
               Warehouse:{" "}
-              <span className="font-medium text-gray-700">
+              <span
+                className="font-medium"
+                style={{ color: "var(--color-urban-text-sec)" }}
+              >
                 {shipment.warehouseId}
               </span>
             </span>
             <span>
               Weight:{" "}
-              <span className="font-medium text-gray-700">
+              <span
+                className="font-medium"
+                style={{ color: "var(--color-urban-text-sec)" }}
+              >
                 {shipment.weight}g
               </span>
             </span>
             <span>
               Dimensions:{" "}
-              <span className="font-medium text-gray-700">
+              <span
+                className="font-medium"
+                style={{ color: "var(--color-urban-text-sec)" }}
+              >
                 {shipment.length}×{shipment.width}×{shipment.height} cm
               </span>
             </span>
           </div>
 
           {shipment.courierCompany && (
-            <p className="text-xs text-gray-500">
+            <p
+              className="text-xs"
+              style={{ color: "var(--color-urban-text-muted)" }}
+            >
               Courier:{" "}
-              <span className="font-medium text-gray-700">
+              <span
+                className="font-medium"
+                style={{ color: "var(--color-urban-text-sec)" }}
+              >
                 {shipment.courierCompany}
               </span>
             </p>
@@ -138,8 +195,19 @@ export default function ShipmentSection({ orderId, orderType, order }) {
         </div>
       ) : (
         /* ── No shipment yet — navigate to dedicated create page ──────────── */
-        <div className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-3">
-          <p className="text-sm text-gray-500">No shipment created yet.</p>
+        <div
+          className="flex items-center justify-between rounded-xl px-4 py-3"
+          style={{
+            background: "var(--color-urban-raised)",
+            border: "1px solid var(--color-urban-border)",
+          }}
+        >
+          <p
+            className="text-sm"
+            style={{ color: "var(--color-urban-text-muted)" }}
+          >
+            No shipment created yet.
+          </p>
           <button
             type="button"
             onClick={() => {
@@ -155,7 +223,8 @@ export default function ShipmentSection({ orderId, orderType, order }) {
                 state: { order: order ?? { orderId } },
               });
             }}
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-900 hover:text-gray-700 transition-colors"
+            className="inline-flex items-center gap-1.5 text-sm font-semibold transition-colors"
+            style={{ color: "var(--color-urban-neon)" }}
           >
             <Truck className="h-3.5 w-3.5" />
             Create Shipment

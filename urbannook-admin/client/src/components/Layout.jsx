@@ -12,18 +12,18 @@ export default function Layout() {
   const closeDrawer = () => setDrawerOpen(false);
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Desktop Sidebar — hidden on mobile, fixed on md+ */}
-      <aside className="hidden md:fixed md:inset-y-0 md:left-0 md:flex md:w-60 md:z-30">
+    <div className="min-h-screen transition-colors duration-300">
+      {/* Desktop Sidebar — fixed, always w-60, always expanded */}
+      <aside className="hidden md:fixed md:inset-y-0 md:left-0 md:flex md:z-30 md:w-52">
         <Sidebar />
       </aside>
 
-      {/* Mobile Header — visible only below md */}
-      <header className="md:hidden fixed top-0 left-0 right-0 z-20 flex items-center justify-between px-4 h-14 bg-white border-b border-gray-200">
-        <h1 className="text-lg font-bold text-black">UrbanNook Admin</h1>
+      {/* Mobile Header */}
+      <header className="md:hidden fixed top-0 left-0 right-0 z-20 flex items-center justify-between px-4 h-14 bg-urban-sidebar border-b border-urban-border">
+        <h1 className="text-lg font-bold text-urban-text">UrbanNook Admin</h1>
         <button
           onClick={openDrawer}
-          className="p-2 text-black rounded-md hover:bg-gray-100 transition-colors cursor-pointer"
+          className="p-2 rounded-md text-urban-text hover:bg-urban-neon/5 transition-colors cursor-pointer"
           aria-label="Open navigation menu"
         >
           <Menu size={24} />
@@ -33,7 +33,7 @@ export default function Layout() {
       {/* Mobile Drawer Overlay */}
       {drawerOpen && (
         <div
-          className="md:hidden fixed inset-0 z-40 bg-black/40"
+          className="md:hidden fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
           onClick={closeDrawer}
           aria-hidden="true"
         />
@@ -41,31 +41,36 @@ export default function Layout() {
 
       {/* Mobile Drawer */}
       <div
-        className={`md:hidden fixed inset-y-0 left-0 z-50 w-60 bg-white transform transition-transform duration-200 ease-in-out ${
+        className={`md:hidden fixed inset-y-0 left-0 z-50 w-52 transform transition-transform duration-300 ease-in-out ${
           drawerOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        {/* Close button */}
-        <div className="flex justify-end p-2">
+        <div className="flex justify-end p-2 bg-urban-sidebar border-b border-urban-border">
           <button
             onClick={closeDrawer}
-            className="p-2 text-black rounded-md hover:bg-gray-100 transition-colors cursor-pointer"
+            className="p-2 rounded-md text-urban-text hover:bg-urban-neon/5 transition-colors cursor-pointer"
             aria-label="Close navigation menu"
           >
             <X size={24} />
           </button>
         </div>
-        <Sidebar onNavigate={closeDrawer} />
+        <div className="h-[calc(100%-48px)]">
+          <Sidebar onNavigate={closeDrawer} />
+        </div>
       </div>
 
-      {/* Main Content */}
-      <main className="md:ml-60 pt-14 md:pt-0 min-h-screen">
+      {/* Main Content — ml-52 matches sidebar width */}
+      <main className="md:ml-52 pt-14 md:pt-0 min-h-screen">
         <div className="p-6">
           {switching ? (
             <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
-              <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-              <p className="text-sm text-gray-500">
-                Switching to <span className="font-semibold">{env === "dev" ? "PROD" : "DEV"}</span> environment...
+              <Loader2 className="h-8 w-8 animate-spin text-urban-text-muted" />
+              <p className="text-sm text-urban-text-sec">
+                Switching to{" "}
+                <span className="font-semibold text-urban-text">
+                  {env === "dev" ? "PROD" : "DEV"}
+                </span>{" "}
+                environment...
               </p>
             </div>
           ) : (

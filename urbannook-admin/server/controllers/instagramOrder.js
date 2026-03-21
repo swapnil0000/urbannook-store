@@ -8,7 +8,7 @@ const ALLOWED_SORT_FIELDS = new Set(["createdAt", "amount"]);
 const ALLOWED_STATUSES = new Set(["CREATED", "PAID", "FAILED"]);
 
 //   GET /admin/orders/instagram from ig new changes
- const getAllInstagramOrders = async (req, res, next) => {
+const getAllInstagramOrders = async (req, res, next) => {
   try {
     const rawPage = parseInt(req.query.page, 10);
     const rawLimit = parseInt(req.query.limit, 10);
@@ -81,7 +81,7 @@ const ALLOWED_STATUSES = new Set(["CREATED", "PAID", "FAILED"]);
 };
 
 //  POST /admin/orders/instagram
- const createInstagramOrder = async (req, res, next) => {
+const createInstagramOrder = async (req, res, next) => {
   try {
     const {
       customerName,
@@ -193,7 +193,7 @@ const ALLOWED_STATUSES = new Set(["CREATED", "PAID", "FAILED"]);
 };
 
 //   GET /admin/orders/instagram/stream  (SSE)
- const streamInstagramOrders = (req, res) => {
+const streamInstagramOrders = (req, res) => {
   res.writeHead(200, {
     "Content-Type": "text/event-stream",
     "Cache-Control": "no-cache, no-transform",
@@ -243,7 +243,7 @@ const updateInstagramOrder = async (req, res, next) => {
       items,
     } = req.body;
 
-    // ── Validate ──────────────────────────────────────────────────────────────
+    // ── Validate ───────────────
     const validationErrors = [];
 
     if (
@@ -294,7 +294,7 @@ const updateInstagramOrder = async (req, res, next) => {
       throw new ApiError(400, validationErrors.join(" "));
     }
 
-    // ── Find order ────────────────────────────────────────────────────────────
+    // ── Find order ─────────────
     const order = await InstagramOrder.findOne({ orderId: req.params.orderId });
     if (!order)
       throw new ApiError(
@@ -337,7 +337,7 @@ const updateInstagramOrder = async (req, res, next) => {
       0,
     );
 
-    // ── Apply changes ─────────────────────────────────────────────────────────
+    // ── Apply changes ──────────
     order.customerName = customerName.trim();
     order.contactNumber = contactNumber.trim();
     order.deliveryAddress = deliveryAddress.trim();

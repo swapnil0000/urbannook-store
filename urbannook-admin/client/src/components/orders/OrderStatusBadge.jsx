@@ -3,14 +3,14 @@
  * Strictly uses green/yellow/red — no blue or slate tones.
  */
 
-const STATUS_CLASSES = {
-  PAID: "bg-green-100 text-green-800",
-  CREATED: "bg-yellow-100 text-yellow-800",
-  FAILED: "bg-red-100 text-red-800",
+const STATUS_STYLES = {
+  PAID:    { background: "#dcfce7", color: "#15803d" },
+  CREATED: { background: "#fef9c3", color: "#92400e" },
+  FAILED:  { background: "#fee2e2", color: "#b91c1c" },
 };
 
-export function getStatusClasses(status) {
-  return STATUS_CLASSES[status] ?? "bg-gray-100 text-gray-700";
+export function getStatusStyle(status) {
+  return STATUS_STYLES[status] ?? { background: "var(--color-urban-raised)", color: "var(--color-urban-text-sec)" };
 }
 
 export default function OrderStatusBadge({ status }) {
@@ -18,7 +18,8 @@ export default function OrderStatusBadge({ status }) {
 
   return (
     <span
-      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusClasses(status)}`}
+      className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase"
+      style={getStatusStyle(status)}
     >
       {status}
     </span>

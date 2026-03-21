@@ -9,18 +9,22 @@ const TABS = [
 
 export default function ShipmentsTabs({ activeTab, onTabChange }) {
   return (
-    <div className="flex border-b overflow-x-auto" style={{ borderColor: "#2A2A2A" }}>
+    <div
+      className="flex overflow-x-auto"
+      style={{ borderBottom: "1px solid var(--color-urban-border)" }}
+    >
       {TABS.map((tab) => {
         const isActive = activeTab === tab.id;
         return (
           <button
             key={tab.id}
             onClick={() => onTabChange(tab.id)}
-            className={`px-5 py-3 text-sm font-medium whitespace-nowrap transition-colors border-b-2 -mb-px ${
+            className="px-5 py-3 text-sm font-semibold whitespace-nowrap transition-colors border-b-2 -mb-px"
+            style={
               isActive
-                ? "border-white text-white"
-                : "border-transparent text-gray-500 hover:text-gray-300"
-            }`}
+                ? { borderColor: "var(--color-urban-neon)", color: "var(--color-urban-neon)" }
+                : { borderColor: "transparent", color: "var(--color-urban-text-muted)" }
+            }
           >
             {tab.label}
           </button>

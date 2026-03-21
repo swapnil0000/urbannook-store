@@ -289,20 +289,27 @@ export default function AddProductForm({ onClose, onSuccess }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/50"
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
       />
 
       {/* Modal */}
-      <div className="relative bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto mx-4">
+      <div
+        className="relative rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto mx-4"
+        style={{ background: "var(--color-urban-panel)", border: "1px solid var(--color-urban-border)" }}
+      >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Add New Product</h2>
+        <div
+          className="flex items-center justify-between px-6 py-4 sticky top-0 z-10"
+          style={{ background: "var(--color-urban-panel)", borderBottom: "1px solid var(--color-urban-border)" }}
+        >
+          <h2 className="text-lg font-bold" style={{ color: "var(--color-urban-text)" }}>Add New Product</h2>
           <button
             onClick={onClose}
-            className="p-1 rounded-md hover:bg-gray-100 transition-colors"
+            className="p-1.5 rounded-lg transition-colors"
+            style={{ color: "var(--color-urban-text-muted)" }}
           >
-            <X className="h-5 w-5 text-gray-500" />
+            <X className="h-5 w-5" />
           </button>
         </div>
 
@@ -310,8 +317,8 @@ export default function AddProductForm({ onClose, onSuccess }) {
         <form onSubmit={handleSubmit} className="px-6 py-4 space-y-4">
           {/* Validation errors */}
           {formErrors.length > 0 && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-              <ul className="list-disc list-inside text-sm text-red-700 space-y-1">
+            <div className="rounded-lg p-3" style={{ background: "#fee2e2", border: "1px solid #fca5a5" }}>
+              <ul className="list-disc list-inside text-sm space-y-1" style={{ color: "#b91c1c" }}>
                 {formErrors.map((err, i) => (
                   <li key={i}>{err}</li>
                 ))}
@@ -321,7 +328,7 @@ export default function AddProductForm({ onClose, onSuccess }) {
 
           {/* Product Name */}
           <div>
-            <label htmlFor="productName" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="productName" className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}>
               Product Name <span className="text-red-500">*</span>
             </label>
             <input
@@ -337,7 +344,7 @@ export default function AddProductForm({ onClose, onSuccess }) {
 
           {/* Primary Image */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}>
               Primary Image <span className="text-red-500">*</span>
             </label>
             <div className="flex items-start gap-3">
@@ -363,7 +370,7 @@ export default function AddProductForm({ onClose, onSuccess }) {
 
           {/* Secondary Images */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}>
               Secondary Images
             </label>
             <div className="flex flex-wrap gap-3">
@@ -379,17 +386,18 @@ export default function AddProductForm({ onClose, onSuccess }) {
               <button
                 type="button"
                 onClick={addSecondaryImageField}
-                className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg h-24 w-24 hover:border-gray-400 transition-colors"
+                className="flex flex-col items-center justify-center border-2 border-dashed rounded-lg h-24 w-24 transition-colors"
+                style={{ borderColor: "var(--color-urban-border)" }}
               >
-                <Plus className="h-5 w-5 text-gray-400" />
-                <span className="text-xs text-gray-500 mt-1">Add</span>
+                <Plus className="h-5 w-5" style={{ color: "var(--color-urban-text-muted)" }} />
+                <span className="text-xs mt-1" style={{ color: "var(--color-urban-text-muted)" }}>Add</span>
               </button>
             </div>
           </div>
 
           {/* Dimensions */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}>
               Dimensions (cm)
             </label>
             <div className="grid grid-cols-3 gap-3">
@@ -434,7 +442,7 @@ export default function AddProductForm({ onClose, onSuccess }) {
 
           {/* Product Description */}
           <div>
-            <label htmlFor="productDes" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="productDes" className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}>
               Description <span className="text-red-500">*</span>
             </label>
             <textarea
@@ -451,7 +459,7 @@ export default function AddProductForm({ onClose, onSuccess }) {
           {/* Selling Price + Listed Price (side by side) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label htmlFor="sellingPrice" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="sellingPrice" className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}>
                 Selling Price (Base) <span className="text-red-500">*</span>
               </label>
               <input
@@ -475,7 +483,7 @@ export default function AddProductForm({ onClose, onSuccess }) {
               />
             </div>
             <div>
-              <label htmlFor="listedPrice" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="listedPrice" className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}>
                 Listed Price (with 18% GST) <span className="text-red-500">*</span>
               </label>
               <input
@@ -486,7 +494,7 @@ export default function AddProductForm({ onClose, onSuccess }) {
                 step="0.01"
                 value={formData.listedPrice}
                 readOnly
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50 cursor-not-allowed"
+                className="w-full px-3 py-2 rounded-lg text-sm cursor-not-allowed" style={{ border: "1px solid var(--color-urban-border)", background: "var(--color-urban-raised)", color: "var(--color-urban-text-muted)" }}
                 placeholder="Auto-calculated"
               />
             </div>
@@ -495,7 +503,7 @@ export default function AddProductForm({ onClose, onSuccess }) {
           {/* Category + Quantity (side by side) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label htmlFor="productCategory" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="productCategory" className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}>
                 Category <span className="text-red-500">*</span>
               </label>
               <input
@@ -509,7 +517,7 @@ export default function AddProductForm({ onClose, onSuccess }) {
               />
             </div>
             <div>
-              <label htmlFor="productQuantity" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="productQuantity" className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}>
                 Quantity
               </label>
               <input
@@ -527,7 +535,7 @@ export default function AddProductForm({ onClose, onSuccess }) {
 
           {/* Status */}
           <div>
-            <label htmlFor="productStatus" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="productStatus" className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}>
               Status <span className="text-red-500">*</span>
             </label>
             <select
@@ -548,7 +556,7 @@ export default function AddProductForm({ onClose, onSuccess }) {
 
           {/* Tags (multi-select checkboxes) */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Tags</label>
+            <label className="block text-sm font-medium mb-2" style={{ color: "var(--color-urban-text-sec)" }}>Tags</label>
             <div className="flex flex-wrap gap-3">
               {TAG_OPTIONS.map((tag) => (
                 <label
@@ -561,7 +569,7 @@ export default function AddProductForm({ onClose, onSuccess }) {
                     onChange={() => handleTagToggle(tag)}
                     className="h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900"
                   />
-                  <span className="text-sm text-gray-700">
+                  <span className="text-sm" style={{ color: "var(--color-urban-text-sec)" }}>
                     {tag.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
                   </span>
                 </label>
@@ -571,7 +579,7 @@ export default function AddProductForm({ onClose, onSuccess }) {
 
           {/* Sub Description */}
           <div>
-            <label htmlFor="productSubDes" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="productSubDes" className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}>
               Sub Description
             </label>
             <textarea
@@ -587,7 +595,7 @@ export default function AddProductForm({ onClose, onSuccess }) {
 
           {/* Sub Category */}
           <div>
-            <label htmlFor="productSubCategory" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="productSubCategory" className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}>
               Sub Category
             </label>
             <input
@@ -603,7 +611,7 @@ export default function AddProductForm({ onClose, onSuccess }) {
 
           {/* Material & Care */}
           <div>
-            <label htmlFor="materialAndCare" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="materialAndCare" className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}>
               Material & Care
             </label>
             <textarea
@@ -627,15 +635,15 @@ export default function AddProductForm({ onClose, onSuccess }) {
                 onChange={(e) => setFormData((prev) => ({ ...prev, isPublished: e.target.checked }))}
                 className="h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900"
               />
-              <span className="text-sm font-medium text-gray-700">
+              <span className="text-sm font-medium" style={{ color: "var(--color-urban-text-sec)" }}>
                 Publish product (make visible to users)
               </span>
             </label>
           </div>
 
           {/* Product Specifications */}
-          <div className="border-t border-gray-200 pt-4">
-            <label className="block text-sm font-medium text-gray-700 mb-3">
+          <div className="pt-4" style={{ borderTop: "1px solid var(--color-urban-border)" }}>
+            <label className="block text-sm font-medium mb-3" style={{ color: "var(--color-urban-text-sec)" }}>
               Product Specifications
             </label>
             <div className="space-y-2">
@@ -658,7 +666,7 @@ export default function AddProductForm({ onClose, onSuccess }) {
                   <button
                     type="button"
                     onClick={() => removeSpecificationField(index)}
-                    className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    className="p-2 rounded-lg transition-colors" style={{ color: "var(--color-urban-text-muted)" }}
                     title="Remove specification"
                   >
                     <X className="h-4 w-4" />
@@ -669,7 +677,8 @@ export default function AddProductForm({ onClose, onSuccess }) {
             <button
               type="button"
               onClick={addSpecificationField}
-              className="mt-3 inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              className="mt-3 inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-colors"
+              style={{ color: "var(--color-urban-text-sec)", background: "var(--color-urban-raised)", border: "1px solid var(--color-urban-border)" }}
             >
               <Plus className="h-4 w-4" />
               Add Specification
@@ -677,8 +686,8 @@ export default function AddProductForm({ onClose, onSuccess }) {
           </div>
 
           {/* Color Options */}
-          <div className="border-t border-gray-200 pt-4">
-            <label className="block text-sm font-medium text-gray-700 mb-3">
+          <div className="pt-4" style={{ borderTop: "1px solid var(--color-urban-border)" }}>
+            <label className="block text-sm font-medium mb-3" style={{ color: "var(--color-urban-text-sec)" }}>
               Color Options
             </label>
             <div className="space-y-2">
@@ -694,7 +703,7 @@ export default function AddProductForm({ onClose, onSuccess }) {
                   <button
                     type="button"
                     onClick={() => removeColorOptionField(index)}
-                    className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    className="p-2 rounded-lg transition-colors" style={{ color: "var(--color-urban-text-muted)" }}
                     title="Remove color"
                   >
                     <X className="h-4 w-4" />
@@ -705,7 +714,8 @@ export default function AddProductForm({ onClose, onSuccess }) {
             <button
               type="button"
               onClick={addColorOptionField}
-              className="mt-3 inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              className="mt-3 inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-colors"
+              style={{ color: "var(--color-urban-text-sec)", background: "var(--color-urban-raised)", border: "1px solid var(--color-urban-border)" }}
             >
               <Plus className="h-4 w-4" />
               Add Color
@@ -713,18 +723,24 @@ export default function AddProductForm({ onClose, onSuccess }) {
           </div>
 
           {/* Footer buttons */}
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
+          <div className="flex items-center justify-end gap-3 pt-4" style={{ borderTop: "1px solid var(--color-urban-border)" }}>
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              className="px-4 py-2 text-sm font-semibold rounded-lg transition-colors"
+              style={{
+                border: "1px solid var(--color-urban-border)",
+                color: "var(--color-urban-text-sec)",
+                background: "var(--color-urban-raised)",
+              }}
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white rounded-lg transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ background: "var(--gradient-urban-accent)" }}
             >
               {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
               {submitting ? "Creating..." : "Create Product"}

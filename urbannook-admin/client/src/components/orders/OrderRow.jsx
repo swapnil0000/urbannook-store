@@ -8,9 +8,9 @@ import { useToast } from "../../context/ToastContext";
  * Intentionally stateless — all interaction is lifted to the parent via onSelect.
  */
 export default function OrderRow({ order, isSelected, onSelect }) {
-  const navigate     = useNavigate();
+  const navigate = useNavigate();
   const { showToast } = useToast();
-  const itemCount    = order.items?.length ?? 0;
+  const itemCount = order.items?.length ?? 0;
 
   // Guard: amount may be missing on legacy or malformed records
   const formattedAmount =
@@ -52,9 +52,7 @@ export default function OrderRow({ order, isSelected, onSelect }) {
   };
 
   // Customer column: userId for website, N/A for Instagram
-  const customerDisplay = isInstagram
-    ? "N/A"
-    : order.userId || "—";
+  const customerDisplay = isInstagram ? "N/A" : order.userId || "—";
 
   // Name column: customerName for Instagram, userName for website
   const nameDisplay = isInstagram
@@ -64,12 +62,27 @@ export default function OrderRow({ order, isSelected, onSelect }) {
   return (
     <tr
       onClick={() => onSelect(order)}
-      className={`cursor-pointer transition-colors ${
-        isSelected ? "bg-gray-100" : "hover:bg-gray-50"
-      }`}
+      className="cursor-pointer transition-colors"
+      style={{
+        borderTop: "1px solid var(--color-urban-border)",
+        background: isSelected
+          ? "color-mix(in srgb, var(--color-urban-neon) 6%, transparent)"
+          : "transparent",
+      }}
+      onMouseEnter={(e) => {
+        if (!isSelected)
+          e.currentTarget.style.background =
+            "color-mix(in srgb, var(--color-urban-neon) 4%, transparent)";
+      }}
+      onMouseLeave={(e) => {
+        if (!isSelected) e.currentTarget.style.background = "transparent";
+      }}
       aria-selected={isSelected}
     >
-      <td className="px-6 py-4 text-sm font-mono font-medium text-gray-900">
+      <td
+        className="px-6 py-4 text-sm font-mono "
+        style={{ color: "var(--color-urban-text)" }}
+      >
         <div className="flex items-center gap-1.5">
           {isInstagram ? (
             <Camera
@@ -85,27 +98,49 @@ export default function OrderRow({ order, isSelected, onSelect }) {
           <span title={order.orderId}>{displayOrderId}</span>
         </div>
       </td>
-      
-      <td className="px-6 py-4 text-sm text-gray-600 max-w-[160px] truncate">
+
+      <td
+        className="px-6 py-4 text-sm max-w-[160px] truncate"
+        style={{ color: "var(--color-urban-text-sec)" }}
+      >
         {customerDisplay}
       </td>
-      <td className="px-6 py-4 text-sm text-gray-900 max-w-[160px] truncate">
+      <td
+        className="px-6 py-4 text-sm max-w-[160px] truncate"
+        style={{ color: "var(--color-urban-text)" }}
+      >
         {nameDisplay}
       </td>
-      <td className="px-6 py-4 text-sm text-gray-600">
+      <td
+        className="px-6 py-4 text-sm"
+        style={{ color: "var(--color-urban-text-sec)" }}
+      >
         {itemCount} {itemCount === 1 ? "item" : "items"}
       </td>
-      <td className="px-6 py-4 text-sm font-medium text-gray-900">
+      <td
+        className="px-6 py-4 text-sm font-semibold"
+        style={{ color: "var(--color-urban-neon)" }}
+      >
         {formattedAmount}
       </td>
       <td className="px-6 py-4">
         <OrderStatusBadge status={order.status} />
       </td>
-      <td className="px-6 py-4 text-sm text-gray-500">{formattedDate}</td>
+      <td
+        className="px-6 py-4 text-sm"
+        style={{ color: "var(--color-urban-text-muted)" }}
+      >
+        {formattedDate}
+      </td>
       <td className="px-6 py-4">
         <button
           onClick={handleCreateShipment}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 transition-colors whitespace-nowrap"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap"
+          style={{
+            border: "1px solid var(--color-urban-border)",
+            color: "var(--color-urban-text-sec)",
+            background: "var(--color-urban-raised)",
+          }}
         >
           <Truck className="h-3 w-3" />
           Create Shipment

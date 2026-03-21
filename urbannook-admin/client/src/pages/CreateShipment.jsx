@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   useParams,
   useLocation,
@@ -37,14 +37,85 @@ const PRODUCT_DIMENSIONS = {
 };
 // add here new products size
 
+// Known warehouse locations — keyed by Shipmozo warehouse ID
+const WAREHOUSE_INFO = {
+  109337: {
+    name: "Urban Nook",
+    tag: "Home pickup",
+    address:
+      "3rd floor 740 sector 51 samaspur village, Gurgaon, Haryana, India, 122003",
+  },
+};
+
+function WarehouseCard({ info }) {
+  return (
+    <div
+      className="relative mt-2.5 rounded-xl px-4 py-3.5"
+      style={{
+        border: "1.5px solid var(--color-urban-neon)",
+        background:
+          "color-mix(in srgb, var(--color-urban-neon) 6%, transparent)",
+      }}
+    >
+      {/* Selected tick */}
+      <div
+        className="absolute top-3 right-3 flex h-5 w-5 items-center justify-center rounded-full"
+        style={{ background: "var(--color-urban-neon)" }}
+      >
+        <CheckCircle2 className="h-3.5 w-3.5 text-white" strokeWidth={3} />
+      </div>
+
+      <div className="flex items-center gap-2 mb-1.5">
+        <span
+          className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full"
+          style={{
+            background:
+              "color-mix(in srgb, var(--color-urban-neon) 15%, transparent)",
+            color: "var(--color-urban-neon)",
+          }}
+        >
+          {info.tag}
+        </span>
+        <span
+          className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+          style={{
+            background: "var(--color-urban-raised)",
+            color: "var(--color-urban-text-muted)",
+            border: "1px solid var(--color-urban-border)",
+          }}
+        >
+          Default
+        </span>
+      </div>
+
+      <p
+        className="text-sm font-bold"
+        style={{ color: "var(--color-urban-text)" }}
+      >
+        {info.name}
+      </p>
+      <p
+        className="text-xs mt-0.5 leading-relaxed"
+        style={{ color: "var(--color-urban-text-sec)" }}
+      >
+        {info.address}
+      </p>
+    </div>
+  );
+}
+
 function InfoRow({ label, value, mono = false }) {
   return (
     <div>
-      <p className="text-xs text-gray-400 mb-0.5">{label}</p>
       <p
-        className={`text-sm text-gray-900 ${
-          mono ? "font-mono break-all" : "font-medium"
-        }`}
+        className="text-xs mb-0.5"
+        style={{ color: "var(--color-urban-text-muted)" }}
+      >
+        {label}
+      </p>
+      <p
+        className={`text-sm ${mono ? "font-mono break-all" : "font-medium"}`}
+        style={{ color: "var(--color-urban-text)" }}
       >
         {value || "—"}
       </p>
@@ -54,12 +125,31 @@ function InfoRow({ label, value, mono = false }) {
 
 function SectionCard({ icon: Icon, title, badge, children }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5">
+    <div
+      className="rounded-xl p-5"
+      style={{
+        background: "var(--color-urban-surface)",
+        border: "1px solid var(--color-urban-border)",
+      }}
+    >
       <div className="flex items-center gap-2 mb-4">
-        <Icon className="h-4 w-4 text-gray-400" />
-        <h2 className="text-sm font-semibold text-gray-700">{title}</h2>
+        <Icon
+          className="h-4 w-4"
+          style={{ color: "var(--color-urban-text-muted)" }}
+        />
+        <h2
+          className="text-sm font-semibold"
+          style={{ color: "var(--color-urban-text-sec)" }}
+        >
+          {title}
+        </h2>
         {badge && (
-          <span className="ml-auto text-xs text-gray-400 italic">{badge}</span>
+          <span
+            className="ml-auto text-xs italic"
+            style={{ color: "var(--color-urban-text-muted)" }}
+          >
+            {badge}
+          </span>
         )}
       </div>
       {children}
@@ -76,7 +166,6 @@ export default function CreateShipment() {
   // Order is passed via navigation state from the Orders table row
   const order = location.state?.order;
 
-  const [warehouses, setWarehouses] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const [success, setSuccess] = useState(false);
@@ -109,29 +198,6 @@ export default function CreateShipment() {
     ),
   ];
 
-  // Fetch warehouses once on mount
-  useEffect(() => {
-    apiClient
-      .get("/admin/shipmozo/warehouses")
-      .then((res) => {
-        const list = res.data.data;
-        if (Array.isArray(list) && list.length > 0) {
-          setWarehouses(list);
-          const match = list.find(
-            (w) =>
-              String(w.id ?? w.warehouse_id ?? "") === DEFAULT_WAREHOUSE_ID,
-          );
-          const preselect = match
-            ? DEFAULT_WAREHOUSE_ID
-            : String(list[0].id ?? list[0].warehouse_id ?? "");
-          setForm((f) => ({ ...f, warehouseId: preselect }));
-        }
-      })
-      .catch(() => {
-        // Silent fail — falls back to text input with default value
-      });
-  }, []);
-
   // No order in state means user navigated directly via URL — send them to Orders
   if (!order) {
     return <Navigate to="/admin/orders" replace />;
@@ -140,7 +206,7 @@ export default function CreateShipment() {
   const isInstagram = Boolean(order.customerName);
   const orderType = isInstagram ? "INSTAGRAM" : "WEBSITE";
 
-  // ── Derived display values ─────────────────────────────────────────────────
+  // ── Derived display values ──
   const customerName = isInstagram ? order.customerName : null;
   const customerPhone = isInstagram ? order.contactNumber : null;
   const address = isInstagram
@@ -158,7 +224,7 @@ export default function CreateShipment() {
       })
     : "—";
 
-  // ── Handlers ─────────────────────────────────────────────────────────────
+  // ── Handlers ──────────────
   const handleChange = (field, value) => {
     setForm((f) => ({ ...f, [field]: value }));
     setSubmitError(null);
@@ -233,22 +299,34 @@ export default function CreateShipment() {
     }
   };
 
-  // ── Success screen ────────────────────────────────────────────────────────
+  // ── Success screen ─────────
   if (success) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 p-6">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-50 border border-green-100">
-          <CheckCircle2 className="h-8 w-8 text-green-600" />
+        <div
+          className="flex h-16 w-16 items-center justify-center rounded-full"
+          style={{ background: "#dcfce7", border: "1px solid #86efac" }}
+        >
+          <CheckCircle2 className="h-8 w-8" style={{ color: "#15803d" }} />
         </div>
         <div className="text-center">
-          <h2 className="text-xl font-semibold text-gray-900">
+          <h2
+            className="text-xl font-semibold"
+            style={{ color: "var(--color-urban-text)" }}
+          >
             Shipment Created!
           </h2>
-          <p className="text-sm text-gray-500 mt-1">
+          <p
+            className="text-sm mt-1"
+            style={{ color: "var(--color-urban-text-sec)" }}
+          >
             Order <span className="font-mono">{order.orderId}</span> has been
             pushed to Shipmozo.
           </p>
-          <p className="text-xs text-gray-400 mt-1.5">
+          <p
+            className="text-xs mt-1.5"
+            style={{ color: "var(--color-urban-text-muted)" }}
+          >
             Redirecting to Shipments dashboard…
           </p>
         </div>
@@ -256,7 +334,7 @@ export default function CreateShipment() {
     );
   }
 
-  // ── Main page ─────────────────────────────────────────────────────────────
+  // ── Main page ──────────────
   return (
     <div className="max-w-5xl mx-auto pb-10">
       {/* ── Page header ── */}
@@ -264,15 +342,32 @@ export default function CreateShipment() {
         <button
           type="button"
           onClick={() => navigate(-1)}
-          className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors shrink-0"
+          className="p-1.5 rounded-lg transition-colors shrink-0"
+          style={{
+            color: "var(--color-urban-text-muted)",
+            background: "var(--color-urban-raised)",
+            border: "1px solid var(--color-urban-border)",
+          }}
           aria-label="Go back"
         >
           <ArrowLeft className="h-4 w-4" />
         </button>
         <div>
           <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-xl font-bold text-gray-900">Create Shipment</h1>
-            <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+            <h1
+              className="text-xl font-bold"
+              style={{ color: "var(--color-urban-text)" }}
+            >
+              Create Shipment
+            </h1>
+            <span
+              className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full"
+              style={{
+                background: "var(--color-urban-raised)",
+                color: "var(--color-urban-text-sec)",
+                border: "1px solid var(--color-urban-border)",
+              }}
+            >
               {isInstagram ? (
                 <Camera className="h-3 w-3" />
               ) : (
@@ -281,7 +376,10 @@ export default function CreateShipment() {
               {isInstagram ? "Instagram" : "Website"}
             </span>
           </div>
-          <p className="text-xs font-mono text-gray-400 mt-0.5">
+          <p
+            className="text-xs font-mono mt-0.5"
+            style={{ color: "var(--color-urban-text-muted)" }}
+          >
             {order.orderId}
           </p>
         </div>
@@ -302,13 +400,34 @@ export default function CreateShipment() {
                 ) : (
                   <InfoRow label="Customer ID" value={order.userId} mono />
                 )}
-                <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-                  <p className="text-xs text-gray-400">Order date</p>
-                  <p className="text-xs text-gray-600">{formattedDate}</p>
+                <div
+                  className="flex items-center justify-between pt-2"
+                  style={{ borderTop: "1px solid var(--color-urban-border)" }}
+                >
+                  <p
+                    className="text-xs"
+                    style={{ color: "var(--color-urban-text-muted)" }}
+                  >
+                    Order date
+                  </p>
+                  <p
+                    className="text-xs"
+                    style={{ color: "var(--color-urban-text-sec)" }}
+                  >
+                    {formattedDate}
+                  </p>
                 </div>
                 <div className="flex items-center justify-between">
-                  <p className="text-xs text-gray-400">Order value</p>
-                  <p className="text-base font-semibold text-gray-900">
+                  <p
+                    className="text-xs"
+                    style={{ color: "var(--color-urban-text-muted)" }}
+                  >
+                    Order value
+                  </p>
+                  <p
+                    className="text-base font-semibold"
+                    style={{ color: "var(--color-urban-neon)" }}
+                  >
                     {formattedAmount}
                   </p>
                 </div>
@@ -322,7 +441,10 @@ export default function CreateShipment() {
                 title="Delivery Address"
                 badge="Read-only"
               >
-                <p className="text-sm text-gray-600 leading-relaxed">
+                <p
+                  className="text-sm leading-relaxed"
+                  style={{ color: "var(--color-urban-text-sec)" }}
+                >
                   {address}
                 </p>
               </SectionCard>
@@ -346,32 +468,57 @@ export default function CreateShipment() {
                     return (
                       <div
                         key={item.productId ?? idx}
-                        className="flex items-center gap-3 pt-3 border-t border-gray-100 first:pt-0 first:border-0"
+                        className="flex items-center gap-3 pt-3 first:pt-0"
+                        style={{
+                          borderTop:
+                            idx === 0
+                              ? "none"
+                              : "1px solid var(--color-urban-border)",
+                        }}
                       >
                         {snap.productImg ? (
                           <img
                             src={snap.productImg}
                             alt={snap.productName}
-                            className="h-11 w-11 rounded-lg object-cover bg-gray-100 shrink-0 border border-gray-100"
+                            className="h-11 w-11 rounded-lg object-cover shrink-0"
+                            style={{
+                              border: "1px solid var(--color-urban-border)",
+                              background: "var(--color-urban-raised)",
+                            }}
                             onError={(e) => {
                               e.target.style.display = "none";
                             }}
                           />
                         ) : (
-                          <div className="h-11 w-11 rounded-lg bg-gray-100 shrink-0" />
+                          <div
+                            className="h-11 w-11 rounded-lg shrink-0"
+                            style={{
+                              background: "var(--color-urban-raised)",
+                              border: "1px solid var(--color-urban-border)",
+                            }}
+                          />
                         )}
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">
+                          <p
+                            className="text-sm font-medium truncate"
+                            style={{ color: "var(--color-urban-text)" }}
+                          >
                             {snap.productName ?? "Product"}
                           </p>
-                          <p className="text-xs text-gray-500 mt-0.5">
+                          <p
+                            className="text-xs mt-0.5"
+                            style={{ color: "var(--color-urban-text-muted)" }}
+                          >
                             Qty: {snap.quantity ?? 1}
                             {typeof snap.priceAtPurchase === "number" &&
                               ` · ₹${snap.priceAtPurchase.toLocaleString()} each`}
                           </p>
                         </div>
                         {itemTotal && (
-                          <p className="text-sm font-medium text-gray-900 shrink-0">
+                          <p
+                            className="text-sm font-semibold shrink-0"
+                            style={{ color: "var(--color-urban-neon)" }}
+                          >
                             {itemTotal}
                           </p>
                         )}
@@ -388,9 +535,15 @@ export default function CreateShipment() {
             <SectionCard icon={Box} title="Package Details">
               {/* Multi-product warning */}
               {distinctProducts.length > 1 && (
-                <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 mb-4">
-                  <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
-                  <p className="text-xs text-amber-700">
+                <div
+                  className="flex items-start gap-2 rounded-lg px-3 py-2.5 mb-4"
+                  style={{ background: "#fffbeb", border: "1px solid #fde68a" }}
+                >
+                  <AlertTriangle
+                    className="h-4 w-4 shrink-0 mt-0.5"
+                    style={{ color: "#d97706" }}
+                  />
+                  <p className="text-xs" style={{ color: "#92400e" }}>
                     Order has {distinctProducts.length} different products —
                     verify dimensions before pushing.
                   </p>
@@ -399,7 +552,10 @@ export default function CreateShipment() {
 
               {/* Payment type */}
               <div className="mb-5">
-                <p className="text-xs font-medium text-gray-600 mb-2">
+                <p
+                  className="text-xs font-medium mb-2"
+                  style={{ color: "var(--color-urban-text-sec)" }}
+                >
                   Payment Type
                 </p>
                 <div className="flex gap-2">
@@ -408,11 +564,20 @@ export default function CreateShipment() {
                       key={type}
                       type="button"
                       onClick={() => handleChange("paymentType", type)}
-                      className={`flex-1 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                      className="flex-1 py-2 text-sm font-medium rounded-lg transition-colors"
+                      style={
                         form.paymentType === type
-                          ? "bg-gray-900 text-white border-gray-900"
-                          : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
-                      }`}
+                          ? {
+                              background: "var(--gradient-urban-accent)",
+                              color: "#fff",
+                              border: "1px solid transparent",
+                            }
+                          : {
+                              background: "var(--color-urban-raised)",
+                              color: "var(--color-urban-text-sec)",
+                              border: "1px solid var(--color-urban-border)",
+                            }
+                      }
                     >
                       {type}
                     </button>
@@ -420,38 +585,26 @@ export default function CreateShipment() {
                 </div>
               </div>
 
-              {/* Weight */}
+              {/* Weight + Dimensions — single row */}
               <div className="mb-4">
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                  Weight{" "}
-                  <span className="font-normal text-gray-400">(grams)</span>
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  step="any"
-                  value={form.weight}
-                  onChange={(e) => handleChange("weight", e.target.value)}
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                />
-              </div>
-
-              {/* Dimensions */}
-              <div className="mb-4">
-                <p className="text-xs font-medium text-gray-600 mb-1.5">
-                  Dimensions{" "}
-                  <span className="font-normal text-gray-400">
-                    (cm) — L × W × H
-                  </span>
+                <p
+                  className="text-xs font-medium mb-1.5"
+                  style={{ color: "var(--color-urban-text-sec)" }}
+                >
+                  Weight &amp; Dimensions
                 </p>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-4 gap-2">
                   {[
-                    { field: "length", label: "Length" },
-                    { field: "width", label: "Width" },
-                    { field: "height", label: "Height" },
+                    { field: "weight", label: "Weight (g)" },
+                    { field: "length", label: "Length (cm)" },
+                    { field: "width", label: "Width (cm)" },
+                    { field: "height", label: "Height (cm)" },
                   ].map(({ field, label }) => (
                     <div key={field}>
-                      <label className="block text-xs text-gray-400 mb-1">
+                      <label
+                        className="block text-xs mb-1"
+                        style={{ color: "var(--color-urban-text-muted)" }}
+                      >
                         {label}
                       </label>
                       <input
@@ -460,7 +613,12 @@ export default function CreateShipment() {
                         step="any"
                         value={form[field]}
                         onChange={(e) => handleChange(field, e.target.value)}
-                        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                        className="w-full text-sm rounded-lg px-3 py-2 focus:outline-none"
+                        style={{
+                          border: "1px solid var(--color-urban-border)",
+                          background: "var(--color-urban-raised)",
+                          color: "var(--color-urban-text)",
+                        }}
                       />
                     </div>
                   ))}
@@ -470,17 +628,36 @@ export default function CreateShipment() {
               {/* OR divider + autofill preset */}
               <div className="mb-4">
                 <div className="flex items-center gap-3 mb-3">
-                  <div className="flex-1 h-px bg-gray-200" />
-                  <span className="text-xs font-medium text-gray-400">OR</span>
-                  <div className="flex-1 h-px bg-gray-200" />
+                  <div
+                    className="flex-1 h-px"
+                    style={{ background: "var(--color-urban-border)" }}
+                  />
+                  <span
+                    className="text-xs font-medium"
+                    style={{ color: "var(--color-urban-text-muted)" }}
+                  >
+                    OR
+                  </span>
+                  <div
+                    className="flex-1 h-px"
+                    style={{ background: "var(--color-urban-border)" }}
+                  />
                 </div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                <label
+                  className="block text-xs font-medium mb-1.5"
+                  style={{ color: "var(--color-urban-text-sec)" }}
+                >
                   Select package to autofill dimensions
                 </label>
                 <select
                   value={dimensionPreset}
                   onChange={(e) => handlePresetChange(e.target.value)}
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  className="w-full text-sm rounded-lg px-3 py-2.5 focus:outline-none"
+                  style={{
+                    border: "1px solid var(--color-urban-border)",
+                    background: "var(--color-urban-raised)",
+                    color: "var(--color-urban-text)",
+                  }}
                 >
                   <option value="">— select to pre-fill —</option>
                   {Object.entries(PRODUCT_DIMENSIONS).map(([name, d]) => (
@@ -493,46 +670,41 @@ export default function CreateShipment() {
 
               {/* Warehouse */}
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                <label
+                  className="block text-xs font-medium mb-1.5"
+                  style={{ color: "var(--color-urban-text-sec)" }}
+                >
                   Pickup Warehouse
                 </label>
-                {warehouses.length > 0 ? (
-                  <select
-                    value={form.warehouseId}
-                    onChange={(e) =>
-                      handleChange("warehouseId", e.target.value)
-                    }
-                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                  >
-                    {warehouses.map((w) => {
-                      const id = String(w.id ?? w.warehouse_id ?? "");
-                      const title = w.address_title ?? w.name ?? id;
-                      const city = w.city ? ` · ${w.city}` : "";
-                      return (
-                        <option key={id} value={id}>
-                          {title}
-                          {city}
-                        </option>
-                      );
-                    })}
-                  </select>
-                ) : (
-                  <input
-                    type="text"
-                    value={form.warehouseId}
-                    onChange={(e) =>
-                      handleChange("warehouseId", e.target.value)
-                    }
-                    placeholder="Warehouse ID"
-                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2.5 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900"
-                  />
+                <input
+                  type="text"
+                  value={form.warehouseId}
+                  onChange={(e) => handleChange("warehouseId", e.target.value)}
+                  placeholder="Warehouse ID"
+                  className="w-full text-sm rounded-lg px-3 py-2.5 focus:outline-none"
+                  style={{
+                    border: "1px solid var(--color-urban-border)",
+                    background: "var(--color-urban-raised)",
+                    color: "var(--color-urban-text)",
+                  }}
+                />
+                {/* Location card — shown when the entered ID maps to a known warehouse */}
+                {WAREHOUSE_INFO[form.warehouseId] && (
+                  <WarehouseCard info={WAREHOUSE_INFO[form.warehouseId]} />
                 )}
               </div>
             </SectionCard>
 
             {/* Error banner */}
             {submitError && (
-              <div className="flex items-start gap-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
+              <div
+                className="flex items-start gap-2 text-sm rounded-xl px-4 py-3"
+                style={{
+                  background: "#fee2e2",
+                  border: "1px solid #fca5a5",
+                  color: "#b91c1c",
+                }}
+              >
                 <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
                 <span>{submitError}</span>
               </div>
@@ -542,7 +714,8 @@ export default function CreateShipment() {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full inline-flex items-center justify-center gap-2 py-3.5 text-base font-semibold text-white bg-gray-900 rounded-xl hover:bg-gray-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full inline-flex items-center justify-center gap-2 py-3.5 text-base font-bold text-white rounded-xl transition-all hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
+              style={{ background: "var(--gradient-urban-accent)" }}
             >
               {submitting ? (
                 <>
@@ -557,7 +730,10 @@ export default function CreateShipment() {
               )}
             </button>
 
-            <p className="text-xs text-center text-gray-400">
+            <p
+              className="text-xs text-center"
+              style={{ color: "var(--color-urban-text-muted)" }}
+            >
               Customer and item details are auto-filled from your database. Only
               specify the physical package dimensions.
             </p>

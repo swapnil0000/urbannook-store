@@ -61,36 +61,35 @@ export default function Pagination({
   const rangeEnd = Math.min(currentPage * limit, totalOrders);
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-3 border-t border-gray-200">
-      {/* Result range summary */}
-      <p className="text-sm text-gray-500">
-        Showing <span className="font-medium text-gray-800">{rangeStart}</span>–
-        <span className="font-medium text-gray-800">{rangeEnd}</span> of{" "}
-        <span className="font-medium text-gray-800">{totalOrders}</span>
+    <div
+      className="flex flex-wrap items-center justify-between gap-3 px-6 py-3"
+      style={{ borderTop: "1px solid var(--color-urban-border)" }}
+    >
+      <p className="text-sm" style={{ color: "var(--color-urban-text-sec)" }}>
+        Showing{" "}
+        <span className="font-semibold" style={{ color: "var(--color-urban-text)" }}>{rangeStart}</span>–
+        <span className="font-semibold" style={{ color: "var(--color-urban-text)" }}>{rangeEnd}</span>{" "}
+        of{" "}
+        <span className="font-semibold" style={{ color: "var(--color-urban-text)" }}>{totalOrders}</span>
       </p>
 
-      {/* Page controls */}
-      <div
-        className="flex items-center gap-1"
-        role="navigation"
-        aria-label="Pagination"
-      >
-        {/* Previous */}
+      <div className="flex items-center gap-1" role="navigation" aria-label="Pagination">
         <button
           onClick={() => onPageChange(currentPage - 1)}
           disabled={currentPage === 1}
-          className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="p-1.5 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          style={{ border: "1px solid var(--color-urban-border)", color: "var(--color-urban-text-sec)" }}
           aria-label="Previous page"
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
 
-        {/* Page numbers */}
         {pageNumbers.map((page, idx) =>
           page === "…" ? (
             <span
               key={`ellipsis-${idx}`}
-              className="w-9 h-9 flex items-center justify-center text-sm text-gray-400"
+              className="w-9 h-9 flex items-center justify-center text-sm"
+              style={{ color: "var(--color-urban-text-muted)" }}
             >
               …
             </span>
@@ -99,11 +98,12 @@ export default function Pagination({
               key={page}
               onClick={() => onPageChange(page)}
               disabled={page === currentPage}
-              className={`w-9 h-9 text-sm rounded-lg border transition-colors ${
+              className="w-9 h-9 text-sm rounded-lg transition-colors"
+              style={
                 page === currentPage
-                  ? "bg-gray-900 text-white border-gray-900 cursor-default"
-                  : "border-gray-200 text-gray-700 hover:bg-gray-50"
-              }`}
+                  ? { background: "var(--color-urban-neon)", color: "#111", border: "1px solid var(--color-urban-neon)", cursor: "default", fontWeight: 700 }
+                  : { border: "1px solid var(--color-urban-border)", color: "var(--color-urban-text-sec)" }
+              }
               aria-label={`Page ${page}`}
               aria-current={page === currentPage ? "page" : undefined}
             >
@@ -112,11 +112,11 @@ export default function Pagination({
           ),
         )}
 
-        {/* Next */}
         <button
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage === safeTotalPages}
-          className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="p-1.5 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          style={{ border: "1px solid var(--color-urban-border)", color: "var(--color-urban-text-sec)" }}
           aria-label="Next page"
         >
           <ChevronRight className="h-4 w-4" />

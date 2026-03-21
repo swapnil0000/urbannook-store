@@ -39,36 +39,38 @@ export default function Orders() {
 
   const [createOpen, setCreateOpen] = useState(false);
 
-  //   Full-page loading (initial load only)
   if (loading && orders.length === 0) {
     return (
-      <div className="p-6">
-        <div className="flex items-center gap-3 mb-6">
-          <ShoppingCart className="h-6 w-6 text-gray-700" />
-          <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
-        </div>
+      <div className="space-y-5">
+        <h1 className="text-2xl font-bold tracking-tight text-urban-text">
+          Orders
+        </h1>
         <div className="flex items-center justify-center min-h-[40vh]">
-          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+          <Loader2 className="h-8 w-8 animate-spin text-urban-neon" />
         </div>
       </div>
     );
   }
 
-  //   Full-page error (no data at all)
   if (error && orders.length === 0) {
     return (
-      <div className="p-6">
-        <div className="flex items-center gap-3 mb-6">
-          <ShoppingCart className="h-6 w-6 text-gray-700" />
-          <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
-        </div>
-        <div className="flex flex-col items-center justify-center min-h-[40vh] text-center">
-          <AlertCircle className="h-10 w-10 text-red-500 mb-3" />
-          <p className="text-gray-700 font-medium mb-1">Something went wrong</p>
-          <p className="text-sm text-gray-500 mb-4">{error}</p>
+      <div className="space-y-5">
+        <h1 className="text-2xl font-bold tracking-tight text-urban-text">
+          Orders
+        </h1>
+        <div className="flex flex-col items-center justify-center min-h-[40vh] text-center gap-4">
+          <AlertCircle className="h-10 w-10 text-red-400" />
+          <div>
+            <p className="font-semibold text-urban-text">
+              Something went wrong
+            </p>
+            <p className="text-sm mt-1 text-urban-text-sec">{error}</p>
+          </div>
           <button
             onClick={refetch}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white
+                       bg-linear-to-br from-urban-accent-from to-urban-accent-to
+                       hover:brightness-110 transition-all"
           >
             <RefreshCw className="h-4 w-4" />
             Retry
@@ -87,27 +89,38 @@ export default function Orders() {
   const isEmpty = !loading && orders.length === 0;
 
   return (
-    <div className="p-6">
-      {/*   Page header  */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <ShoppingCart className="h-6 w-6 text-gray-700" />
-          <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
-          {loading && orders.length > 0 && (
-            <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
-          )}
+    <div className="space-y-5">
+      {/* Page header */}
+      <div className="flex items-end justify-between">
+        <div>
+          {/* <nav className="flex text-xs font-bold uppercase tracking-widest mb-1 gap-1.5 text-urban-text-muted">
+            <span>Sales</span><span>/</span>
+            <span className="text-urban-neon">Orders</span>
+          </nav> */}
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold tracking-tight text-urban-text">
+              Orders
+            </h1>
+            {loading && orders.length > 0 && (
+              <Loader2 className="h-4 w-4 animate-spin text-urban-neon" />
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={refetch}
-            className="inline-flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-semibold rounded-lg
+                       border border-urban-border bg-urban-raised text-urban-text-sec
+                       hover:border-urban-neon hover:text-urban-neon transition-all"
           >
             <RefreshCw className="h-3.5 w-3.5" />
             Refresh
           </button>
           <button
             onClick={() => setCreateOpen(true)}
-            className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white rounded-xl
+                       bg-linear-to-br from-urban-accent-from to-urban-accent-to
+                       shadow-sm hover:brightness-110 hover:scale-105 active:scale-95 transition-all"
           >
             <Plus className="h-3.5 w-3.5" />
             Create Order
@@ -115,12 +128,20 @@ export default function Orders() {
         </div>
       </div>
 
-      {/*   New orders banner  */}
+      {/* New orders banner */}
       {pendingNewOrders > 0 && (
-        <div className="flex items-center justify-between bg-gray-900 text-white text-sm rounded-lg px-4 py-2.5 mb-4">
+        <div
+          className="flex items-center justify-between text-sm rounded-xl px-4 py-3"
+          style={{
+            background:
+              "color-mix(in srgb, var(--color-urban-neon) 10%, transparent)",
+            border:
+              "1px solid color-mix(in srgb, var(--color-urban-neon) 30%, transparent)",
+          }}
+        >
           <div className="flex items-center gap-2">
-            <Bell className="h-4 w-4 text-gray-300" />
-            <span>
+            <Bell className="h-4 w-4 text-urban-neon" />
+            <span className="font-semibold text-urban-text">
               {pendingNewOrders} new{" "}
               {pendingNewOrders === 1 ? "order" : "orders"} received
             </span>
@@ -132,13 +153,13 @@ export default function Orders() {
                 resetFilters();
                 dismissPending();
               }}
-              className="text-xs font-medium underline underline-offset-2 hover:text-gray-300 transition-colors"
+              className="text-xs font-semibold underline underline-offset-2 text-urban-neon"
             >
               Go to latest
             </button>
             <button
               onClick={dismissPending}
-              className="text-gray-400 hover:text-white transition-colors text-xs"
+              className="text-xs text-urban-text-sec"
             >
               Dismiss
             </button>
@@ -146,7 +167,7 @@ export default function Orders() {
         </div>
       )}
 
-      {/*   Toolbar  */}
+      {/* Toolbar */}
       <OrdersToolbar
         filters={filters}
         sort={sort}
@@ -158,32 +179,38 @@ export default function Orders() {
         showChannelFilter
       />
 
-      {/*   Orders table or empty state  */}
+      {/* Orders table or empty state */}
       {isEmpty ? (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
-          <ShoppingCart className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+        <div className="un-card p-12 text-center">
+          <ShoppingCart className="h-12 w-12 mx-auto mb-4 text-urban-border" />
           {hasActiveFilters ? (
             <>
-              <p className="text-gray-500 font-medium">No orders match your filters</p>
-              <p className="text-sm text-gray-400 mt-1 mb-4">
+              <p className="font-semibold text-urban-text">
+                No orders match your filters
+              </p>
+              <p className="text-sm mt-1 mb-4 text-urban-text-sec">
                 Try adjusting or clearing your filter criteria.
               </p>
               <button
                 onClick={resetFilters}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold text-white
+                           bg-linear-to-br from-urban-accent-from to-urban-accent-to
+                           hover:brightness-110 transition-all"
               >
                 Clear filters
               </button>
             </>
           ) : (
             <>
-              <p className="text-gray-500 font-medium">No orders yet</p>
-              <p className="text-sm text-gray-400 mt-1 mb-4">
+              <p className="font-semibold text-urban-text">No orders yet</p>
+              <p className="text-sm mt-1 mb-4 text-urban-text-sec">
                 Website and Instagram orders will appear here.
               </p>
               <button
                 onClick={() => setCreateOpen(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold text-white
+                           bg-linear-to-br from-urban-accent-from to-urban-accent-to
+                           hover:brightness-110 transition-all"
               >
                 <Plus className="h-4 w-4" />
                 Create Instagram Order
@@ -192,7 +219,7 @@ export default function Orders() {
           )}
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div className="un-card overflow-hidden">
           <OrdersTable
             orders={orders}
             sort={sort}
@@ -210,8 +237,12 @@ export default function Orders() {
         </div>
       )}
 
-      {/*   Drawers  */}
-      <OrderDetailDrawer order={selectedOrder} onClose={closeDrawer} onOrderUpdated={refetch} />
+      {/* Drawers */}
+      <OrderDetailDrawer
+        order={selectedOrder}
+        onClose={closeDrawer}
+        onOrderUpdated={refetch}
+      />
       <CreateOrderDrawer
         open={createOpen}
         onClose={() => setCreateOpen(false)}
