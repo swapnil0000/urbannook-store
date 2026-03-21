@@ -34,6 +34,11 @@ import {
 } from "../controllers/coupon.js";
 import { getEnv, switchEnv } from "../controllers/envSwitch.js";
 import { getAbandonedCarts } from "../controllers/abandonedCart.js";
+import {
+  getAllTestimonials,
+  approveTestimonial,
+  declineTestimonial,
+} from "../controllers/testimonial.js";
 import shipmozoRoutes from "./shipmozo.js";
 
 const router = express.Router();
@@ -121,6 +126,11 @@ router.get("/coupon/list", verifyAuth, listCoupons);
 router.put("/coupon/edit/:couponCodeId", verifyAuth, editCoupon);
 router.patch("/coupon/toggle/:couponCodeId", verifyAuth, togglePublish);
 router.delete("/coupon/delete/:couponCodeId", verifyAuth, deleteCoupon);
+
+// Testimonial routes
+router.get("/testimonials", verifyAuth, getAllTestimonials);
+router.patch("/testimonials/:id/approve", verifyAuth, approveTestimonial);
+router.patch("/testimonials/:id/decline", verifyAuth, declineTestimonial);
 
 // Shipmozo shipping routes
 router.use("/shipmozo", verifyAuth, shipmozoRoutes);

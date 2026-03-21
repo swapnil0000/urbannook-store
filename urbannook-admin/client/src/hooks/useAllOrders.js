@@ -1,9 +1,8 @@
 import { useReducer, useEffect, useRef, useCallback, useMemo } from "react";
 import apiClient from "../api/axios";
 import { useToast } from "../context/ToastContext";
+import { BASE } from "../constant/constant.js";
 
-const BASE =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1";
 const WEB_SSE_URL = `${BASE}/admin/orders/stream`;
 const IG_SSE_URL = `${BASE}/admin/orders/instagram/stream`;
 
@@ -44,14 +43,25 @@ function reducer(state, action) {
       return {
         ...state,
         loadingInstagram: false,
-        rawInstagram: action.payload.map((o) => ({ ...o, _channel: "instagram" })),
+        rawInstagram: action.payload.map((o) => ({
+          ...o,
+          _channel: "instagram",
+        })),
         pendingNewOrders: 0,
       };
     case "INSTAGRAM_FETCH_ERROR":
-      return { ...state, loadingInstagram: false, errorInstagram: action.payload };
+      return {
+        ...state,
+        loadingInstagram: false,
+        errorInstagram: action.payload,
+      };
 
     case "SET_FILTERS":
-      return { ...state, filters: { ...state.filters, ...action.payload }, currentPage: 1 };
+      return {
+        ...state,
+        filters: { ...state.filters, ...action.payload },
+        currentPage: 1,
+      };
     case "RESET_FILTERS":
       return { ...state, filters: initialState.filters, currentPage: 1 };
     case "SET_SORT":
@@ -61,9 +71,14 @@ function reducer(state, action) {
 
     case "NEW_WEBSITE_ORDER": {
       const order = { ...action.payload, _channel: "website" };
-      if (state.rawWebsite.some((o) => o._id === order._id || o.orderId === order.orderId))
+      if (
+        state.rawWebsite.some(
+          (o) => o._id === order._id || o.orderId === order.orderId,
+        )
+      )
         return state;
-      if (state.filters.status && state.filters.status !== order.status) return state;
+      if (state.filters.status && state.filters.status !== order.status)
+        return state;
       const visible =
         state.currentPage === 1 &&
         state.sort.sortBy === "createdAt" &&
@@ -72,14 +87,21 @@ function reducer(state, action) {
       return {
         ...state,
         rawWebsite: [order, ...state.rawWebsite],
-        pendingNewOrders: visible ? state.pendingNewOrders : state.pendingNewOrders + 1,
+        pendingNewOrders: visible
+          ? state.pendingNewOrders
+          : state.pendingNewOrders + 1,
       };
     }
     case "NEW_INSTAGRAM_ORDER": {
       const order = { ...action.payload, _channel: "instagram" };
-      if (state.rawInstagram.some((o) => o._id === order._id || o.orderId === order.orderId))
+      if (
+        state.rawInstagram.some(
+          (o) => o._id === order._id || o.orderId === order.orderId,
+        )
+      )
         return state;
-      if (state.filters.status && state.filters.status !== order.status) return state;
+      if (state.filters.status && state.filters.status !== order.status)
+        return state;
       const visible =
         state.currentPage === 1 &&
         state.sort.sortBy === "createdAt" &&
@@ -88,7 +110,9 @@ function reducer(state, action) {
       return {
         ...state,
         rawInstagram: [order, ...state.rawInstagram],
-        pendingNewOrders: visible ? state.pendingNewOrders : state.pendingNewOrders + 1,
+        pendingNewOrders: visible
+          ? state.pendingNewOrders
+          : state.pendingNewOrders + 1,
       };
     }
 
@@ -112,7 +136,9 @@ export function useAllOrders({ refreshKey = 0 } = {}) {
   const igAbortRef = useRef(null);
   // Keep showToast stable — avoids fetch functions recreating on every render
   const showToastRef = useRef(showToast);
-  useEffect(() => { showToastRef.current = showToast; }, [showToast]);
+  useEffect(() => {
+    showToastRef.current = showToast;
+  }, [showToast]);
 
   // Computed: merge → channel-filter → sort → paginate
   const { displayOrders, totalOrders, totalPages } = useMemo(() => {
@@ -127,7 +153,8 @@ export function useAllOrders({ refreshKey = 0 } = {}) {
     merged.sort((a, b) => {
       let av, bv;
       if (state.sort.sortBy === "amount") {
-        av = a.amount ?? 0; bv = b.amount ?? 0;
+        av = a.amount ?? 0;
+        bv = b.amount ?? 0;
       } else {
         av = effectiveDateOf(a) ? new Date(effectiveDateOf(a)).getTime() : 0;
         bv = effectiveDateOf(b) ? new Date(effectiveDateOf(b)).getTime() : 0;
@@ -137,9 +164,18 @@ export function useAllOrders({ refreshKey = 0 } = {}) {
     const total = merged.length;
     const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
     const safePage = Math.min(state.currentPage, pages);
-    const display = merged.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+    const display = merged.slice(
+      (safePage - 1) * PAGE_SIZE,
+      safePage * PAGE_SIZE,
+    );
     return { displayOrders: display, totalOrders: total, totalPages: pages };
-  }, [state.rawWebsite, state.rawInstagram, state.filters.channel, state.sort, state.currentPage]);
+  }, [
+    state.rawWebsite,
+    state.rawInstagram,
+    state.filters.channel,
+    state.sort,
+    state.currentPage,
+  ]);
 
   // Stable fetch functions — empty deps, use refs for toast
   const fetchWebsite = useCallback(async (serverFilters) => {
@@ -151,13 +187,20 @@ export function useAllOrders({ refreshKey = 0 } = {}) {
       if (serverFilters.status) params.status = serverFilters.status;
       if (serverFilters.startDate) params.startDate = serverFilters.startDate;
       if (serverFilters.endDate) params.endDate = serverFilters.endDate;
-      const res = await apiClient.get("/admin/orders", { params, signal: webAbortRef.current.signal });
+      const res = await apiClient.get("/admin/orders", {
+        params,
+        signal: webAbortRef.current.signal,
+      });
       if (!isMountedRef.current) return;
-      dispatch({ type: "WEBSITE_FETCH_SUCCESS", payload: res.data.data?.orders ?? [] });
+      dispatch({
+        type: "WEBSITE_FETCH_SUCCESS",
+        payload: res.data.data?.orders ?? [],
+      });
     } catch (err) {
       if (!isMountedRef.current) return;
       if (err.code === "ERR_CANCELED" || err.name === "CanceledError") return;
-      const msg = err.response?.data?.message || "Failed to fetch website orders";
+      const msg =
+        err.response?.data?.message || "Failed to fetch website orders";
       dispatch({ type: "WEBSITE_FETCH_ERROR", payload: msg });
       showToastRef.current(msg, "error");
     }
@@ -172,13 +215,20 @@ export function useAllOrders({ refreshKey = 0 } = {}) {
       if (serverFilters.status) params.status = serverFilters.status;
       if (serverFilters.startDate) params.startDate = serverFilters.startDate;
       if (serverFilters.endDate) params.endDate = serverFilters.endDate;
-      const res = await apiClient.get("/admin/orders/instagram", { params, signal: igAbortRef.current.signal });
+      const res = await apiClient.get("/admin/orders/instagram", {
+        params,
+        signal: igAbortRef.current.signal,
+      });
       if (!isMountedRef.current) return;
-      dispatch({ type: "INSTAGRAM_FETCH_SUCCESS", payload: res.data.data?.orders ?? [] });
+      dispatch({
+        type: "INSTAGRAM_FETCH_SUCCESS",
+        payload: res.data.data?.orders ?? [],
+      });
     } catch (err) {
       if (!isMountedRef.current) return;
       if (err.code === "ERR_CANCELED" || err.name === "CanceledError") return;
-      const msg = err.response?.data?.message || "Failed to fetch Instagram orders";
+      const msg =
+        err.response?.data?.message || "Failed to fetch Instagram orders";
       dispatch({ type: "INSTAGRAM_FETCH_ERROR", payload: msg });
       showToastRef.current(msg, "error");
     }
@@ -212,7 +262,9 @@ export function useAllOrders({ refreshKey = 0 } = {}) {
       try {
         dispatch({ type: "NEW_WEBSITE_ORDER", payload: JSON.parse(e.data) });
         showToastRef.current("New website order received!", "success");
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     });
     es.onerror = () => {};
     return () => es.close();
@@ -227,7 +279,9 @@ export function useAllOrders({ refreshKey = 0 } = {}) {
       try {
         dispatch({ type: "NEW_INSTAGRAM_ORDER", payload: JSON.parse(e.data) });
         showToastRef.current("New Instagram order received!", "success");
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     });
     es.onerror = () => {};
     return () => es.close();
@@ -243,13 +297,31 @@ export function useAllOrders({ refreshKey = 0 } = {}) {
     };
   }, []);
 
-  const setPage = useCallback((p) => dispatch({ type: "SET_PAGE", payload: p }), []);
-  const setFilters = useCallback((f) => dispatch({ type: "SET_FILTERS", payload: f }), []);
-  const resetFilters = useCallback(() => dispatch({ type: "RESET_FILTERS" }), []);
-  const setSort = useCallback((s) => dispatch({ type: "SET_SORT", payload: s }), []);
-  const selectOrder = useCallback((o) => dispatch({ type: "SELECT_ORDER", payload: o }), []);
+  const setPage = useCallback(
+    (p) => dispatch({ type: "SET_PAGE", payload: p }),
+    [],
+  );
+  const setFilters = useCallback(
+    (f) => dispatch({ type: "SET_FILTERS", payload: f }),
+    [],
+  );
+  const resetFilters = useCallback(
+    () => dispatch({ type: "RESET_FILTERS" }),
+    [],
+  );
+  const setSort = useCallback(
+    (s) => dispatch({ type: "SET_SORT", payload: s }),
+    [],
+  );
+  const selectOrder = useCallback(
+    (o) => dispatch({ type: "SELECT_ORDER", payload: o }),
+    [],
+  );
   const closeDrawer = useCallback(() => dispatch({ type: "CLOSE_DRAWER" }), []);
-  const dismissPending = useCallback(() => dispatch({ type: "DISMISS_PENDING" }), []);
+  const dismissPending = useCallback(
+    () => dispatch({ type: "DISMISS_PENDING" }),
+    [],
+  );
 
   const refetch = useCallback(() => {
     const f = {
@@ -259,7 +331,13 @@ export function useAllOrders({ refreshKey = 0 } = {}) {
     };
     fetchWebsite(f);
     fetchInstagram(f);
-  }, [state.filters.status, state.filters.startDate, state.filters.endDate, fetchWebsite, fetchInstagram]);
+  }, [
+    state.filters.status,
+    state.filters.startDate,
+    state.filters.endDate,
+    fetchWebsite,
+    fetchInstagram,
+  ]);
 
   return {
     orders: displayOrders,

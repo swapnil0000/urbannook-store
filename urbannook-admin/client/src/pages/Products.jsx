@@ -17,7 +17,7 @@ import EditProductForm from "../components/EditProductForm";
  * Returns Tailwind CSS classes for a product status badge.
  * Exported for reuse and property-based testing.
  */
-export function getStatusBadgeClasses(status) {
+function getStatusBadgeClasses(status) {
   switch (status) {
     case "in_stock":
       return "bg-green-100 text-green-800";

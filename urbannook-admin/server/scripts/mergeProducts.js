@@ -1,4 +1,6 @@
-require("dotenv").config();
+require("dotenv").config({
+  path: process.env.NODE_ENV === "production" ? ".env.production" : ".env",
+});
 const mongoose = require("mongoose");
 
 // Product Schema
@@ -45,10 +47,14 @@ async function mergeProducts() {
   try {
     console.log("=== Merging products: DEV → PRODUCTION ===\n");
 
-    const DEV_CLUSTER = 'mongodb+srv://urbannookdevcluster:VbQ1N61G2ZRBSd7o@urbannook-dev-cluster.pejh8ds.mongodb.net';
-    const DEV_DB = 'un_dev';
-    const PROD_CLUSTER = 'mongodb+srv://admin:Ma8RJG2cdM5I4xYo@urbanookcluster.jbb5ia2.mongodb.net';
-    const PROD_DB = 'un';
+    const DEV_CLUSTER = process.env.DB_URI_DEV;
+    const DEV_DB = process.env.DB_NAME_DEV;
+    const PROD_CLUSTER = process.env.DB_URI_PROD;
+    const PROD_DB = process.env.DB_NAME_PROD;
+
+    if (!DEV_CLUSTER || !DEV_DB || !PROD_CLUSTER || !PROD_DB) {
+      throw new Error("Missing DB env vars: DB_URI_DEV, DB_NAME_DEV, DB_URI_PROD, DB_NAME_PROD");
+    }
 
     // Connect to both databases
     const devConn = await mongoose.createConnection(DEV_CLUSTER, { dbName: DEV_DB });
