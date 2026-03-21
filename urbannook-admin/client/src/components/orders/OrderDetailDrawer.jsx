@@ -1,7 +1,9 @@
 import { useEffect, useRef, useCallback, useState } from "react";
-import { X, MapPin, CreditCard, Package, Globe, Camera } from "lucide-react";
+import { X, MapPin, CreditCard, Package, Globe, Camera, Pencil } from "lucide-react";
 import OrderStatusBadge from "./OrderStatusBadge";
 import ShipmentSection from "./ShipmentSection";
+import EditOrderDrawer from "./EditOrderDrawer";
+import apiClient from "../../api/axios";
 
 // Instagram orders have customerName; website orders have userId
 function ChannelBadge({ isInstagram }) {
@@ -30,10 +32,23 @@ function ChannelBadge({ isInstagram }) {
  *  - On close: `visible` → false, a 300ms timeout matches the CSS transition
  *    duration before calling `onClose` (which sets selectedOrder = null → unmounts).
  */
-export default function OrderDetailDrawer({ order, onClose }) {
-  const [visible, setVisible] = useState(false);
+export default function OrderDetailDrawer({ order, onClose, onOrderUpdated }) {
+  const [visible,  setVisible]  = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const closeTimerRef = useRef(null);
   const rafRef = useRef(null);
+
+  // Fetch user data for website orders (read-only)
+  const [userData, setUserData] = useState(null);
+  useEffect(() => {
+    if (!order || order.customerName) { setUserData(null); return; } // Instagram — skip
+    let cancelled = false;
+    apiClient
+      .get(`/admin/users/${order.userId}`)
+      .then((res) => { if (!cancelled) setUserData(res.data.data ?? null); })
+      .catch(() => { if (!cancelled) setUserData(null); });
+    return () => { cancelled = true; };
+  }, [order?.userId, order?.customerName]);
 
   // Slide in once mounted
   useEffect(() => {
@@ -123,13 +138,25 @@ export default function OrderDetailDrawer({ order, onClose }) {
               </p>
             )}
           </div>
-          <button
-            onClick={handleClose}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors ml-4 shrink-0"
-            aria-label="Close drawer"
-          >
-            <X className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-1 ml-4 shrink-0">
+            {isInstagram && (
+              <button
+                onClick={() => setEditOpen(true)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 hover:text-gray-900 transition-colors"
+                aria-label="Edit order"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Edit
+              </button>
+            )}
+            <button
+              onClick={handleClose}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+              aria-label="Close drawer"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
         {/* Scrollable body */}
@@ -152,11 +179,29 @@ export default function OrderDetailDrawer({ order, onClose }) {
                 </div>
               </div>
             ) : (
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-gray-400 mb-0.5">Customer ID</p>
-                <p className="text-sm font-medium text-gray-800 truncate">
-                  {order.userId || "—"}
-                </p>
+              <div className="flex-1 min-w-0 space-y-1">
+                {userData?.name && (
+                  <div>
+                    <p className="text-xs text-gray-400 mb-0.5">Customer Name</p>
+                    <p className="text-sm font-medium text-gray-800 truncate">{userData.name}</p>
+                  </div>
+                )}
+                {userData?.email && (
+                  <div>
+                    <p className="text-xs text-gray-400 mb-0.5">Email</p>
+                    <p className="text-sm font-medium text-gray-800 truncate">{userData.email}</p>
+                  </div>
+                )}
+                {userData?.mobileNumber && (
+                  <div>
+                    <p className="text-xs text-gray-400 mb-0.5">Mobile</p>
+                    <p className="text-sm font-medium text-gray-800">{userData.mobileNumber}</p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-xs text-gray-400 mb-0.5">Customer ID</p>
+                  <p className="text-sm font-mono text-gray-500 truncate">{order.userId || "—"}</p>
+                </div>
               </div>
             )}
             <div className="text-right shrink-0">
@@ -333,6 +378,18 @@ export default function OrderDetailDrawer({ order, onClose }) {
           )}
         </div>
       </aside>
+
+      {editOpen && (
+        <EditOrderDrawer
+          order={order}
+          onClose={() => setEditOpen(false)}
+          onSuccess={() => {
+            setEditOpen(false);
+            onOrderUpdated?.();
+            handleClose();
+          }}
+        />
+      )}
     </>
   );
 }

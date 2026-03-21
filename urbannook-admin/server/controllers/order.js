@@ -203,6 +203,21 @@ const streamOrders = (req, res) => {
   });
 };
 
+// GET /admin/users/:userId
+// Returns name, email, mobileNumber for a website user. Read-only — no data is modified.
+const getUserByUserId = async (req, res, next) => {
+  try {
+    const user = await User.findOne(
+      { userId: req.params.userId },
+      { name: 1, email: 1, mobileNumber: 1, _id: 0 },
+    ).lean();
+    if (!user) throw new ApiError(404, "User not found.");
+    return res.status(200).json(new ApiResponse(200, "User fetched.", user));
+  } catch (err) {
+    next(err);
+  }
+};
+
 export {
   getAllOrders,
   getOrderById,
@@ -210,4 +225,5 @@ export {
   updateOrderTracking,
   getDashboardStats,
   streamOrders,
+  getUserByUserId,
 };

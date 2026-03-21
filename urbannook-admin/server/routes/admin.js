@@ -17,10 +17,12 @@ import {
   updateOrderTracking,
   getDashboardStats,
   streamOrders,
+  getUserByUserId,
 } from "../controllers/order.js";
 import {
   getAllInstagramOrders,
   createInstagramOrder,
+  updateInstagramOrder,
   streamInstagramOrders,
 } from "../controllers/instagramOrder.js";
 import {
@@ -106,8 +108,10 @@ router.get("/orders/stream", verifyAuth, streamOrders);
 router.get("/orders/instagram/stream", verifyAuth, streamInstagramOrders);
 router.get("/orders/instagram", verifyAuth, getAllInstagramOrders);
 router.post("/orders/instagram", verifyAuth, createInstagramOrder);
+router.put("/orders/instagram/:orderId", verifyAuth, updateInstagramOrder);
 router.get("/orders", verifyAuth, getAllOrders);
 router.get("/orders/:orderId", verifyAuth, getOrderById);
+router.get("/users/:userId", verifyAuth, getUserByUserId);
 router.patch("/orders/:orderId/status", verifyAuth, updateOrderStatus);
 router.patch("/orders/:orderId/tracking", verifyAuth, updateOrderTracking);
 
