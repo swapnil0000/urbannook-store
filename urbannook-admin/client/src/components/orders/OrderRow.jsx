@@ -18,9 +18,13 @@ export default function OrderRow({ order, isSelected, onSelect }) {
       ? `₹${order.amount.toLocaleString()}`
       : "—";
 
-  // Guard: createdAt may be missing or unparseable
-  const formattedDate = order.createdAt
-    ? new Date(order.createdAt).toLocaleDateString(undefined, {
+  // Instagram orders have customerName; website orders have userId
+  const isInstagram = Boolean(order.customerName);
+
+  // Instagram orders show orderedAt (admin-entered date); website orders use createdAt
+  const displayDate = isInstagram ? (order.orderedAt || order.createdAt) : order.createdAt;
+  const formattedDate = displayDate
+    ? new Date(displayDate).toLocaleDateString(undefined, {
         year: "numeric",
         month: "short",
         day: "numeric",
@@ -33,9 +37,6 @@ export default function OrderRow({ order, isSelected, onSelect }) {
       ? `${order.orderId.slice(0, 10)}…${order.orderId.slice(-6)}`
       : order.orderId
     : (order._id ?? "—");
-
-  // Instagram orders have customerName; website orders have userId
-  const isInstagram = Boolean(order.customerName);
 
   // ── Create Shipment handler ──────────────────────────────────────────────
   const handleCreateShipment = (e) => {

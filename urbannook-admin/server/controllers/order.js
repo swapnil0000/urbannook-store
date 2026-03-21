@@ -281,9 +281,10 @@ const getDashboardStats = async (req, res) => {
           ],
           recentOrders: [
             { $match: { status: "PAID" } },
-            { $sort: { createdAt: -1 } },
+            { $addFields: { effectiveDate: { $ifNull: ["$orderedAt", "$createdAt"] } } },
+            { $sort: { effectiveDate: -1 } },
             { $limit: 5 },
-            { $project: { orderId: 1, amount: 1, createdAt: 1, _id: 0 } },
+            { $project: { orderId: 1, amount: 1, createdAt: 1, orderedAt: 1, _id: 0 } },
           ],
         },
       },
@@ -325,12 +326,16 @@ const getDashboardStats = async (req, res) => {
   const instaRevenue = instaKpi.PAID?.revenue ?? 0;
   const instaCreated = instaKpi.CREATED?.count ?? 0;
 
-  // ── Combine web + insta recent orders, tag channel, sort by date ──
+  // ── Combine web + insta recent orders, tag channel, sort by effective date ──
+  // Instagram orders use orderedAt (admin-set date) when available; fall back to createdAt
+  const effectiveDate = (o) =>
+    o.channel === "instagram" ? (o.orderedAt || o.createdAt) : o.createdAt;
+
   const recentOrders = [
     ...webFacet.recentOrders.map((o) => ({ ...o, channel: "web" })),
     ...instaFacet.recentOrders.map((o) => ({ ...o, channel: "instagram" })),
   ]
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    .sort((a, b) => new Date(effectiveDate(b)) - new Date(effectiveDate(a)))
     .slice(0, 6);
 
   // ── Insta today/yesterday ──

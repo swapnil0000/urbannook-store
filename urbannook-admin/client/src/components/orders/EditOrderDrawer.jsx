@@ -3,8 +3,11 @@ import { X, Plus, Trash2, Loader2, Camera, AlertTriangle } from "lucide-react";
 import apiClient from "../../api/axios";
 import { useToast } from "../../context/ToastContext";
 
+const today = () => new Date().toISOString().split("T")[0];
+
 function buildInitialForm(order) {
   return {
+    orderedAt:       order.orderedAt ? new Date(order.orderedAt).toISOString().split("T")[0] : today(),
     customerName:    order.customerName    ?? "",
     contactNumber:   order.contactNumber   ?? "",
     deliveryAddress: order.deliveryAddress ?? "",
@@ -156,6 +159,7 @@ export default function EditOrderDrawer({ order, onClose, onSuccess }) {
       const res = await apiClient.put(
         `/admin/orders/instagram/${order.orderId}`,
         {
+          orderedAt:       state.form.orderedAt || undefined,
           customerName:    state.form.customerName,
           contactNumber:   state.form.contactNumber,
           deliveryAddress: state.form.deliveryAddress,
@@ -232,6 +236,23 @@ export default function EditOrderDrawer({ order, onClose, onSuccess }) {
                 {submitError}
               </div>
             )}
+
+            {/* Order Date */}
+            <section>
+              <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--color-urban-text-muted)" }}>Order Date</h3>
+              <div>
+                <label className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}>
+                  Date <span className="font-normal ml-1" style={{ color: "var(--color-urban-text-muted)" }}>(when order was placed)</span>
+                </label>
+                <input
+                  type="date"
+                  value={form.orderedAt}
+                  max={today()}
+                  onChange={(e) => dispatch({ type: "SET_FIELD", field: "orderedAt", value: e.target.value })}
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                />
+              </div>
+            </section>
 
             {/* Customer */}
             <section>

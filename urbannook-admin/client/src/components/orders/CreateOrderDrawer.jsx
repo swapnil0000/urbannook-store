@@ -4,12 +4,15 @@ import apiClient from "../../api/axios";
 import { useToast } from "../../context/ToastContext";
 
 //   Form state
+const today = () => new Date().toISOString().split("T")[0]; // "YYYY-MM-DD"
+
 const initialForm = {
   customerName: "",
   contactNumber: "",
   deliveryAddress: "",
   notes: "",
   status: "CREATED",
+  orderedAt: today(),
   items: [{ productId: "", quantity: 1 }],
 };
 
@@ -210,6 +213,7 @@ export default function CreateOrderDrawer({ open, onClose }) {
         deliveryAddress: state.form.deliveryAddress,
         notes: state.form.notes || undefined,
         status: state.form.status,
+        orderedAt: state.form.orderedAt || undefined,
         items: state.form.items.map((item) => ({
           productId: item.productId,
           quantity: parseInt(item.quantity, 10),
@@ -287,6 +291,35 @@ export default function CreateOrderDrawer({ open, onClose }) {
                 {submitError}
               </div>
             )}
+
+            {/*   Order Date     */}
+            <section>
+              <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--color-urban-text-muted)" }}>
+                Order Date
+              </h3>
+              <div>
+                <label className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}>
+                  Date of order{" "}
+                  <span className="font-normal" style={{ color: "var(--color-urban-text-muted)" }}>
+                    (when customer placed it)
+                  </span>
+                </label>
+                <input
+                  type="date"
+                  value={form.orderedAt}
+                  max={today()}
+                  onChange={(e) =>
+                    dispatch({ type: "SET_FIELD", field: "orderedAt", value: e.target.value })
+                  }
+                  style={{
+                    border: "1px solid var(--color-urban-border)",
+                    background: "var(--color-urban-raised)",
+                    color: "var(--color-urban-text)",
+                  }}
+                  className="w-full text-sm rounded-lg px-3 py-2 focus:outline-none"
+                />
+              </div>
+            </section>
 
             {/*   Customer     */}
             <section>

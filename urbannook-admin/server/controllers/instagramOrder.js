@@ -22,52 +22,61 @@ const getAllInstagramOrders = async (req, res, next) => {
       : "createdAt";
     const sortOrder = req.query.sortOrder === "asc" ? 1 : -1;
 
-    const filter = {};
-    if (req.query.status && ALLOWED_STATUSES.has(req.query.status)) {
-      filter.status = req.query.status;
-    }
-
-    const startDate = req.query.startDate
-      ? new Date(req.query.startDate)
-      : null;
-    const endDate = req.query.endDate ? new Date(req.query.endDate) : null;
+    const startDate = req.query.startDate ? new Date(req.query.startDate) : null;
+    const endDate   = req.query.endDate   ? new Date(req.query.endDate)   : null;
     const startValid = startDate && !isNaN(startDate.getTime());
-    const endValid = endDate && !isNaN(endDate.getTime());
+    const endValid   = endDate   && !isNaN(endDate.getTime());
 
     if (startValid && endValid && startDate > endDate) {
       return res.status(200).json(
         new ApiResponse(200, "Instagram orders fetched successfully", {
           orders: [],
-          pagination: {
-            currentPage: page,
-            totalPages: 0,
-            totalOrders: 0,
-            limit,
-          },
+          pagination: { currentPage: page, totalPages: 0, totalOrders: 0, limit },
         }),
       );
     }
 
+    // Build aggregation pipeline so we can sort/filter by effectiveDate
+    // (orderedAt when admin set it; createdAt as fallback for legacy records)
+    const pipeline = [];
+
+    // Step 1 — compute effectiveDate
+    pipeline.push({
+      $addFields: { effectiveDate: { $ifNull: ["$orderedAt", "$createdAt"] } },
+    });
+
+    // Step 2 — match filters
+    const matchStage = {};
+    if (req.query.status && ALLOWED_STATUSES.has(req.query.status)) {
+      matchStage.status = req.query.status;
+    }
     if (startValid || endValid) {
-      filter.createdAt = {};
-      if (startValid) filter.createdAt.$gte = startDate;
+      matchStage.effectiveDate = {};
+      if (startValid) matchStage.effectiveDate.$gte = startDate;
       if (endValid) {
         const endOfDay = new Date(endDate);
         endOfDay.setHours(23, 59, 59, 999);
-        filter.createdAt.$lte = endOfDay;
+        matchStage.effectiveDate.$lte = endOfDay;
       }
     }
+    if (Object.keys(matchStage).length) pipeline.push({ $match: matchStage });
 
-    const [orders, totalOrders] = await Promise.all([
-      InstagramOrder.find(filter)
-        .sort({ [sortBy]: sortOrder })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-      InstagramOrder.countDocuments(filter),
-    ]);
+    // Step 3 — sort (date sorts use effectiveDate; amount sorts normally)
+    const sortField = sortBy === "createdAt" ? "effectiveDate" : sortBy;
+    pipeline.push({ $sort: { [sortField]: sortOrder } });
 
-    const totalPages = totalOrders > 0 ? Math.ceil(totalOrders / limit) : 0;
+    // Step 4 — paginate + count in one pass
+    pipeline.push({
+      $facet: {
+        orders: [{ $skip: skip }, { $limit: limit }],
+        total:  [{ $count: "n" }],
+      },
+    });
+
+    const [result] = await InstagramOrder.aggregate(pipeline);
+    const orders     = result?.orders ?? [];
+    const totalOrders = result?.total[0]?.n ?? 0;
+    const totalPages  = totalOrders > 0 ? Math.ceil(totalOrders / limit) : 0;
 
     return res.status(200).json(
       new ApiResponse(200, "Instagram orders fetched successfully", {
@@ -90,6 +99,7 @@ const createInstagramOrder = async (req, res, next) => {
       notes,
       status,
       items,
+      orderedAt,
     } = req.body;
 
     const validationErrors = [];
@@ -171,6 +181,11 @@ const createInstagramOrder = async (req, res, next) => {
     );
     const orderId = `IG-${String(counter.sequence_value).padStart(4, "0")}`;
 
+    // Always save orderedAt — use the provided date if valid, otherwise default to now
+    const parsedOrderedAt = orderedAt ? new Date(orderedAt) : null;
+    const effectiveOrderedAt =
+      parsedOrderedAt && !isNaN(parsedOrderedAt) ? parsedOrderedAt : new Date();
+
     const order = await InstagramOrder.create({
       orderId,
       customerName: customerName.trim(),
@@ -180,6 +195,7 @@ const createInstagramOrder = async (req, res, next) => {
       items: builtItems,
       amount,
       status: status ?? "CREATED",
+      orderedAt: effectiveOrderedAt,
     });
 
     return res
@@ -235,6 +251,7 @@ const streamInstagramOrders = (req, res) => {
 const updateInstagramOrder = async (req, res, next) => {
   try {
     const {
+      orderedAt,
       customerName,
       contactNumber,
       deliveryAddress,
@@ -338,6 +355,13 @@ const updateInstagramOrder = async (req, res, next) => {
     );
 
     // ── Apply changes ──────────
+    const parsedOrderedAt = orderedAt ? new Date(orderedAt) : null;
+    // Only overwrite if a valid new date was provided; otherwise keep the existing value
+    if (parsedOrderedAt && !isNaN(parsedOrderedAt)) {
+      order.orderedAt = parsedOrderedAt;
+    } else if (!order.orderedAt) {
+      order.orderedAt = order.createdAt ?? new Date(); // backfill if somehow missing
+    }
     order.customerName = customerName.trim();
     order.contactNumber = contactNumber.trim();
     order.deliveryAddress = deliveryAddress.trim();

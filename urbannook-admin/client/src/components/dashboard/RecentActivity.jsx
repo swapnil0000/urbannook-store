@@ -1,4 +1,4 @@
-import { Globe, Instagram } from "lucide-react";
+import { Globe, Camera } from "lucide-react";
 import Skeleton from "./Skeleton";
 import SectionCard from "./SectionCard";
 import { fmt, relativeTime, STATUS_STYLE } from "./dashboardHelpers";
@@ -32,7 +32,7 @@ export default function RecentActivity({ recentOrders, loading }) {
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
                     {isInsta
-                      ? <Instagram size={10} className="text-purple-500 shrink-0" />
+                      ? <Camera size={10} className="text-purple-500 shrink-0" />
                       : <Globe size={10} className="text-urban-neon shrink-0" />
                     }
                     <p className="text-xs font-semibold truncate text-urban-text">
@@ -40,7 +40,7 @@ export default function RecentActivity({ recentOrders, loading }) {
                     </p>
                   </div>
                   <p className="text-[10px] mt-0.5 text-urban-text-muted">
-                    {relativeTime(order.createdAt)}
+                    {relativeTime(isInsta ? (order.orderedAt || order.createdAt) : order.createdAt)}
                   </p>
                 </div>
                 <div className="text-right shrink-0">

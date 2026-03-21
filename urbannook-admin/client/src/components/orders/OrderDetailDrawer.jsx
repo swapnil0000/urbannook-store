@@ -111,15 +111,18 @@ export default function OrderDetailDrawer({ order, onClose, onOrderUpdated }) {
 
   const isInstagram = Boolean(order.customerName);
 
-  const formattedDate = order.createdAt
-    ? new Date(order.createdAt).toLocaleString(undefined, {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    : "—";
+  const fmt = (d) =>
+    d
+      ? new Date(d).toLocaleString(undefined, {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "—";
+  const formattedDate = fmt(order.createdAt);
+  const formattedOrderedAt = order.orderedAt ? fmt(order.orderedAt) : null;
 
   const formattedAmount =
     typeof order.amount === "number"
@@ -316,13 +319,19 @@ export default function OrderDetailDrawer({ order, onClose, onOrderUpdated }) {
                 {formattedAmount}
               </p>
             </div>
-            <div className="w-full flex items-center justify-between">
-              <p
-                className="text-xs"
-                style={{ color: "var(--color-urban-text-muted)" }}
-              >
-                {formattedDate}
-              </p>
+            <div className="w-full flex items-center justify-between gap-3">
+              <div className="space-y-0.5">
+                {isInstagram && formattedOrderedAt && (
+                  <p className="text-xs" style={{ color: "var(--color-urban-text-muted)" }}>
+                    <span className="font-medium" style={{ color: "var(--color-urban-text-sec)" }}>Order date:</span>{" "}{formattedOrderedAt}
+                  </p>
+                )}
+                <p className="text-xs" style={{ color: "var(--color-urban-text-muted)" }}>
+                  <span className="font-medium" style={{ color: "var(--color-urban-text-sec)" }}>
+                    {isInstagram ? "Added:" : "Created:"}
+                  </span>{" "}{formattedDate}
+                </p>
+              </div>
               <OrderStatusBadge status={order.status} />
             </div>
           </div>
