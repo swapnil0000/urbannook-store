@@ -1,6 +1,6 @@
-import InstagramOrder from "../models/InstagramOrder.js";
-import Product from "../models/Product.js";
-import Counter from "../models/Counter.js";
+import InstagramOrder from "../models/instagram.order.model.js";
+import Product from "../models/product.model.js";
+import Counter from "../models/counter.model.js";
 import { ApiResponse, ApiError } from "../utils/apiResponse.js";
 import orderEventEmitter from "../utils/orderEvents.js";
 

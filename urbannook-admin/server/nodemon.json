@@ -1,0 +1,8 @@
+{
+  "exec": "node index.js",
+  "ext": "js,json",
+  "ignore": ["node_modules/", "scripts/"],
+  "env": {
+    "NODE_ENV": "development"
+  }
+}

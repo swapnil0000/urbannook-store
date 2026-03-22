@@ -23,9 +23,14 @@ apiClient.interceptors.response.use(
   (error) => {
     const status  = error.response?.status;
     const message = error.response?.data?.message ?? "";
+    const url     = error.config?.url ?? "";
 
-    if (status === 401 || (status === 403 && message === "Account suspended by super admin")) {
-      // Clear cookie and reload to login
+    // Don't redirect on permission-fetch failures or if already on login page
+    const isPermsFetch = url.includes("/my-permissions");
+    const isLoginPage  = window.location.pathname.includes("/login");
+
+    if (!isPermsFetch && !isLoginPage &&
+        (status === 401 || (status === 403 && message === "Account suspended by super admin"))) {
       document.cookie = "adminAccessToken=; Max-Age=0; path=/";
       window.location.href = "/admin/login";
     }

@@ -1,8 +1,8 @@
-import Order from "../models/Order.js";
-import InstagramOrder from "../models/InstagramOrder.js";
-import Product from "../models/Product.js";
-import Waitlist from "../models/Waitlist.js";
-import User from "../models/User.js";
+import Order from "../models/order.model.js";
+import InstagramOrder from "../models/instagram.order.model.js";
+import Product from "../models/product.model.js";
+import Waitlist from "../models/waitlist.model.js";
+import User from "../models/user.model.js";
 import { ApiResponse, ApiError } from "../utils/apiResponse.js";
 import orderEventEmitter from "../utils/orderEvents.js";
 

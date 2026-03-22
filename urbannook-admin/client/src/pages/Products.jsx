@@ -7,6 +7,11 @@ import {
   Loader2,
   AlertCircle,
   RefreshCw,
+  Clock,
+  CheckCircle,
+  XCircle,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import apiClient from "../api/axios";
 import { useToast } from "../context/ToastContext";
@@ -66,9 +71,12 @@ const STATUS_BADGE = {
 
 export default function Products() {
   const { showToast } = useToast();
-  const { refreshKey } = useEnv();
-  const { can } = useAuth();
+  const { refreshKey, env } = useEnv();
+  const { can, user } = useAuth();
   const canDelete = can("products", "delete");
+  const isSuperAdmin = user?.role === "super_admin";
+  const isProd = env === "prod";
+
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -76,6 +84,12 @@ export default function Products() {
   const [editingProduct, setEditingProduct] = useState(null);
   const [deletingProduct, setDeletingProduct] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // Pending approvals state (prod + super_admin only)
+  const [pendingApprovals, setPendingApprovals] = useState([]);
+  const [approvalsLoading, setApprovalsLoading] = useState(false);
+  const [showApprovals, setShowApprovals] = useState(false);
+  const [actionLoading, setActionLoading] = useState(null); // approval id being acted on
 
   const fetchProducts = useCallback(async () => {
     setLoading(true);
@@ -92,20 +106,40 @@ export default function Products() {
     }
   }, [showToast]);
 
+  const fetchPendingApprovals = useCallback(async () => {
+    if (!isSuperAdmin) return;
+    setApprovalsLoading(true);
+    try {
+      const res = await apiClient.get("/admin/delete-approvals?resource=products");
+      setPendingApprovals(res.data.data || []);
+    } catch {
+      // silently fail
+    } finally {
+      setApprovalsLoading(false);
+    }
+  }, [isProd, isSuperAdmin]);
+
   useEffect(() => {
     fetchProducts();
-  }, [fetchProducts, refreshKey]);
+    fetchPendingApprovals();
+  }, [fetchProducts, fetchPendingApprovals, refreshKey]);
 
   const handleDelete = async () => {
     if (!deletingProduct) return;
     setDeleteLoading(true);
     try {
-      await apiClient.delete(
+      const res = await apiClient.delete(
         `/admin/delete/inventory/${deletingProduct.productId}`,
       );
-      showToast("Product deleted successfully", "success");
+      // statusCode 201 = approval initiated (prod), 200 = deleted (dev)
+      if (res.data?.statusCode === 201 || res.status === 201) {
+        showToast("Delete approval request sent — requires approval from other super_admin", "info");
+        fetchPendingApprovals();
+      } else {
+        showToast("Product deleted successfully", "success");
+        fetchProducts();
+      }
       setDeletingProduct(null);
-      fetchProducts();
     } catch (err) {
       showToast(
         err.response?.data?.message || "Failed to delete product",
@@ -113,6 +147,33 @@ export default function Products() {
       );
     } finally {
       setDeleteLoading(false);
+    }
+  };
+
+  const handleApprove = async (approvalId) => {
+    setActionLoading(approvalId);
+    try {
+      const res = await apiClient.patch(`/admin/delete-approvals/${approvalId}/approve`);
+      showToast(res.data.message, "success");
+      fetchPendingApprovals();
+      fetchProducts();
+    } catch (err) {
+      showToast(err.response?.data?.message || "Failed to approve", "error");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleReject = async (approvalId) => {
+    setActionLoading(approvalId);
+    try {
+      await apiClient.patch(`/admin/delete-approvals/${approvalId}/reject`);
+      showToast("Delete request rejected", "success");
+      fetchPendingApprovals();
+    } catch (err) {
+      showToast(err.response?.data?.message || "Failed to reject", "error");
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -169,6 +230,124 @@ export default function Products() {
           Add Product
         </button>
       </div>
+
+      {/* Pending Delete Approvals — super_admin only */}
+      {isSuperAdmin && (
+        <div className="un-card overflow-hidden">
+          <button
+            onClick={() => setShowApprovals((v) => !v)}
+            className="w-full flex items-center justify-between px-5 py-3.5 text-sm font-semibold text-urban-text hover:bg-urban-raised/50 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-amber-400" />
+              <span>Pending Delete Approvals</span>
+              {pendingApprovals.length > 0 && (
+                <span className="inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full text-[10px] font-bold bg-amber-500 text-white">
+                  {pendingApprovals.length}
+                </span>
+              )}
+            </div>
+            {showApprovals ? (
+              <ChevronUp className="h-4 w-4 text-urban-text-sec" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-urban-text-sec" />
+            )}
+          </button>
+
+          {showApprovals && (
+            <div className="border-t border-urban-border">
+              {approvalsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-5 w-5 animate-spin text-urban-neon" />
+                </div>
+              ) : pendingApprovals.length === 0 ? (
+                <p className="text-sm text-urban-text-sec text-center py-8">
+                  No pending delete requests
+                </p>
+              ) : (
+                <div className="divide-y divide-urban-border">
+                  {pendingApprovals.map((ap) => {
+                    const isLoading = actionLoading === ap._id;
+                    const alreadyApproved = ap.approvals?.some(
+                      (a) => a.adminUid === user?.adminUid
+                    );
+                    const isOwnRequest =
+                      ap.initiatedBy?.adminUid === user?.adminUid;
+                    return (
+                      <div
+                        key={ap._id}
+                        className="flex items-center justify-between gap-4 px-5 py-3.5"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-urban-text truncate">
+                            {ap.resourceName}
+                          </p>
+                          <p className="text-xs text-urban-text-sec mt-0.5">
+                            Requested by {ap.initiatedBy?.email} ·{" "}
+                            {ap.approvals?.length ?? 0}/{ap.requiredApprovals ?? 2} approvals
+                          </p>
+                          {ap.approvals?.length > 0 && (
+                            <p className="text-xs text-urban-text-muted mt-0.5">
+                              Approved by:{" "}
+                              {ap.approvals.map((a) => a.email).join(", ")}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <PermTooltip
+                            show={isOwnRequest}
+                            label="You initiated this request (counted as your approval)"
+                          >
+                            <PermTooltip
+                              show={!isOwnRequest && alreadyApproved}
+                              label="Already approved"
+                            >
+                              <button
+                                disabled={isLoading || alreadyApproved || isOwnRequest}
+                                onClick={() => handleApprove(ap._id)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                                style={{
+                                  border: "1px solid color-mix(in srgb, #22c55e 30%, transparent)",
+                                  color: "#22c55e",
+                                  background: "color-mix(in srgb, #22c55e 8%, transparent)",
+                                }}
+                              >
+                                {isLoading ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <CheckCircle className="h-3 w-3" />
+                                )}
+                                Approve
+                              </button>
+                            </PermTooltip>
+                          </PermTooltip>
+                          <button
+                            disabled={isLoading}
+                            onClick={() => handleReject(ap._id)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                            style={{
+                              border: "1px solid color-mix(in srgb, #ef4444 30%, transparent)",
+                              color: "#ef4444",
+                              background: "color-mix(in srgb, #ef4444 8%, transparent)",
+                            }}
+                          >
+                            {isLoading ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <XCircle className="h-3 w-3" />
+                            )}
+                            Reject
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Empty state */}
       {products.length === 0 ? (
@@ -322,8 +501,8 @@ export default function Products() {
               <p className="text-sm font-semibold mb-4 text-urban-text">
                 "{deletingProduct.productName}" ({deletingProduct.uiProductId})?
               </p>
-              <p className="text-xs mb-6 text-red-500">
-                This action cannot be undone.
+              <p className="text-xs mb-6 text-amber-400">
+                This will create a delete request that requires approval from another super_admin before the product is deleted.
               </p>
               <div className="flex items-center gap-3 w-full">
                 <button
@@ -348,7 +527,7 @@ export default function Products() {
                   {deleteLoading && (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   )}
-                  {deleteLoading ? "Deleting..." : "Delete"}
+                  {deleteLoading ? "Requesting..." : "Request Delete"}
                 </button>
               </div>
             </div>

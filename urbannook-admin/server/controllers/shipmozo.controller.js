@@ -1,7 +1,7 @@
-import ShipmentRecord from "../models/ShipmentRecord.js";
-import InstagramOrder from "../models/InstagramOrder.js";
-import Order from "../models/Order.js";
-import User from "../models/User.js";
+import ShipmentRecord from "../models/shipment.record.model.js";
+import InstagramOrder from "../models/instagram.order.model.js";
+import Order from "../models/order.model.js";
+import User from "../models/user.model.js";
 import { ApiResponse, ApiError } from "../utils/apiResponse.js";
 import { parseAddress } from "../utils/addressParser.js";
 import * as shipmozoService from "../services/shipmozoService.js";

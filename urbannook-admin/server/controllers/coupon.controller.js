@@ -1,5 +1,5 @@
 import { uuidv7 } from "uuidv7";
-import Coupon from "../models/Coupon.js";
+import Coupon from "../models/coupon.model.js";
 import { ApiResponse, ApiError } from "../utils/apiResponse.js";
 
 const createCoupon = async (req, res) => {

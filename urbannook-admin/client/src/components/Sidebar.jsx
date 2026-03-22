@@ -14,10 +14,17 @@ import {
   TrendingUp,
   MessageSquare,
   Shield,
+  KeyRound,
+  Eye,
+  EyeOff,
+  Loader2,
 } from "lucide-react";
+import { useState } from "react";
+import { createPortal } from "react-dom";
 import { useAuth } from "../context/AuthContext";
 import { useEnv } from "../context/EnvContext";
 import { useTheme } from "../context/ThemeContext";
+import apiClient from "../api/axios";
 
 const navLinks = [
   { to: "/admin/dashboard",      label: "Dashboard",       icon: LayoutDashboard, resource: null },
@@ -37,6 +44,29 @@ export default function Sidebar({ onNavigate }) {
   const { env, switching, switchEnv } = useEnv();
   const { isDark, toggleTheme } = useTheme();
 
+  const [pwdOpen, setPwdOpen]       = useState(false);
+  const [currentPwd, setCurrentPwd] = useState("");
+  const [newPwd, setNewPwd]         = useState("");
+  const [showCur, setShowCur]       = useState(false);
+  const [showNew, setShowNew]       = useState(false);
+  const [pwdLoading, setPwdLoading] = useState(false);
+  const [pwdError, setPwdError]     = useState("");
+
+  const openPwd = () => { setCurrentPwd(""); setNewPwd(""); setPwdError(""); setShowCur(false); setShowNew(false); setPwdOpen(true); };
+  const closePwd = () => setPwdOpen(false);
+
+  const handlePasswordChange = async () => {
+    if (!currentPwd) { setPwdError("Current password is required"); return; }
+    if (newPwd.length < 6) { setPwdError("New password must be at least 6 characters"); return; }
+    if (currentPwd === newPwd) { setPwdError("New password must be different from current password"); return; }
+    setPwdLoading(true); setPwdError("");
+    try {
+      await apiClient.patch(`/admin/admins/me/password`, { currentPassword: currentPwd, password: newPwd });
+      closePwd();
+    } catch (err) {
+      setPwdError(err.response?.data?.message || "Failed to update password");
+    } finally { setPwdLoading(false); }
+  };
 
   const visibleLinks = navLinks.filter(
     ({ resource, superAdminOnly }) => {
@@ -143,6 +173,13 @@ export default function Sidebar({ onNavigate }) {
             </span>
           </div>
           <button
+            onClick={openPwd}
+            className="p-1.5 rounded-lg text-urban-text-sec hover:bg-urban-neon/5 hover:text-urban-neon transition-all"
+            title="Change password"
+          >
+            <KeyRound size={15} />
+          </button>
+          <button
             onClick={toggleTheme}
             className="p-1.5 rounded-lg text-urban-text-sec hover:bg-urban-neon/5 hover:text-urban-neon transition-all"
             title={isDark ? "Switch to light mode" : "Switch to dark mode"}
@@ -158,6 +195,60 @@ export default function Sidebar({ onNavigate }) {
           <span className="whitespace-nowrap">Logout</span>
         </button>
       </div>
+
+      {/* ── Change Password Modal — portal so it escapes sidebar bounds ── */}
+      {pwdOpen && createPortal(
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-urban-card rounded-xl shadow-xl border border-urban-border w-full max-w-sm mx-4 p-6 space-y-4">
+            <div className="flex items-center gap-2">
+              <KeyRound className="h-5 w-5 text-urban-neon" />
+              <h2 className="text-base font-semibold text-urban-text">Change Password</h2>
+            </div>
+            <p className="text-xs text-urban-text-muted">{user?.email}</p>
+
+            {/* Current password */}
+            <div className="relative">
+              <input
+                type={showCur ? "text" : "password"}
+                value={currentPwd}
+                onChange={(e) => { setCurrentPwd(e.target.value); setPwdError(""); }}
+                placeholder="Current password"
+                autoComplete="current-password"
+                className="w-full border border-urban-border rounded-lg px-3 py-2 pr-10 text-sm bg-urban-sidebar text-urban-text placeholder:text-urban-text-muted focus:outline-none focus:ring-2 focus:ring-urban-neon"
+              />
+              <button type="button" onClick={() => setShowCur((v) => !v)} className="absolute right-2.5 top-2.5 text-urban-text-muted hover:text-urban-text">
+                {showCur ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
+
+            {/* New password */}
+            <div className="relative">
+              <input
+                type={showNew ? "text" : "password"}
+                value={newPwd}
+                onChange={(e) => { setNewPwd(e.target.value); setPwdError(""); }}
+                onKeyDown={(e) => e.key === "Enter" && handlePasswordChange()}
+                placeholder="New password (min 6 chars)"
+                autoComplete="new-password"
+                className="w-full border border-urban-border rounded-lg px-3 py-2 pr-10 text-sm bg-urban-sidebar text-urban-text placeholder:text-urban-text-muted focus:outline-none focus:ring-2 focus:ring-urban-neon"
+              />
+              <button type="button" onClick={() => setShowNew((v) => !v)} className="absolute right-2.5 top-2.5 text-urban-text-muted hover:text-urban-text">
+                {showNew ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
+
+            {pwdError && <p className="text-xs text-red-400">{pwdError}</p>}
+
+            <div className="flex gap-2 justify-end">
+              <button onClick={closePwd} className="px-4 py-2 text-sm text-urban-text-sec border border-urban-border rounded-lg hover:bg-urban-neon/5">Cancel</button>
+              <button onClick={handlePasswordChange} disabled={pwdLoading} className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-urban-neon text-black font-medium rounded-lg hover:opacity-90 disabled:opacity-50">
+                {pwdLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Update
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

@@ -6,7 +6,7 @@ import { useEnv } from "../context/EnvContext";
 
 export default function Layout() {
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const { switching, env } = useEnv();
+  const { switching, switchingTo } = useEnv();
 
   const openDrawer = () => setDrawerOpen(true);
   const closeDrawer = () => setDrawerOpen(false);
@@ -66,7 +66,7 @@ export default function Layout() {
           <p className="text-sm text-white/80">
             Switching to{" "}
             <span className="font-semibold text-white">
-              {env === "dev" ? "PROD" : "DEV"}
+              {switchingTo === "prod" ? "PROD" : "DEV"}
             </span>{" "}
             environment...
           </p>
