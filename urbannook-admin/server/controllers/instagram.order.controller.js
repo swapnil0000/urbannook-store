@@ -62,8 +62,10 @@ const getAllInstagramOrders = async (req, res, next) => {
     if (Object.keys(matchStage).length) pipeline.push({ $match: matchStage });
 
     // Step 3 — sort (date sorts use effectiveDate; amount sorts normally)
+    // Secondary sort: createdAt DESC breaks ties when multiple orders share
+    // the same effectiveDate (happens when orderedAt is a date-only value).
     const sortField = sortBy === "createdAt" ? "effectiveDate" : sortBy;
-    pipeline.push({ $sort: { [sortField]: sortOrder } });
+    pipeline.push({ $sort: { [sortField]: sortOrder, createdAt: -1 } });
 
     // Step 4 — paginate + count in one pass
     pipeline.push({
@@ -118,6 +120,11 @@ const createInstagramOrder = async (req, res, next) => {
         const qty = parseInt(item.quantity, 10);
         if (!Number.isFinite(qty) || qty < 1)
           validationErrors.push(`Item ${i + 1}: quantity must be at least 1.`);
+        if (item.isCustomPrice === true) {
+          const price = parseFloat(item.priceAtPurchase);
+          if (!Number.isFinite(price) || price < 0)
+            validationErrors.push(`Item ${i + 1}: custom price must be a non-negative number.`);
+        }
       });
     }
     if (status !== undefined && !ALLOWED_STATUSES.has(status)) {
@@ -151,18 +158,27 @@ const createInstagramOrder = async (req, res, next) => {
         `Unavailable products: ${unavailableNames.join(", ")}`,
       );
 
+    // Build items — custom price is scoped to THIS order only.
+    // The Product document is read but NEVER written here.
     const builtItems = items.map((item) => {
       const p = productMap.get(item.productId.trim());
       const quantity = parseInt(item.quantity, 10);
+      const isCustomPrice = item.isCustomPrice === true;
+      const customPrice   = parseFloat(item.priceAtPurchase);
+      const priceAtPurchase =
+        isCustomPrice && Number.isFinite(customPrice) && customPrice >= 0
+          ? customPrice
+          : p.sellingPrice; // fallback to catalogue price — Product untouched
       return {
         productId: p.productId,
         productSnapshot: {
-          productName: p.productName,
-          productImg: p.productImg,
+          productName:      p.productName,
+          productImg:       p.productImg,
           quantity,
-          productCategory: p.productCategory,
+          productCategory:  p.productCategory,
           productSubCategory: p.productSubCategory ?? null,
-          priceAtPurchase: p.sellingPrice,
+          priceAtPurchase,
+          isCustomPrice,
         },
       };
     });
@@ -299,6 +315,11 @@ const updateInstagramOrder = async (req, res, next) => {
         if (!Number.isFinite(qty) || qty < 1) {
           validationErrors.push(`Item ${i + 1}: quantity must be at least 1.`);
         }
+        if (item.isCustomPrice === true) {
+          const price = parseFloat(item.priceAtPurchase);
+          if (!Number.isFinite(price) || price < 0)
+            validationErrors.push(`Item ${i + 1}: custom price must be a non-negative number.`);
+        }
       });
     }
     if (status !== undefined && !ALLOWED_STATUSES.has(status)) {
@@ -331,18 +352,27 @@ const updateInstagramOrder = async (req, res, next) => {
       throw new ApiError(400, `Products not found: ${missingIds.join(", ")}`);
     }
 
+    // Rebuild items with fresh product metadata — price may be custom.
+    // The Product document is read but NEVER written here.
     const builtItems = items.map((item) => {
       const p = productMap.get(item.productId.trim());
-      const quantity = parseInt(item.quantity, 10);
+      const quantity      = parseInt(item.quantity, 10);
+      const isCustomPrice = item.isCustomPrice === true;
+      const customPrice   = parseFloat(item.priceAtPurchase);
+      const priceAtPurchase =
+        isCustomPrice && Number.isFinite(customPrice) && customPrice >= 0
+          ? customPrice
+          : p.sellingPrice; // fallback to catalogue price — Product untouched
       return {
         productId: p.productId,
         productSnapshot: {
-          productName: p.productName,
-          productImg: p.productImg,
+          productName:      p.productName,
+          productImg:       p.productImg,
           quantity,
-          productCategory: p.productCategory,
+          productCategory:  p.productCategory,
           productSubCategory: p.productSubCategory ?? null,
-          priceAtPurchase: p.sellingPrice,
+          priceAtPurchase,
+          isCustomPrice,
         },
       };
     });

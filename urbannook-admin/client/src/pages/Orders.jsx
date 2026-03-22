@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   ShoppingCart,
   Loader2,
@@ -14,6 +14,7 @@ import OrderDetailDrawer from "../components/orders/OrderDetailDrawer";
 import Pagination from "../components/orders/Pagination";
 import CreateOrderDrawer from "../components/orders/CreateOrderDrawer";
 import { useEnv } from "../context/EnvContext";
+import apiClient from "../api/axios";
 
 export default function Orders() {
   const { refreshKey } = useEnv();
@@ -38,6 +39,48 @@ export default function Orders() {
   } = useAllOrders({ refreshKey });
 
   const [createOpen, setCreateOpen] = useState(false);
+
+  // ── Shipped order IDs ────────────────────────────────────────────────────
+  const [shippedOrderIds, setShippedOrderIds] = useState(new Set());
+  useEffect(() => {
+    apiClient
+      .get("/admin/shipmozo/shipped-order-ids")
+      .then((res) => setShippedOrderIds(new Set(res.data.data ?? [])))
+      .catch(() => {});
+  }, []);
+
+  // ── Dispatched order IDs ──────────────────────────────────────────────────
+  const [dispatchedOrderIds, setDispatchedOrderIds] = useState(new Set());
+  useEffect(() => {
+    apiClient
+      .get("/admin/dispatch/order-ids")
+      .then((res) => setDispatchedOrderIds(new Set(res.data.data ?? [])))
+      .catch(() => {});
+  }, []);
+
+  const handleDispatch = (orderId, orderType) => {
+    apiClient
+      .post(`/admin/dispatch/${orderId}`, { orderType })
+      .then(() => setDispatchedOrderIds((prev) => new Set([...prev, orderId])))
+      .catch(() => {});
+  };
+
+  // ── Shipment + Dispatch filters (client-side) ────────────────────────────
+  const [shipmentFilter, setShipmentFilter] = useState("all");
+  const [dispatchFilter, setDispatchFilter] = useState("all");
+
+  const displayOrders = useMemo(() => {
+    let result = orders;
+    if (shipmentFilter === "shipped")
+      result = result.filter((o) => shippedOrderIds.has(o.orderId));
+    else if (shipmentFilter === "not_shipped")
+      result = result.filter((o) => !shippedOrderIds.has(o.orderId));
+    if (dispatchFilter === "dispatched")
+      result = result.filter((o) => dispatchedOrderIds.has(o.orderId));
+    else if (dispatchFilter === "not_dispatched")
+      result = result.filter((o) => !dispatchedOrderIds.has(o.orderId));
+    return result;
+  }, [orders, shipmentFilter, shippedOrderIds, dispatchFilter, dispatchedOrderIds]);
 
   if (loading && orders.length === 0) {
     return (
@@ -175,8 +218,12 @@ export default function Orders() {
         loading={loading}
         onFilterChange={setFilters}
         onSortChange={setSort}
-        onReset={resetFilters}
+        onReset={() => { resetFilters(); setShipmentFilter("all"); setDispatchFilter("all"); }}
         showChannelFilter
+        shipmentFilter={shipmentFilter}
+        onShipmentFilterChange={setShipmentFilter}
+        dispatchFilter={dispatchFilter}
+        onDispatchFilterChange={setDispatchFilter}
       />
 
       {/* Orders table or empty state */}
@@ -221,11 +268,14 @@ export default function Orders() {
       ) : (
         <div className="un-card overflow-hidden">
           <OrdersTable
-            orders={orders}
+            orders={displayOrders}
             sort={sort}
             selectedOrder={selectedOrder}
             onSort={setSort}
             onSelectOrder={selectOrder}
+            shippedOrderIds={shippedOrderIds}
+            dispatchedOrderIds={dispatchedOrderIds}
+            onDispatch={handleDispatch}
           />
           <Pagination
             currentPage={pagination.currentPage}

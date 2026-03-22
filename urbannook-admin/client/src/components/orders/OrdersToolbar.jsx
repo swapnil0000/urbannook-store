@@ -25,6 +25,10 @@ export default function OrdersToolbar({
   onSortChange,
   onReset,
   showChannelFilter = false,
+  shipmentFilter = "all",
+  onShipmentFilterChange,
+  dispatchFilter = "all",
+  onDispatchFilterChange,
 }) {
   // Local date state — avoids calling onFilterChange on every partial date input
   const [localStartDate, setLocalStartDate] = useState(filters.startDate);
@@ -76,7 +80,9 @@ export default function OrdersToolbar({
     filters.status ||
     filters.startDate ||
     filters.endDate ||
-    (showChannelFilter && filters.channel && filters.channel !== "all");
+    (showChannelFilter && filters.channel && filters.channel !== "all") ||
+    (shipmentFilter && shipmentFilter !== "all") ||
+    (dispatchFilter && dispatchFilter !== "all");
 
   const inputStyle = {
     border: "1px solid var(--color-urban-border)",
@@ -136,6 +142,36 @@ export default function OrdersToolbar({
             <option value="all">All channels</option>
             <option value="website">Website only</option>
             <option value="instagram">Instagram only</option>
+          </select>
+        )}
+
+        {/* Shipment filter */}
+        {onShipmentFilterChange && (
+          <select
+            value={shipmentFilter}
+            onChange={(e) => onShipmentFilterChange(e.target.value)}
+            className="text-sm rounded-lg px-2 py-1.5 focus:outline-none cursor-pointer"
+            style={inputStyle}
+            aria-label="Filter by shipment"
+          >
+            <option value="all">All shipments</option>
+            <option value="shipped">Shipped</option>
+            <option value="not_shipped">Not shipped</option>
+          </select>
+        )}
+
+        {/* Dispatch filter */}
+        {onDispatchFilterChange && (
+          <select
+            value={dispatchFilter}
+            onChange={(e) => onDispatchFilterChange(e.target.value)}
+            className="text-sm rounded-lg px-2 py-1.5 focus:outline-none cursor-pointer"
+            style={inputStyle}
+            aria-label="Filter by dispatch"
+          >
+            <option value="all">All dispatches</option>
+            <option value="dispatched">Dispatched</option>
+            <option value="not_dispatched">Not dispatched</option>
           </select>
         )}
 

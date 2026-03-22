@@ -9,6 +9,7 @@ import {
   getLabelForShipment,
   trackShipment,
   cancelShipment,
+  getShippedOrderIds,
 } from "../controllers/shipmozo.controller.js";
 
 const router = express.Router();
@@ -17,6 +18,7 @@ const router = express.Router();
 router.post("/push-order",           pushOrderToCourier);
 router.get("/shipment/:orderId",     getShipmentByOrderId);  // singular — no conflict with /shipments
 router.get("/warehouses",            listWarehouses);
+router.get("/shipped-order-ids",     getShippedOrderIds);
 
 // Phase 2 — Shipments dashboard
 router.get("/shipments",                      listShipments);

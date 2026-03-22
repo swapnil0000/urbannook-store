@@ -159,7 +159,14 @@ export function useAllOrders({ refreshKey = 0 } = {}) {
         av = effectiveDateOf(a) ? new Date(effectiveDateOf(a)).getTime() : 0;
         bv = effectiveDateOf(b) ? new Date(effectiveDateOf(b)).getTime() : 0;
       }
-      return state.sort.sortOrder === "desc" ? bv - av : av - bv;
+      const primary = state.sort.sortOrder === "desc" ? bv - av : av - bv;
+      if (primary !== 0) return primary;
+      // Tiebreaker: when effective dates are equal (e.g. two Instagram orders
+      // on the same day both land at midnight), the one entered into the system
+      // most recently (highest createdAt) always appears first.
+      const ac = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bc = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return bc - ac;
     });
     const total = merged.length;
     const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));

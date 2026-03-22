@@ -653,6 +653,25 @@ const cancelShipment = async (req, res, next) => {
   }
 };
 
+// GET /admin/shipmozo/shipped-order-ids
+// Returns a plain array of sourceOrderId strings for all ShipmentRecords.
+// Used by the Orders table to show the "Shipped" button state and shipment filter
+// without N+1 API calls per row.
+const getShippedOrderIds = async (req, res, next) => {
+  try {
+    const records = await ShipmentRecord.find(
+      {},
+      { sourceOrderId: 1, _id: 0 },
+    ).lean();
+    const ids = records.map((r) => r.sourceOrderId);
+    return res
+      .status(200)
+      .json(new ApiResponse(200, "Shipped order IDs fetched.", ids));
+  } catch (err) {
+    next(err);
+  }
+};
+
 export {
   pushOrderToCourier,
   getShipmentByOrderId,
@@ -663,4 +682,5 @@ export {
   getLabelForShipment,
   trackShipment,
   cancelShipment,
+  getShippedOrderIds,
 };
