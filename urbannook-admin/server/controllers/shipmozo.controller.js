@@ -228,12 +228,16 @@ const pushOrderToCourier = async (req, res, next) => {
     );
 
     // Shipmozo generates its own order_id (e.g. "48321AP367463468983").
-    // Our UUID is stored as data.refrence_id (their typo) and is NOT accepted by
-    // assign-courier, rate-calculator, or cancel-order — we must use their ID.
-    const shipmozoGeneratedId = shipmozoResponse?.data?.order_id ?? null;
+    // Try nested (.data.order_id) first, then top-level (.order_id) as fallback,
+    // since some Shipmozo environments return it without nesting.
+    const shipmozoGeneratedId =
+      shipmozoResponse?.data?.order_id ??
+      shipmozoResponse?.order_id ??
+      null;
     if (!shipmozoGeneratedId) {
       console.warn(
-        "[Shipmozo] push-order response did not include data.order_id — shipmozoOrderId will be null",
+        "[Shipmozo] push-order response did not include order_id — shipmozoOrderId will be null. Full response:",
+        JSON.stringify(shipmozoResponse),
       );
     }
 
@@ -602,9 +606,14 @@ const trackShipment = async (req, res, next) => {
 
     await ShipmentRecord.findByIdAndUpdate(record._id, updateFields);
 
+    // Include normalizedStatus so the frontend can update the row badge correctly
+    // without mapping raw Shipmozo strings ("Pickup Pending" etc.) itself.
     return res
       .status(200)
-      .json(new ApiResponse(200, "Tracking data fetched.", trackData));
+      .json(new ApiResponse(200, "Tracking data fetched.", {
+        ...trackData,
+        _normalizedStatus: updateFields.shipmentStatus ?? null,
+      }));
   } catch (err) {
     next(err);
   }
@@ -627,19 +636,26 @@ const cancelShipment = async (req, res, next) => {
       throw new ApiError(400, "Shipment is already cancelled.");
     }
 
-    const shipmozoOrderId = record.shipmozoOrderId || record.sourceOrderId;
+    // If we never captured Shipmozo's generated order ID, skip the API call —
+    // there's nothing registered on their side (or we can't identify the order).
+    // Just mark it cancelled locally so it stops appearing as active.
+    if (record.shipmozoOrderId) {
+      // Only include awb_number when we have a real one — sending 0 causes
+      // Shipmozo to return result:"1" without actually cancelling the order.
+      const cancelPayload = { order_id: record.shipmozoOrderId };
+      if (record.awbNumber) {
+        const awbNum = parseInt(record.awbNumber, 10);
+        if (!isNaN(awbNum)) cancelPayload.awb_number = awbNum;
+      }
 
-    // Only include awb_number when we have a real one — sending 0 causes
-    // Shipmozo to return result:"1" without actually cancelling the order.
-    const cancelPayload = { order_id: shipmozoOrderId };
-    if (record.awbNumber) {
-      const awbNum = parseInt(record.awbNumber, 10);
-      if (!isNaN(awbNum)) cancelPayload.awb_number = awbNum;
+      console.log("[Shipmozo] Cancel payload:", JSON.stringify(cancelPayload));
+      const cancelResult = await shipmozoService.cancelOrder(cancelPayload);
+      console.log("[Shipmozo] Cancel response:", JSON.stringify(cancelResult));
+    } else {
+      console.warn(
+        `[Shipmozo] cancelShipment: no shipmozoOrderId for record ${record._id} — cancelling locally only.`,
+      );
     }
-
-    console.log("[Shipmozo] Cancel payload:", JSON.stringify(cancelPayload));
-    const cancelResult = await shipmozoService.cancelOrder(cancelPayload);
-    console.log("[Shipmozo] Cancel response:", JSON.stringify(cancelResult));
 
     record.shipmentStatus = "CANCELLED";
     record.isCancelled = true;
@@ -654,19 +670,64 @@ const cancelShipment = async (req, res, next) => {
 };
 
 // GET /admin/shipmozo/shipped-order-ids
-// Returns a plain array of sourceOrderId strings for all ShipmentRecords.
+// Returns a plain array of sourceOrderId strings for all non-cancelled ShipmentRecords.
 // Used by the Orders table to show the "Shipped" button state and shipment filter
 // without N+1 API calls per row.
 const getShippedOrderIds = async (req, res, next) => {
   try {
     const records = await ShipmentRecord.find(
-      {},
+      { isCancelled: { $ne: true } },
       { sourceOrderId: 1, _id: 0 },
     ).lean();
     const ids = records.map((r) => r.sourceOrderId);
     return res
       .status(200)
       .json(new ApiResponse(200, "Shipped order IDs fetched.", ids));
+  } catch (err) {
+    next(err);
+  }
+};
+
+// POST /admin/shipmozo/shipments/sync-statuses
+// Batch-tracks all active shipments (those with an AWB that are not in a terminal state)
+// and writes the updated status back to our DB. Returns counts of synced/error records.
+const TERMINAL_STATUSES = new Set(["DELIVERED", "CANCELLED", "RTO_DELIVERED"]);
+
+const syncAllStatuses = async (req, res, next) => {
+  try {
+    const activeRecords = await ShipmentRecord.find({
+      isCancelled: { $ne: true },
+      awbNumber:   { $ne: null },
+      shipmentStatus: { $nin: [...TERMINAL_STATUSES] },
+    }).lean();
+
+    const results = { synced: 0, updated: 0, errors: 0 };
+
+    await Promise.allSettled(
+      activeRecords.map(async (record) => {
+        try {
+          const result    = await shipmozoService.trackOrder(record.awbNumber);
+          const trackData = result?.data ?? result;
+          const updates   = { lastTrackedAt: new Date() };
+
+          const mapped = TRACKING_STATUS_MAP[trackData?.current_status];
+          if (mapped && mapped !== record.shipmentStatus) {
+            updates.shipmentStatus = mapped;
+            if (mapped === "CANCELLED") updates.isCancelled = true;
+            results.updated++;
+          }
+
+          await ShipmentRecord.findByIdAndUpdate(record._id, updates);
+          results.synced++;
+        } catch {
+          results.errors++;
+        }
+      }),
+    );
+
+    return res
+      .status(200)
+      .json(new ApiResponse(200, "Status sync complete.", results));
   } catch (err) {
     next(err);
   }
@@ -683,4 +744,5 @@ export {
   trackShipment,
   cancelShipment,
   getShippedOrderIds,
+  syncAllStatuses,
 };

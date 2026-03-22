@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import {
   ShoppingCart,
   Loader2,
@@ -18,25 +18,6 @@ import apiClient from "../api/axios";
 
 export default function Orders() {
   const { refreshKey } = useEnv();
-
-  const {
-    orders,
-    loading,
-    error,
-    pagination,
-    filters,
-    sort,
-    selectedOrder,
-    pendingNewOrders,
-    setPage,
-    setFilters,
-    resetFilters,
-    setSort,
-    selectOrder,
-    closeDrawer,
-    dismissPending,
-    refetch,
-  } = useAllOrders({ refreshKey });
 
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -65,22 +46,49 @@ export default function Orders() {
       .catch(() => {});
   };
 
-  // ── Shipment + Dispatch filters (client-side) ────────────────────────────
-  const [shipmentFilter, setShipmentFilter] = useState("all");
-  const [dispatchFilter, setDispatchFilter] = useState("all");
+  // ── Shipment + Dispatch filters + Search ─────────────────────────────────
+  // Initialised from sessionStorage so filters survive navigation.
+  // Declared before useAllOrders so they can be passed in — filtering happens
+  // inside the hook before pagination so all 500 orders are searched/filtered.
+  const [shipmentFilter, setShipmentFilter] = useState(
+    () => { try { return sessionStorage.getItem("orders_shipmentFilter") ?? "all"; } catch { return "all"; } },
+  );
+  const [dispatchFilter, setDispatchFilter] = useState(
+    () => { try { return sessionStorage.getItem("orders_dispatchFilter") ?? "all"; } catch { return "all"; } },
+  );
+  const [searchQuery, setSearchQuery] = useState(
+    () => { try { return sessionStorage.getItem("orders_searchQuery") ?? ""; } catch { return ""; } },
+  );
 
-  const displayOrders = useMemo(() => {
-    let result = orders;
-    if (shipmentFilter === "shipped")
-      result = result.filter((o) => shippedOrderIds.has(o.orderId));
-    else if (shipmentFilter === "not_shipped")
-      result = result.filter((o) => !shippedOrderIds.has(o.orderId));
-    if (dispatchFilter === "dispatched")
-      result = result.filter((o) => dispatchedOrderIds.has(o.orderId));
-    else if (dispatchFilter === "not_dispatched")
-      result = result.filter((o) => !dispatchedOrderIds.has(o.orderId));
-    return result;
-  }, [orders, shipmentFilter, shippedOrderIds, dispatchFilter, dispatchedOrderIds]);
+  useEffect(() => { try { sessionStorage.setItem("orders_shipmentFilter", shipmentFilter); } catch {} }, [shipmentFilter]);
+  useEffect(() => { try { sessionStorage.setItem("orders_dispatchFilter", dispatchFilter); } catch {} }, [dispatchFilter]);
+  useEffect(() => { try { sessionStorage.setItem("orders_searchQuery",    searchQuery);    } catch {} }, [searchQuery]);
+
+  const {
+    orders,
+    loading,
+    error,
+    pagination,
+    filters,
+    sort,
+    selectedOrder,
+    pendingNewOrders,
+    setPage,
+    setFilters,
+    resetFilters,
+    setSort,
+    selectOrder,
+    closeDrawer,
+    dismissPending,
+    refetch,
+  } = useAllOrders({
+    refreshKey,
+    searchQuery,
+    shipmentFilter,
+    shippedOrderIds,
+    dispatchFilter,
+    dispatchedOrderIds,
+  });
 
   if (loading && orders.length === 0) {
     return (
@@ -127,7 +135,10 @@ export default function Orders() {
     filters.status ||
     filters.startDate ||
     filters.endDate ||
-    (filters.channel && filters.channel !== "all");
+    (filters.channel && filters.channel !== "all") ||
+    shipmentFilter !== "all" ||
+    dispatchFilter !== "all" ||
+    searchQuery.trim() !== "";
 
   const isEmpty = !loading && orders.length === 0;
 
@@ -218,12 +229,14 @@ export default function Orders() {
         loading={loading}
         onFilterChange={setFilters}
         onSortChange={setSort}
-        onReset={() => { resetFilters(); setShipmentFilter("all"); setDispatchFilter("all"); }}
+        onReset={() => { resetFilters(); setShipmentFilter("all"); setDispatchFilter("all"); setSearchQuery(""); }}
         showChannelFilter
         shipmentFilter={shipmentFilter}
         onShipmentFilterChange={setShipmentFilter}
         dispatchFilter={dispatchFilter}
         onDispatchFilterChange={setDispatchFilter}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
       />
 
       {/* Orders table or empty state */}
@@ -268,7 +281,7 @@ export default function Orders() {
       ) : (
         <div className="un-card overflow-hidden">
           <OrdersTable
-            orders={displayOrders}
+            orders={orders}
             sort={sort}
             selectedOrder={selectedOrder}
             onSort={setSort}

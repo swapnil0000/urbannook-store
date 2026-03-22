@@ -19,7 +19,7 @@ const getAllOrders = async (req, res) => {
   const rawLimit = parseInt(req.query.limit, 10);
   const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1;
   const limit =
-    Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 100) : 20;
+    Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 500) : 20;
   const skip = (page - 1) * limit;
 
   //   Sorting

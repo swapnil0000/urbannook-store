@@ -10,6 +10,7 @@ import {
   trackShipment,
   cancelShipment,
   getShippedOrderIds,
+  syncAllStatuses,
 } from "../controllers/shipmozo.controller.js";
 
 const router = express.Router();
@@ -21,7 +22,9 @@ router.get("/warehouses",            listWarehouses);
 router.get("/shipped-order-ids",     getShippedOrderIds);
 
 // Phase 2 — Shipments dashboard
+// NOTE: fixed paths MUST come before /:id wildcard routes
 router.get("/shipments",                      listShipments);
+router.post("/shipments/sync-statuses",       syncAllStatuses);  // fixed path — before /:id
 router.get("/shipments/:id/rates",            getRatesForShipment);
 router.post("/shipments/:id/assign",          assignCourierToShipment);
 router.get("/shipments/:id/label",            getLabelForShipment);
