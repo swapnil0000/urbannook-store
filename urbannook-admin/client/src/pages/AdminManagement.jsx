@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Shield, RefreshCw, Loader2, AlertCircle, ChevronDown, KeyRound, Eye, EyeOff, Users, Ban, CheckCircle, Search } from "lucide-react";
+import { Shield, RefreshCw, Loader2, AlertCircle, ChevronDown, KeyRound, Eye, EyeOff, Users, Ban, CheckCircle, Search, UserPlus, ShieldPlus } from "lucide-react";
 import apiClient from "../api/axios";
 import { useToast } from "../context/ToastContext";
 import { useAuth } from "../context/AuthContext";
@@ -33,6 +33,7 @@ export default function AdminManagement() {
   const { showToast } = useToast();
   const { user, can } = useAuth();
   const { refreshKey } = useEnv();
+  const isSuperAdmin = user?.role === "super_admin";
   const canDelete = can("users", "delete");
 
   const [activeTab, setActiveTab] = useState("Admins");
@@ -57,6 +58,13 @@ export default function AdminManagement() {
   const [userPagination, setUserPagination] = useState({});
   const [suspending, setSuspending]     = useState(null);
   const debounceRef = useRef(null);
+
+  // Create modals
+  const [createUserModal, setCreateUserModal] = useState(false);
+  const [createAdminModal, setCreateAdminModal] = useState(false);
+  const [createForm, setCreateForm] = useState({ name: "", email: "", password: "", mobileNumber: "", role: "admin", firstName: "", lastName: "" });
+  const [createLoading, setCreateLoading] = useState(false);
+  const [createPwdShow, setCreatePwdShow] = useState(false);
 
   const fetchAll = useCallback(async () => {
     setLoading(true); setError(null);
@@ -140,8 +148,60 @@ export default function AdminManagement() {
     finally { setChangingPerm((p) => { const n = { ...p }; delete n[key]; return n; }); }
   };
 
-  const handlePasswordChange = async () => {
-    if (!pwdValue || pwdValue.length < 6) { showToast("Min 6 characters", "error"); return; }
+  const openCreateUser = () => {
+    setCreateForm({ name: "", email: "", password: "", mobileNumber: "", role: "admin" });
+    setCreatePwdShow(false);
+    setCreateUserModal(true);
+  };
+
+  const openCreateAdmin = () => {
+    setCreateForm({ name: "", email: "", password: "", mobileNumber: "", role: "admin", firstName: "", lastName: "" });
+    setCreatePwdShow(false);
+    setCreateAdminModal(true);
+  };
+
+  const handleCreateUser = async () => {
+    if (!createForm.name.trim()) { showToast("Name is required", "error"); return; }
+    if (!createForm.email.trim()) { showToast("Email is required", "error"); return; }
+    if (createForm.password.length < 6) { showToast("Password min 6 chars", "error"); return; }
+    setCreateLoading(true);
+    try {
+      await apiClient.post("/admin/users/create", {
+        name: createForm.name,
+        email: createForm.email,
+        password: createForm.password,
+        mobileNumber: createForm.mobileNumber || undefined,
+      });
+      showToast("User created successfully", "success");
+      setCreateUserModal(false);
+      fetchUsers(userPage, userSearch);
+      fetchAll(); // refresh counts
+    } catch (err) { showToast(err.response?.data?.message || "Failed", "error"); }
+    finally { setCreateLoading(false); }
+  };
+
+  const handleCreateAdmin = async () => {
+    const first = createForm.firstName.trim();
+    const last  = createForm.lastName.trim();
+    if (!first) { showToast("First name is required", "error"); return; }
+    if (!last)  { showToast("Last name is required", "error"); return; }
+    if (createForm.password.length < 6) { showToast("Password min 6 chars", "error"); return; }
+    const email = `${first.toLowerCase()}.${last.toLowerCase()}@urbannook.com`;
+    setCreateLoading(true);
+    try {
+      await apiClient.post("/admin/admins/create", {
+        email,
+        password: createForm.password,
+        role: createForm.role,
+      });
+      showToast("Admin created successfully", "success");
+      setCreateAdminModal(false);
+      fetchAll();
+    } catch (err) { showToast(err.response?.data?.message || "Failed", "error"); }
+    finally { setCreateLoading(false); }
+  };
+
+  const handlePasswordChange = async () => {    if (!pwdValue || pwdValue.length < 6) { showToast("Min 6 characters", "error"); return; }
     setPwdLoading(true);
     try {
       await apiClient.patch(`/admin/admins/${pwdModal}/password`, { password: pwdValue });
@@ -168,9 +228,27 @@ export default function AdminManagement() {
           <Shield className="h-6 w-6 text-urban-text" />
           <h1 className="text-2xl font-bold text-urban-text">Admin Management</h1>
         </div>
-        <button onClick={fetchAll} className="inline-flex items-center gap-2 px-3 py-1.5 text-sm text-urban-text-sec border border-urban-border rounded-lg hover:bg-urban-neon/5">
-          <RefreshCw className="h-3.5 w-3.5" /> Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Create User — admin + super_admin */}
+          <button
+            onClick={openCreateUser}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold border border-urban-border rounded-lg bg-urban-sidebar text-urban-text-sec hover:bg-urban-neon/5 transition-colors"
+          >
+            <UserPlus className="h-3.5 w-3.5" /> Create User
+          </button>
+          {/* Create Admin — super_admin only */}
+          {user?.role === "super_admin" && (
+            <button
+              onClick={openCreateAdmin}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold border border-purple-500/30 rounded-lg bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-colors"
+            >
+              <ShieldPlus className="h-3.5 w-3.5" /> Create Admin
+            </button>
+          )}
+          <button onClick={fetchAll} className="inline-flex items-center gap-2 px-3 py-1.5 text-sm text-urban-text-sec border border-urban-border rounded-lg hover:bg-urban-neon/5">
+            <RefreshCw className="h-3.5 w-3.5" /> Refresh
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -224,53 +302,55 @@ export default function AdminManagement() {
                       {a.role}
                     </span>
                   </div>
-                  {!isSelf && (
-                    <div className="flex items-center gap-2 shrink-0">
-                      <PermTooltip show={!canDelete} label="super_admin only">
-                        <button
-                          onClick={() => canDelete && (setPwdModal(a._id), setPwdValue(""), setPwdShow(false))}
-                          disabled={!canDelete}
-                          className="inline-flex items-center gap-1 text-xs px-2 py-1.5 border border-urban-border rounded-lg bg-urban-sidebar text-urban-text-sec hover:bg-urban-neon/5 disabled:opacity-40 disabled:cursor-not-allowed"
-                        >
-                          <KeyRound className="h-3 w-3" /> Password
-                        </button>
-                      </PermTooltip>
-                      {!isAdminSuper && (
+                  <div className="flex items-center gap-2 shrink-0">
+                    {/* Password — self always; super_admin can change others too */}
+                    {(isSelf || isSuperAdmin) && (
+                      <button
+                        onClick={() => { setPwdModal(a._id); setPwdValue(""); setPwdShow(false); }}
+                        className="inline-flex items-center gap-1 text-xs px-2 py-1.5 border border-urban-border rounded-lg bg-urban-sidebar text-urban-text-sec hover:bg-urban-neon/5"
+                      >
+                        <KeyRound className="h-3 w-3" /> Password
+                      </button>
+                    )}
+                    {!isSelf && (
+                      <>
+                        {!isAdminSuper && (
+                          <PermTooltip show={!canDelete} label="super_admin only">
+                            <button
+                              onClick={() => canDelete && handleAdminSuspend(a._id, !a.isSuspended)}
+                              disabled={suspending === a._id || !canDelete}
+                              className={`inline-flex items-center gap-1 text-xs px-2 py-1.5 border rounded-lg disabled:opacity-40 disabled:cursor-not-allowed ${
+                                a.isSuspended
+                                  ? "border-green-500/20 text-green-400 bg-green-500/10 hover:bg-green-500/20"
+                                  : "border-red-500/20 text-red-400 bg-red-500/10 hover:bg-red-500/20"
+                              }`}
+                            >
+                              {suspending === a._id
+                                ? <Loader2 className="h-3 w-3 animate-spin" />
+                                : a.isSuspended ? <CheckCircle className="h-3 w-3" /> : <Ban className="h-3 w-3" />}
+                              {a.isSuspended ? "Unsuspend" : "Suspend"}
+                            </button>
+                          </PermTooltip>
+                        )}
                         <PermTooltip show={!canDelete} label="super_admin only">
-                          <button
-                            onClick={() => canDelete && handleAdminSuspend(a._id, !a.isSuspended)}
-                            disabled={suspending === a._id || !canDelete}
-                            className={`inline-flex items-center gap-1 text-xs px-2 py-1.5 border rounded-lg disabled:opacity-40 disabled:cursor-not-allowed ${
-                              a.isSuspended
-                                ? "border-green-500/20 text-green-400 bg-green-500/10 hover:bg-green-500/20"
-                                : "border-red-500/20 text-red-400 bg-red-500/10 hover:bg-red-500/20"
-                            }`}
-                          >
-                            {suspending === a._id
-                              ? <Loader2 className="h-3 w-3 animate-spin" />
-                              : a.isSuspended ? <CheckCircle className="h-3 w-3" /> : <Ban className="h-3 w-3" />}
-                            {a.isSuspended ? "Unsuspend" : "Suspend"}
-                          </button>
+                          <div className="relative">
+                            <select
+                              value={a.role}
+                              onChange={(e) => canDelete && handleRoleChange(a._id, e.target.value)}
+                              disabled={changingRole === a._id || !canDelete}
+                              className="text-xs border border-urban-border rounded-lg px-2 py-1.5 pr-7 bg-urban-sidebar text-urban-text focus:outline-none appearance-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                              <option value="admin">admin</option>
+                              <option value="super_admin">super_admin</option>
+                            </select>
+                            {changingRole === a._id
+                              ? <Loader2 className="h-3 w-3 animate-spin absolute right-2 top-2 text-urban-text-muted pointer-events-none" />
+                              : <ChevronDown className="h-3 w-3 absolute right-2 top-2 text-urban-text-muted pointer-events-none" />}
+                          </div>
                         </PermTooltip>
-                      )}
-                      <PermTooltip show={!canDelete} label="super_admin only">
-                        <div className="relative">
-                          <select
-                            value={a.role}
-                            onChange={(e) => canDelete && handleRoleChange(a._id, e.target.value)}
-                            disabled={changingRole === a._id || !canDelete}
-                            className="text-xs border border-urban-border rounded-lg px-2 py-1.5 pr-7 bg-urban-sidebar text-urban-text focus:outline-none appearance-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                          >
-                            <option value="admin">admin</option>
-                            <option value="super_admin">super_admin</option>
-                          </select>
-                          {changingRole === a._id
-                            ? <Loader2 className="h-3 w-3 animate-spin absolute right-2 top-2 text-urban-text-muted pointer-events-none" />
-                            : <ChevronDown className="h-3 w-3 absolute right-2 top-2 text-urban-text-muted pointer-events-none" />}
-                        </div>
-                      </PermTooltip>
-                    </div>
-                  )}
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 <div className="p-4 grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-2">
@@ -419,6 +499,137 @@ export default function AdminManagement() {
               <button onClick={() => { setPwdModal(null); setPwdValue(""); }} className="px-4 py-2 text-sm text-urban-text-sec border border-urban-border rounded-lg hover:bg-urban-neon/5">Cancel</button>
               <button onClick={handlePasswordChange} disabled={pwdLoading} className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-urban-neon text-black font-medium rounded-lg hover:opacity-90 disabled:opacity-50">
                 {pwdLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Update
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create User modal */}
+      {createUserModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-urban-card rounded-xl shadow-xl border border-urban-border w-full max-w-sm mx-4 p-6 space-y-4">
+            <div className="flex items-center gap-2">
+              <UserPlus className="h-5 w-5 text-urban-text" />
+              <h2 className="text-base font-semibold text-urban-text">Create User</h2>
+            </div>
+            <div className="space-y-3">
+              <input
+                type="text"
+                placeholder="Full name"
+                value={createForm.name}
+                onChange={(e) => setCreateForm((f) => ({ ...f, name: e.target.value }))}
+                className="w-full border border-urban-border rounded-lg px-3 py-2 text-sm bg-urban-sidebar text-urban-text placeholder:text-urban-text-muted focus:outline-none focus:ring-2 focus:ring-urban-neon"
+              />
+              <input
+                type="email"
+                placeholder="Email"
+                value={createForm.email}
+                onChange={(e) => setCreateForm((f) => ({ ...f, email: e.target.value }))}
+                className="w-full border border-urban-border rounded-lg px-3 py-2 text-sm bg-urban-sidebar text-urban-text placeholder:text-urban-text-muted focus:outline-none focus:ring-2 focus:ring-urban-neon"
+              />
+              <input
+                type="text"
+                placeholder="Mobile number (optional)"
+                value={createForm.mobileNumber}
+                onChange={(e) => setCreateForm((f) => ({ ...f, mobileNumber: e.target.value }))}
+                className="w-full border border-urban-border rounded-lg px-3 py-2 text-sm bg-urban-sidebar text-urban-text placeholder:text-urban-text-muted focus:outline-none focus:ring-2 focus:ring-urban-neon"
+              />
+              <div className="relative">
+                <input
+                  type={createPwdShow ? "text" : "password"}
+                  placeholder="Password (min 6 chars)"
+                  value={createForm.password}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, password: e.target.value }))}
+                  onKeyDown={(e) => e.key === "Enter" && handleCreateUser()}
+                  className="w-full border border-urban-border rounded-lg px-3 py-2 pr-10 text-sm bg-urban-sidebar text-urban-text placeholder:text-urban-text-muted focus:outline-none focus:ring-2 focus:ring-urban-neon"
+                />
+                <button type="button" onClick={() => setCreatePwdShow((v) => !v)} className="absolute right-2.5 top-2.5 text-urban-text-muted hover:text-urban-text">
+                  {createPwdShow ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setCreateUserModal(false)} className="px-4 py-2 text-sm text-urban-text-sec border border-urban-border rounded-lg hover:bg-urban-neon/5">Cancel</button>
+              <button onClick={handleCreateUser} disabled={createLoading} className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-urban-neon text-black font-medium rounded-lg hover:opacity-90 disabled:opacity-50">
+                {createLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Admin modal — super_admin only */}
+      {createAdminModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-urban-card rounded-xl shadow-xl border border-urban-border w-full max-w-sm mx-4 p-6 space-y-4">
+            <div className="flex items-center gap-2">
+              <ShieldPlus className="h-5 w-5 text-purple-400" />
+              <h2 className="text-base font-semibold text-urban-text">Create Admin</h2>
+            </div>
+            <div className="space-y-3">
+              <input
+                type="text"
+                placeholder="First name"
+                autoComplete="off"
+                value={createForm.firstName}
+                onChange={(e) => setCreateForm((f) => ({ ...f, firstName: e.target.value }))}
+                className="w-full border border-urban-border rounded-lg px-3 py-2 text-sm bg-urban-sidebar text-urban-text placeholder:text-urban-text-muted focus:outline-none focus:ring-2 focus:ring-urban-neon"
+              />
+              <input
+                type="text"
+                placeholder="Last name"
+                autoComplete="off"
+                value={createForm.lastName}
+                onChange={(e) => setCreateForm((f) => ({ ...f, lastName: e.target.value }))}
+                className="w-full border border-urban-border rounded-lg px-3 py-2 text-sm bg-urban-sidebar text-urban-text placeholder:text-urban-text-muted focus:outline-none focus:ring-2 focus:ring-urban-neon"
+              />
+              <p className="text-xs text-urban-text-muted px-0.5">
+                Username would be{" "}
+                <span className="font-mono text-urban-neon">
+                  {createForm.firstName.trim() || createForm.lastName.trim()
+                    ? `${createForm.firstName.trim().toLowerCase() || "firstname"}.${createForm.lastName.trim().toLowerCase() || "lastname"}@urbannook.com`
+                    : "firstname.lastname@urbannook.com"}
+                </span>
+              </p>
+              <div className="relative">
+                <input
+                  type={createPwdShow ? "text" : "password"}
+                  placeholder="Password (min 6 chars)"
+                  autoComplete="new-password"
+                  value={createForm.password}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, password: e.target.value }))}
+                  onKeyDown={(e) => e.key === "Enter" && handleCreateAdmin()}
+                  className="w-full border border-urban-border rounded-lg px-3 py-2 pr-10 text-sm bg-urban-sidebar text-urban-text placeholder:text-urban-text-muted focus:outline-none focus:ring-2 focus:ring-urban-neon"
+                />
+                <button type="button" onClick={() => setCreatePwdShow((v) => !v)} className="absolute right-2.5 top-2.5 text-urban-text-muted hover:text-urban-text">
+                  {createPwdShow ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-urban-text-muted">Role:</span>
+                {["admin", "super_admin"].map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setCreateForm((f) => ({ ...f, role: r }))}
+                    className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+                      createForm.role === r
+                        ? r === "super_admin"
+                          ? "border-purple-500/50 bg-purple-500/20 text-purple-400"
+                          : "border-blue-500/50 bg-blue-500/20 text-blue-400"
+                        : "border-urban-border text-urban-text-muted hover:border-urban-neon/30"
+                    }`}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setCreateAdminModal(false)} className="px-4 py-2 text-sm text-urban-text-sec border border-urban-border rounded-lg hover:bg-urban-neon/5">Cancel</button>
+              <button onClick={handleCreateAdmin} disabled={createLoading} className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-purple-500 text-white font-medium rounded-lg hover:opacity-90 disabled:opacity-50">
+                {createLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Create
               </button>
             </div>
           </div>

@@ -9,7 +9,7 @@ import {
   getLabelForShipment,
   trackShipment,
   cancelShipment,
-} from "../controllers/shipmozo.js";
+} from "../controllers/shipmozo.controller.js";
 
 const router = express.Router();
 

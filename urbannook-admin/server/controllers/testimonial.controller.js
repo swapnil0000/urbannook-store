@@ -1,4 +1,4 @@
-import Testimonial from "../models/Testimonial.js";
+import Testimonial from "../models/testimonial.model.js";
 
 // GET /admin/testimonials — all testimonials
 export const getAllTestimonials = async (req, res, next) => {

@@ -1,6 +1,6 @@
-import Cart from "../models/AbandonedCart.js";
-import Order from "../models/Order.js";
-import User from "../models/User.js";
+import Cart from "../models/abandoned.cart.model.js";
+import Order from "../models/order.model.js";
+import User from "../models/user.model.js";
 import { ApiResponse } from "../utils/apiResponse.js";
 
 // GET /admin/abandoned-carts

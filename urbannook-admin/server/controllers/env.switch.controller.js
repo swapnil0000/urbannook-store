@@ -5,7 +5,9 @@ import dotenv from "dotenv";
 import mongoose from "mongoose";
 import { ApiResponse, ApiError } from "../utils/apiResponse.js";
 import { invalidateCache } from "../middleware/rbac.js";
+import { invalidateConfigCache } from "./admin.management.controller.js";
 import { getActiveEnv, setActiveEnv } from "../utils/activeEnv.js";
+import { stopChangeStreams, restartChangeStreams } from "../utils/changeStreamManager.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -60,11 +62,24 @@ export const switchEnv = async (req, res) => {
     throw new ApiError(500, `DB_URI not found in ${env === "dev" ? ".env" : ".env.production"}`);
   }
 
-  await mongoose.disconnect();
+  stopChangeStreams();
+
+  try {
+    // Force close with timeout — open cursors can cause disconnect() to hang
+    await Promise.race([
+      mongoose.disconnect(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("disconnect timeout")), 3000)),
+    ]);
+  } catch (e) {
+    console.warn("[EnvSwitch] disconnect:", e.message, "— forcing reconnect anyway");
+  }
+
   await mongoose.connect(config.uri, { dbName: config.name });
 
   setActiveEnv(env);
   invalidateCache();
+  invalidateConfigCache();
+  restartChangeStreams();
   console.log(`[EnvSwitch] Switched to ${env} — DB: ${config.name}`);
 
   res.status(200).json(new ApiResponse(200, `Switched to ${env}`, { env: getActiveEnv() }));

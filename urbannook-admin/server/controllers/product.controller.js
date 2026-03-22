@@ -1,7 +1,9 @@
 import { uuidv7 } from "uuidv7";
-import Product from "../models/Product.js";
-import Counter from "../models/Counter.js";
+import Product from "../models/product.model.js";
+import Counter from "../models/counter.model.js";
+import Admin from "../models/admin.model.js";
 import { ApiResponse, ApiError } from "../utils/apiResponse.js";
+import DeleteApproval from "../models/delete.approval.model.js";
 
 const getAllProducts = async (req, res, next) => {
   try {
@@ -137,17 +139,34 @@ const updateProduct = async (req, res, next) => {
 const deleteProduct = async (req, res, next) => {
   try {
     const { productId } = req.params;
-    const deletedProduct = await Product.findOneAndDelete({ productId });
 
-    if (!deletedProduct) {
-      throw new ApiError(404, "Product not found");
-    }
+    const product = await Product.findOne({ productId });
+    if (!product) throw new ApiError(404, "Product not found");
 
-    res
-      .status(200)
-      .json(
-        new ApiResponse(200, "Product deleted successfully", deletedProduct)
-      );
+    const existing = await DeleteApproval.findOne({
+      resource: "products",
+      resourceId: productId,
+      status: "pending",
+    });
+    if (existing)
+      throw new ApiError(409, "A pending approval request already exists for this product");
+
+    const totalSuperAdmins = await Admin.countDocuments({ role: "super_admin" });
+    const doc = await DeleteApproval.create({
+      resource: "products",
+      resourceId: productId,
+      resourceName: product.productName,
+      initiatedBy: {
+        adminUid: req.admin.adminUid,
+        email: req.admin.email,
+      },
+      requiredApprovals: Math.max(2, totalSuperAdmins),
+      approvals: [{ adminUid: req.admin.adminUid, email: req.admin.email }],
+    });
+
+    return res
+      .status(201)
+      .json(new ApiResponse(201, "Delete approval request created — requires approval from other super_admin", doc));
   } catch (error) {
     next(error);
   }

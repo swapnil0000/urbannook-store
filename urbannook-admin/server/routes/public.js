@@ -3,8 +3,8 @@ import {
   getProducts,
   getProductById,
   getHomepageProducts,
-} from "../controllers/product.js";
-import { getApprovedTestimonials } from "../controllers/testimonial.js";
+} from "../controllers/product.controller.js";
+import { getApprovedTestimonials } from "../controllers/testimonial.controller.js";
 
 const router = express.Router();
 

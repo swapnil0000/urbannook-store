@@ -22,8 +22,12 @@ const adminSchema = new mongoose.Schema(
 adminSchema.pre("save", async function (next) {
   if (!this.adminUid) this.adminUid = generateAdminUid();
   if (!this.isModified("password")) return next();
-  this.password = await bcrypt.hash(this.password, 10);
+  this.password = await bcrypt.hash(this.password, 12);
   next();
 });
+
+adminSchema.methods.isPasswordCorrect = function (plain) {
+  return bcrypt.compare(plain, this.password);
+};
 
 export default mongoose.model("Admin", adminSchema);

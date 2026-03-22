@@ -1,6 +1,6 @@
 import express from "express";
 import multer from "multer";
-import { login, logout } from "../controllers/auth.js";
+import { login, logout } from "../controllers/auth.controller.js";
 import { verifyAuth } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/rbac.js";
 import {
@@ -8,9 +8,9 @@ import {
   addProduct,
   updateProduct,
   deleteProduct,
-} from "../controllers/product.js";
-import { uploadImage, uploadMultipleImages } from "../controllers/upload.js";
-import { getWaitlistUsers } from "../controllers/waitlist.js";
+} from "../controllers/product.controller.js";
+import { uploadImage, uploadMultipleImages } from "../controllers/upload.controller.js";
+import { getWaitlistUsers } from "../controllers/waitlist.controller.js";
 import {
   getAllOrders,
   getOrderById,
@@ -19,27 +19,27 @@ import {
   getDashboardStats,
   streamOrders,
   getUserByUserId,
-} from "../controllers/order.js";
+} from "../controllers/order.controller.js";
 import {
   getAllInstagramOrders,
   createInstagramOrder,
   updateInstagramOrder,
   streamInstagramOrders,
-} from "../controllers/instagramOrder.js";
+} from "../controllers/instagram.order.controller.js";
 import {
   createCoupon,
   listCoupons,
   editCoupon,
   togglePublish,
   deleteCoupon,
-} from "../controllers/coupon.js";
-import { getEnv, switchEnv } from "../controllers/envSwitch.js";
-import { getAbandonedCarts } from "../controllers/abandonedCart.js";
+} from "../controllers/coupon.controller.js";
+import { getEnv, switchEnv } from "../controllers/env.switch.controller.js";
+import { getAbandonedCarts } from "../controllers/abandoned.cart.controller.js";
 import {
   getAllTestimonials,
   approveTestimonial,
   declineTestimonial,
-} from "../controllers/testimonial.js";
+} from "../controllers/testimonial.controller.js";
 import {
   listAdmins,
   changeAdminRole,
@@ -49,12 +49,20 @@ import {
   changeAdminPassword,
   suspendAdmin,
   unsuspendAdmin,
-} from "../controllers/adminManagement.js";
+} from "../controllers/admin.management.controller.js";
 import {
   listUsers,
   suspendUser,
   unsuspendUser,
-} from "../controllers/userManagement.js";
+  createUser,
+  createAdmin,
+} from "../controllers/user.management.controller.js";
+import {
+  initiateDelete,
+  listPendingApprovals,
+  approveDelete,
+  rejectDelete,
+} from "../controllers/delete.approval.controller.js";
 import shipmozoRoutes from "./shipmozo.js";
 
 const router = express.Router();
@@ -149,7 +157,8 @@ router.use("/shipmozo", auth, shipmozoRoutes);
 // Admin management — super_admin only
 router.get("/admins",                auth, requirePermission("users", "read"),   listAdmins);
 router.patch("/admins/:id/role",     auth, requirePermission("users", "delete"), changeAdminRole);
-router.patch("/admins/:id/password", auth, requirePermission("users", "delete"), changeAdminPassword);
+router.patch("/admins/me/password",   auth, changeAdminPassword);
+router.patch("/admins/:id/password",  auth, changeAdminPassword);
 router.patch("/admins/:id/suspend",  auth, requirePermission("users", "delete"), suspendAdmin);
 router.patch("/admins/:id/unsuspend",auth, requirePermission("users", "delete"), unsuspendAdmin);
 router.get("/permissions",           auth, requirePermission("users", "read"),   getPermissions);
@@ -158,7 +167,17 @@ router.get("/my-permissions",        auth, getMyPermissions);
 
 // User management
 router.get("/users",                          auth, requirePermission("users", "read"),   listUsers);
+router.post("/users/create",                  auth, requirePermission("users", "write"),  createUser);
 router.patch("/users/:userId/suspend",        auth, requirePermission("users", "delete"), suspendUser);
 router.patch("/users/:userId/unsuspend",      auth, requirePermission("users", "delete"), unsuspendUser);
+
+// Admin creation — super_admin only (uses "delete" bit as it's a privileged write)
+router.post("/admins/create",                 auth, requirePermission("users", "delete"), createAdmin);
+
+// Delete approvals (prod env — 2 super_admin required)
+router.post("/delete-approvals",              auth, requirePermission("products", "delete"), initiateDelete);
+router.get("/delete-approvals",               auth, requirePermission("products", "delete"), listPendingApprovals);
+router.patch("/delete-approvals/:id/approve", auth, requirePermission("products", "delete"), approveDelete);
+router.patch("/delete-approvals/:id/reject",  auth, requirePermission("products", "delete"), rejectDelete);
 
 export default router;

@@ -1,4 +1,4 @@
-import Waitlist from "../models/Waitlist.js";
+import Waitlist from "../models/waitlist.model.js";
 import { ApiResponse } from "../utils/apiResponse.js";
 
 const getWaitlistUsers = async (req, res) => {

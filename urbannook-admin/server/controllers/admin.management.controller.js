@@ -1,33 +1,43 @@
-import Admin from "../models/Admin.js";
-import RolePermission from "../models/RolePermission.js";
-import AppConfig from "../models/AppConfig.js";
-import User from "../models/User.js";
+import Admin from "../models/admin.model.js";
+import RolePermission from "../models/role.permission.model.js";
+import AppConfig from "../models/app.config.model.js";
+import User from "../models/user.model.js";
 import { invalidateCache, permissionString } from "../middleware/rbac.js";
 import { getActiveEnv } from "../utils/activeEnv.js";
 import { ApiResponse, ApiError } from "../utils/apiResponse.js";
 
-// Load resources + default bits from DB (cached per process restart)
-let _resources = null;
-let _defaultBits = null;
+// Hardcoded fallback in case AppConfig is missing from DB
+const FALLBACK_RESOURCES = [
+  "products","orders","users","coupons","shipments",
+  "testimonials","waitlist","instagram_orders","abandoned_carts",
+];
+const FALLBACK_DEFAULT_BITS = {
+  products: 6, orders: 6, users: 6, coupons: 6, shipments: 6,
+  testimonials: 6, waitlist: 4, instagram_orders: 6, abandoned_carts: 4,
+};
+
+export function invalidateConfigCache() {} // kept for import compatibility
 
 async function getConfig() {
-  if (_resources && _defaultBits)
-    return { resources: _resources, defaultBits: _defaultBits };
+  // Always fetch fresh — no cache, avoids stale data after env switch
   const [rDoc, dDoc] = await Promise.all([
     AppConfig.findOne({ key: "resources" }),
     AppConfig.findOne({ key: "default_admin_permissions" }),
   ]);
-  _resources = rDoc?.value ?? [];
-  _defaultBits = dDoc?.value ?? {};
-  return { resources: _resources, defaultBits: _defaultBits };
+  const resources = rDoc?.value?.length ? rDoc.value : FALLBACK_RESOURCES;
+  const defaultBits = (dDoc?.value && Object.keys(dDoc.value).length) ? dDoc.value : FALLBACK_DEFAULT_BITS;
+  return { resources, defaultBits };
 }
 
 // GET /admin/my-permissions
 export const getMyPermissions = async (req, res, next) => {
   try {
-    const role = req.admin?.role ?? "admin";
     const adminUid = req.admin?.adminUid;
     const { resources, defaultBits } = await getConfig();
+
+    // Always fetch role from current DB — JWT role may be stale after env switch
+    const adminDoc = adminUid ? await Admin.findOne({ adminUid }, { role: 1 }).lean() : null;
+    const role = adminDoc?.role ?? req.admin?.role ?? "admin";
 
     if (role === "super_admin") {
       return res.json(
@@ -157,7 +167,7 @@ export const updatePermission = async (req, res, next) => {
       { adminUid },
       {
         $set: { [`resources.${resource}`]: Number(bits), role: target.role },
-        $setOnInsert: { adminUid, role: target.role },
+        $setOnInsert: { adminUid },
       },
       { new: true, upsert: true },
     );
@@ -226,15 +236,32 @@ export const unsuspendAdmin = async (req, res, next) => {
   }
 };
 
-// PATCH /admin/admins/:id/password
+// PATCH /admin/admins/me/password  (self) or /admin/admins/:id/password (super_admin)
 export const changeAdminPassword = async (req, res, next) => {
   try {
-    const { password } = req.body;
+    const { password, currentPassword } = req.body;
     if (!password || password.length < 6)
       throw new ApiError(400, "Password must be at least 6 characters");
 
-    const target = await Admin.findById(req.params.id);
+    // "me" means the currently logged-in admin
+    const isSelfRoute = req.params.id === "me";
+    const target = isSelfRoute
+      ? await Admin.findOne({ adminUid: req.admin.adminUid })
+      : await Admin.findById(req.params.id);
     if (!target) throw new ApiError(404, "Admin not found");
+
+    // Non-super_admin can only change their own password
+    if (req.admin.role !== "super_admin" && target.adminUid !== req.admin.adminUid)
+      throw new ApiError(403, "You can only change your own password");
+
+    // Non-super_admin must verify current password
+    if (req.admin.role !== "super_admin") {
+      if (!currentPassword) throw new ApiError(400, "Current password is required");
+      const isMatch = await target.isPasswordCorrect(currentPassword);
+      if (!isMatch) throw new ApiError(401, "Current password is incorrect");
+      if (currentPassword === password)
+        throw new ApiError(400, "New password must be different from current password");
+    }
 
     target.password = password;
     await target.save();
