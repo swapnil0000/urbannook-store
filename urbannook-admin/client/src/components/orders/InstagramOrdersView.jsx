@@ -6,6 +6,7 @@ import {
   RefreshCw,
   Bell,
   Plus,
+  QrCode,
 } from "lucide-react";
 import { useInstagramOrders } from "../../hooks/useInstagramOrders";
 import OrdersToolbar from "./OrdersToolbar";
@@ -13,6 +14,7 @@ import OrdersTable from "./OrdersTable";
 import OrderDetailDrawer from "./OrderDetailDrawer";
 import Pagination from "./Pagination";
 import CreateOrderDrawer from "./CreateOrderDrawer";
+import IGPaymentLinkDrawer from "./IGPaymentLinkDrawer";
 
 export default function InstagramOrdersView() {
   const {
@@ -34,7 +36,8 @@ export default function InstagramOrdersView() {
     refetch,
   } = useInstagramOrders();
 
-  const [createOpen, setCreateOpen] = useState(false);
+  const [createOpen, setCreateOpen]         = useState(false);
+  const [paymentLinkOpen, setPaymentLinkOpen] = useState(false);
 
   if (loading && orders.length === 0) {
     return (
@@ -86,6 +89,14 @@ export default function InstagramOrdersView() {
           >
             <RefreshCw className="h-3.5 w-3.5" />
             Refresh
+          </button>
+          <button
+            onClick={() => setPaymentLinkOpen(true)}
+            className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg transition-all hover:opacity-90"
+            style={{ border: "1px solid #f9a8d4", color: "#be185d", background: "#fdf2f8" }}
+          >
+            <QrCode className="h-3.5 w-3.5" />
+            Send Payment Link
           </button>
           <button
             onClick={() => setCreateOpen(true)}
@@ -212,6 +223,12 @@ export default function InstagramOrdersView() {
       <CreateOrderDrawer
         open={createOpen}
         onClose={() => setCreateOpen(false)}
+      />
+
+      <IGPaymentLinkDrawer
+        open={paymentLinkOpen}
+        onClose={() => setPaymentLinkOpen(false)}
+        onCreated={refetch}
       />
     </>
   );
