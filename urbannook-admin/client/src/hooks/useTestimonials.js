@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
 import apiClient from "../api/axios";
+import { useEnv } from "../context/EnvContext";
 
 export function useTestimonials() {
   const [testimonials, setTestimonials] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const { refreshKey } = useEnv();
 
   const fetchTestimonials = useCallback(async () => {
     setLoading(true);
@@ -21,7 +23,7 @@ export function useTestimonials() {
 
   useEffect(() => {
     fetchTestimonials();
-  }, [fetchTestimonials]);
+  }, [fetchTestimonials, refreshKey]);
 
   const approve = useCallback(async (id) => {
     await apiClient.patch(`/admin/testimonials/${id}/approve`);

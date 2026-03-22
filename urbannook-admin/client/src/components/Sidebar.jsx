@@ -13,27 +13,37 @@ import {
   Moon,
   TrendingUp,
   MessageSquare,
+  Shield,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useEnv } from "../context/EnvContext";
 import { useTheme } from "../context/ThemeContext";
 
 const navLinks = [
-  { to: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/admin/products", label: "Products", icon: Package },
-  { to: "/admin/orders", label: "Orders", icon: ShoppingCart },
-  { to: "/admin/shipments", label: "Shipments", icon: Truck },
-  { to: "/admin/abandoned-carts", label: "Abandoned Carts", icon: ShoppingBag },
-  { to: "/admin/coupons", label: "Coupons", icon: Ticket },
-  { to: "/admin/waitlist", label: "Waitlist", icon: Users },
-  { to: "/admin/analytics", label: "Analytics", icon: TrendingUp },
-  { to: "/admin/testimonials", label: "Testimonials", icon: MessageSquare },
+  { to: "/admin/dashboard",      label: "Dashboard",       icon: LayoutDashboard, resource: null },
+  { to: "/admin/products",       label: "Products",        icon: Package,         resource: "products" },
+  { to: "/admin/orders",         label: "Orders",          icon: ShoppingCart,    resource: "orders" },
+  { to: "/admin/shipments",      label: "Shipments",       icon: Truck,           resource: "shipments" },
+  { to: "/admin/abandoned-carts",label: "Abandoned Carts", icon: ShoppingBag,     resource: "abandoned_carts" },
+  { to: "/admin/coupons",        label: "Coupons",         icon: Ticket,          resource: "coupons" },
+  { to: "/admin/waitlist",       label: "Waitlist",        icon: Users,           resource: "waitlist" },
+  { to: "/admin/analytics",      label: "Analytics",       icon: TrendingUp,      resource: null },
+  { to: "/admin/testimonials",   label: "Testimonials",    icon: MessageSquare,   resource: "testimonials" },
+  { to: "/admin/admins",         label: "Admin Management", icon: Shield,          resource: "users", superAdminOnly: true },
 ];
 
 export default function Sidebar({ onNavigate }) {
-  const { logout } = useAuth();
+  const { logout, can, permString, user } = useAuth();
   const { env, switching, switchEnv } = useEnv();
   const { isDark, toggleTheme } = useTheme();
+
+
+  const visibleLinks = navLinks.filter(
+    ({ resource, superAdminOnly }) => {
+      if (superAdminOnly && user?.role !== "super_admin") return false;
+      return !resource || can(resource, "read");
+    }
+  );
 
   const handleLogout = async () => {
     if (onNavigate) onNavigate();
@@ -56,7 +66,7 @@ export default function Sidebar({ onNavigate }) {
 
       {/* ── Navigation Links ─────────────────────────────────────────── */}
       <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
-        {navLinks.map(({ to, label, icon: Icon }) => (
+        {visibleLinks.map(({ to, label, icon: Icon, resource }) => (
           <NavLink
             key={to}
             to={to}
@@ -70,7 +80,12 @@ export default function Sidebar({ onNavigate }) {
             }
           >
             <Icon size={17} className="shrink-0" />
-            <span className="whitespace-nowrap">{label}</span>
+            <span className="whitespace-nowrap flex-1">{label}</span>
+            {resource && (
+              <span className="text-[10px] font-mono text-urban-text-muted opacity-60">
+                {permString(resource)}
+              </span>
+            )}
           </NavLink>
         ))}
       </nav>
@@ -112,26 +127,35 @@ export default function Sidebar({ onNavigate }) {
         )}
       </div>
 
-      {/* ── Logout ────── */}
-      <div className=" flex flex-row items-center gap-10 justify-evenly px-3 py-2 border-t border-urban-border">
-        <button
-          onClick={toggleTheme}
-          className="flex items-center text-sm font-medium transition-all duration-200 text-urban-text-sec hover:bg-urban-neon/5 hover:text-urban-neon cursor-pointer"
-          title={isDark ? "Switch to light mode" : "Switch to dark mode"}
-        >
-          {isDark ? (
-            <Sun size={17} className="shrink-0 text-amber-400" />
-          ) : (
-            <Moon size={17} className="shrink-0" />
-          )}
-        </button>
-
+      {/* ── User info + Logout ────── */}
+      <div className="px-3 py-2 border-t border-urban-border space-y-1">
+        {/* Current user role badge */}
+        <div className="flex items-center gap-2 px-1 py-1.5">
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-urban-text-muted truncate">{user?.email}</p>
+            <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full mt-0.5 ${
+              user?.role === "super_admin"
+                ? "bg-purple-500/15 text-purple-400"
+                : "bg-blue-500/15 text-blue-400"
+            }`}>
+              <Shield size={9} />
+              {user?.role ?? "admin"}
+            </span>
+          </div>
+          <button
+            onClick={toggleTheme}
+            className="p-1.5 rounded-lg text-urban-text-sec hover:bg-urban-neon/5 hover:text-urban-neon transition-all"
+            title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {isDark ? <Sun size={15} className="text-amber-400" /> : <Moon size={15} />}
+          </button>
+        </div>
         <button
           onClick={handleLogout}
-          className="flex items-center gap-2 px-3 py-2.5 w-full rounded-lg text-sm font-medium transition-all duration-200 text-urban-text-sec hover:bg-red-500/10 hover:text-red-500 cursor-pointer border-l-[3px] border-transparent"
+          className="flex items-center gap-2 px-3 py-2 w-full rounded-lg text-sm font-medium transition-all duration-200 text-urban-text-sec hover:bg-red-500/10 hover:text-red-500 cursor-pointer"
         >
+          <LogOut size={15} className="shrink-0" />
           <span className="whitespace-nowrap">Logout</span>
-          <LogOut size={17} className="shrink-0" />
         </button>
       </div>
     </div>

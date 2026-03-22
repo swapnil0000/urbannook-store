@@ -8,15 +8,9 @@ import AbandonedCarts from "./AbandonedCarts.jsx";
 import Shipments from "./Shipments.jsx";
 import CreateShipment from "./CreateShipment.jsx";
 import Testimonial from "./Testimonial.jsx";
+import AdminManagement from "./AdminManagement.jsx";
+
 export {
-  Login,
-  Dashboard,
-  Products,
-  Waitlist,
-  Orders,
-  Coupons,
-  AbandonedCarts,
-  Shipments,
-  CreateShipment,
-  Testimonial,
+  Login, Dashboard, Products, Waitlist, Orders, Coupons,
+  AbandonedCarts, Shipments, CreateShipment, Testimonial, AdminManagement,
 };

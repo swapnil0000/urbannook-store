@@ -10,8 +10,23 @@ import {
 } from "lucide-react";
 import apiClient from "../api/axios";
 import { useToast } from "../context/ToastContext";
+import { useAuth } from "../context/AuthContext";
 import AddProductForm from "../components/AddProductForm";
 import EditProductForm from "../components/EditProductForm";
+import { useEnv } from "../context/EnvContext";
+
+function PermTooltip({ show, label, children }) {
+  if (!show) return children;
+  return (
+    <div className="relative group inline-flex">
+      {children}
+      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:flex whitespace-nowrap bg-gray-900 text-white text-[10px] px-2 py-1 rounded shadow-lg z-50 pointer-events-none">
+        {label}
+        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+      </div>
+    </div>
+  );
+}
 
 /**
  * Returns Tailwind CSS classes for a product status badge.
@@ -51,6 +66,9 @@ const STATUS_BADGE = {
 
 export default function Products() {
   const { showToast } = useToast();
+  const { refreshKey } = useEnv();
+  const { can } = useAuth();
+  const canDelete = can("products", "delete");
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -76,7 +94,7 @@ export default function Products() {
 
   useEffect(() => {
     fetchProducts();
-  }, [fetchProducts]);
+  }, [fetchProducts, refreshKey]);
 
   const handleDelete = async () => {
     if (!deletingProduct) return;
@@ -237,9 +255,11 @@ export default function Products() {
                             <Pencil className="h-3.5 w-3.5" />
                             Edit
                           </button>
+                          <PermTooltip show={!canDelete} label="super_admin only">
                           <button
-                            onClick={() => setDeletingProduct(product)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-lg transition-all"
+                            onClick={() => canDelete && setDeletingProduct(product)}
+                            disabled={!canDelete}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                             style={{
                               border:
                                 "1px solid color-mix(in srgb, #ef4444 30%, transparent)",
@@ -251,6 +271,7 @@ export default function Products() {
                             <Trash2 className="h-3.5 w-3.5" />
                             Delete
                           </button>
+                          </PermTooltip>
                         </div>
                       </td>
                     </tr>

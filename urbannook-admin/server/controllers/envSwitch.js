@@ -4,6 +4,8 @@ import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 import mongoose from "mongoose";
 import { ApiResponse, ApiError } from "../utils/apiResponse.js";
+import { invalidateCache } from "../middleware/rbac.js";
+import { getActiveEnv, setActiveEnv } from "../utils/activeEnv.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -32,15 +34,11 @@ const DB_CONFIGS = {
 };
 
 // Runtime state — starts from whatever NODE_ENV says
-let activeEnv = process.env.NODE_ENV === "production" ? "prod" : "dev";
-
-export function getActiveEnv() {
-  return activeEnv;
-}
+// (now managed in utils/activeEnv.js to avoid circular imports)
 
 // GET /admin/env
 export const getEnv = (req, res) => {
-  res.status(200).json(new ApiResponse(200, "Current env", { env: activeEnv }));
+  res.status(200).json(new ApiResponse(200, "Current env", { env: getActiveEnv() }));
 };
 
 // POST /admin/env/switch  { env: "dev" | "prod" }
@@ -51,9 +49,9 @@ export const switchEnv = async (req, res) => {
     throw new ApiError(400, "env must be 'dev' or 'prod'");
   }
 
-  if (env === activeEnv) {
+  if (env === getActiveEnv()) {
     return res.status(200).json(
-      new ApiResponse(200, `Already on ${env}`, { env: activeEnv }),
+      new ApiResponse(200, `Already on ${env}`, { env: getActiveEnv() }),
     );
   }
 
@@ -65,8 +63,9 @@ export const switchEnv = async (req, res) => {
   await mongoose.disconnect();
   await mongoose.connect(config.uri, { dbName: config.name });
 
-  activeEnv = env;
+  setActiveEnv(env);
+  invalidateCache();
   console.log(`[EnvSwitch] Switched to ${env} — DB: ${config.name}`);
 
-  res.status(200).json(new ApiResponse(200, `Switched to ${env}`, { env: activeEnv }));
+  res.status(200).json(new ApiResponse(200, `Switched to ${env}`, { env: getActiveEnv() }));
 };
