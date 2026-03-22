@@ -21,6 +21,7 @@ const INITIAL_FORM_DATA = {
   productSubDes: "",
   productSubCategory: "",
   materialAndCare: "",
+  warranty: "",
   isPublished: true,
   dimensions: { length: "", breadth: "", height: "" },
   specifications: [{ key: "", value: "" }],
@@ -121,6 +122,9 @@ export function buildCreatePayload(formData) {
   }
   if (formData.materialAndCare && formData.materialAndCare.trim()) {
     payload.materialAndCare = formData.materialAndCare;
+  }
+  if (formData.warranty && formData.warranty.trim()) {
+    payload.warranty = formData.warranty;
   }
   
   payload.isPublished = formData.isPublished;
@@ -622,6 +626,22 @@ export default function AddProductForm({ onClose, onSuccess }) {
               rows={2}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent resize-vertical"
               placeholder="e.g., Crafted with premium materials. Wipe clean with a soft and dry cloth."
+            />
+          </div>
+
+          {/* Warranty */}
+          <div>
+            <label htmlFor="warranty" className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}>
+              Warranty
+            </label>
+            <input
+              id="warranty"
+              name="warranty"
+              type="text"
+              value={formData.warranty}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+              placeholder="e.g., 1 year warranty on wire, 6 months on accessories"
             />
           </div>
 
