@@ -2,16 +2,8 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import AuthGuard from "./components/AuthGuard";
 import Layout from "./components/Layout";
 import {
-  Login,
-  Dashboard,
-  Products,
-  Waitlist,
-  Orders,
-  Coupons,
-  AbandonedCarts,
-  Shipments,
-  CreateShipment,
-  Testimonial,
+  Login, Dashboard, Products, Waitlist, Orders, Coupons,
+  AbandonedCarts, Shipments, CreateShipment, Testimonial, AdminManagement,
 } from "./pages/index.js";
 import { Analytics } from "./pages/Analytics";
 
@@ -30,10 +22,8 @@ function App() {
           <Route path="/admin/abandoned-carts" element={<AbandonedCarts />} />
           <Route path="/admin/analytics" element={<Analytics />} />
           <Route path="/admin/shipments" element={<Shipments />} />
-          <Route
-            path="/admin/shipment/create/:orderId"
-            element={<CreateShipment />}
-          />
+          <Route path="/admin/admins" element={<AdminManagement />} />
+          <Route path="/admin/shipment/create/:orderId" element={<CreateShipment />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />

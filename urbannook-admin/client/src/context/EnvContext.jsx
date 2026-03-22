@@ -5,16 +5,13 @@ import { useAuth } from "./AuthContext";
 const EnvContext = createContext(null);
 
 export function EnvProvider({ children }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, refreshPerms } = useAuth();
   const [env, setEnv] = useState(null);
   const [switching, setSwitching] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      setEnv(null);
-      return;
-    }
+    if (!isAuthenticated) { setEnv(null); return; }
     apiClient.get("/admin/env")
       .then((res) => setEnv(res.data.data.env))
       .catch(() => setEnv("dev"));
@@ -26,11 +23,12 @@ export function EnvProvider({ children }) {
     try {
       const res = await apiClient.post("/admin/env/switch", { env: target });
       setEnv(res.data.data.env);
-      setRefreshKey((k) => k + 1); // triggers re-fetch in all pages
+      setRefreshKey((k) => k + 1);
+      await refreshPerms(); // re-fetch permissions for new env
     } finally {
       setSwitching(false);
     }
-  }, [env, switching]);
+  }, [env, switching, refreshPerms]);
 
   return (
     <EnvContext.Provider value={{ env, switching, switchEnv, refreshKey }}>

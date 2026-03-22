@@ -2,9 +2,27 @@ import { useEffect, useState, useCallback } from "react";
 import { Ticket, Plus, Pencil, Trash2, Loader2, AlertCircle, RefreshCw, Eye, EyeOff, X } from "lucide-react";
 import apiClient from "../api/axios";
 import { useToast } from "../context/ToastContext";
+import { useEnv } from "../context/EnvContext";
+import { useAuth } from "../context/AuthContext";
+
+function PermTooltip({ show, label, children }) {
+  if (!show) return children;
+  return (
+    <div className="relative group inline-flex">
+      {children}
+      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:flex whitespace-nowrap bg-gray-900 text-white text-[10px] px-2 py-1 rounded shadow-lg z-50 pointer-events-none">
+        {label}
+        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+      </div>
+    </div>
+  );
+}
 
 export default function Coupons() {
   const { showToast } = useToast();
+  const { refreshKey } = useEnv();
+  const { can } = useAuth();
+  const canDelete = can("coupons", "delete");
   const [coupons, setCoupons] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -31,7 +49,7 @@ export default function Coupons() {
     }
   }, [filter, search, showToast]);
 
-  useEffect(() => { fetchCoupons(); }, [fetchCoupons]);
+  useEffect(() => { fetchCoupons(); }, [fetchCoupons, refreshKey]);
 
   const handleTogglePublish = async (couponCodeId) => {
     try {
@@ -230,13 +248,16 @@ export default function Coupons() {
                         >
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
+                        <PermTooltip show={!canDelete} label="super_admin only">
                         <button
-                          onClick={() => handleDelete(coupon.couponCodeId)}
-                          className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors hover:bg-red-50 hover:text-red-500"
+                          onClick={() => canDelete && handleDelete(coupon.couponCodeId)}
+                          disabled={!canDelete}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors hover:bg-red-50 hover:text-red-500 disabled:opacity-40 disabled:cursor-not-allowed"
                           style={{ background: "var(--color-urban-raised)", color: "var(--color-urban-text-sec)" }}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
+                        </PermTooltip>
                       </div>
                     </td>
                   </tr>

@@ -17,13 +17,17 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
-// Response interceptor: on 401 clear state — AuthGuard handles redirect
+// Response interceptor: on 401/403-suspended clear state — AuthGuard handles redirect
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      // Cookie will be cleared by server on next logout
-      // AuthGuard will redirect once user state is cleared
+    const status  = error.response?.status;
+    const message = error.response?.data?.message ?? "";
+
+    if (status === 401 || (status === 403 && message === "Account suspended by super admin")) {
+      // Clear cookie and reload to login
+      document.cookie = "adminAccessToken=; Max-Age=0; path=/";
+      window.location.href = "/admin/login";
     }
     return Promise.reject(error);
   }

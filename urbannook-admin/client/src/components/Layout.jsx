@@ -59,23 +59,24 @@ export default function Layout() {
         </div>
       </div>
 
+      {/* Global env-switching overlay */}
+      {switching && (
+        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-4 bg-black/60 backdrop-blur-sm">
+          <Loader2 className="h-10 w-10 animate-spin text-urban-neon" />
+          <p className="text-sm text-white/80">
+            Switching to{" "}
+            <span className="font-semibold text-white">
+              {env === "dev" ? "PROD" : "DEV"}
+            </span>{" "}
+            environment...
+          </p>
+        </div>
+      )}
+
       {/* Main Content — ml-52 matches sidebar width */}
       <main className="md:ml-52 pt-14 md:pt-0 min-h-screen">
         <div className="p-6">
-          {switching ? (
-            <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
-              <Loader2 className="h-8 w-8 animate-spin text-urban-text-muted" />
-              <p className="text-sm text-urban-text-sec">
-                Switching to{" "}
-                <span className="font-semibold text-urban-text">
-                  {env === "dev" ? "PROD" : "DEV"}
-                </span>{" "}
-                environment...
-              </p>
-            </div>
-          ) : (
-            <Outlet />
-          )}
+          <Outlet />
         </div>
       </main>
     </div>

@@ -2,6 +2,7 @@ import express from "express";
 import multer from "multer";
 import { login, logout } from "../controllers/auth.js";
 import { verifyAuth } from "../middleware/auth.js";
+import { requirePermission } from "../middleware/rbac.js";
 import {
   getAllProducts,
   addProduct,
@@ -39,6 +40,21 @@ import {
   approveTestimonial,
   declineTestimonial,
 } from "../controllers/testimonial.js";
+import {
+  listAdmins,
+  changeAdminRole,
+  getPermissions,
+  updatePermission,
+  getMyPermissions,
+  changeAdminPassword,
+  suspendAdmin,
+  unsuspendAdmin,
+} from "../controllers/adminManagement.js";
+import {
+  listUsers,
+  suspendUser,
+  unsuspendUser,
+} from "../controllers/userManagement.js";
 import shipmozoRoutes from "./shipmozo.js";
 
 const router = express.Router();
@@ -56,7 +72,6 @@ const upload = multer({
   },
 });
 
-// Wrap multer for Express 5 compatibility
 function multerSingle(fieldName) {
   return (req, res, next) => {
     return new Promise((resolve, reject) => {
@@ -79,60 +94,71 @@ function multerArray(fieldName, maxCount) {
   };
 }
 
+const auth = verifyAuth; // shorthand
+
 // Public auth routes
 router.post("/login", login);
+router.post("/logout", auth, logout);
 
-// Protected auth routes
-router.post("/logout", verifyAuth, logout);
+// Upload
+router.post("/upload/image",  auth, requirePermission("products", "write"), multerSingle("image"), uploadImage);
+router.post("/upload/images", auth, requirePermission("products", "write"), multerArray("images", 10), uploadMultipleImages);
 
-// Protected upload routes
-router.post("/upload/image", verifyAuth, multerSingle("image"), uploadImage);
-router.post("/upload/images", verifyAuth, multerArray("images", 10), uploadMultipleImages);
+// Products — admin: rwx (7), super_admin: rwx (7)
+router.get("/total/products",                auth, requirePermission("products", "read"),   getAllProducts);
+router.post("/add/inventory",                auth, requirePermission("products", "write"),  addProduct);
+router.post("/update/inventory/:productId",  auth, requirePermission("products", "write"),  updateProduct);
+router.delete("/delete/inventory/:productId",auth, requirePermission("products", "delete"), deleteProduct);
 
-// Protected product routes
-router.get("/total/products", verifyAuth, getAllProducts);
-router.post("/add/inventory", verifyAuth, addProduct);
-router.post("/update/inventory/:productId", verifyAuth, updateProduct);
-router.delete("/delete/inventory/:productId", verifyAuth, deleteProduct);
-
-// Protected waitlist routes
-router.get("/joined/waitlist", verifyAuth, getWaitlistUsers);
+router.get("/joined/waitlist", auth, requirePermission("waitlist", "read"), getWaitlistUsers);
 
 // Env switcher
-router.get("/env", verifyAuth, getEnv);
-router.post("/env/switch", verifyAuth, switchEnv);
+router.get("/env",         auth, getEnv);
+router.post("/env/switch", auth, switchEnv);
 
-// Dashboard stats
-router.get("/dashboard/stats", verifyAuth, getDashboardStats);
+// Dashboard
+router.get("/dashboard/stats", auth, getDashboardStats);
 
-// Abandoned carts
-router.get("/abandoned-carts", verifyAuth, getAbandonedCarts);
+router.get("/abandoned-carts", auth, requirePermission("abandoned_carts", "read"), getAbandonedCarts);
 
-// Protected order routes — specific paths before wildcard /:orderId
-router.get("/orders/stream", verifyAuth, streamOrders);
-router.get("/orders/instagram/stream", verifyAuth, streamInstagramOrders);
-router.get("/orders/instagram", verifyAuth, getAllInstagramOrders);
-router.post("/orders/instagram", verifyAuth, createInstagramOrder);
-router.put("/orders/instagram/:orderId", verifyAuth, updateInstagramOrder);
-router.get("/orders", verifyAuth, getAllOrders);
-router.get("/orders/:orderId", verifyAuth, getOrderById);
-router.get("/users/:userId", verifyAuth, getUserByUserId);
-router.patch("/orders/:orderId/status", verifyAuth, updateOrderStatus);
-router.patch("/orders/:orderId/tracking", verifyAuth, updateOrderTracking);
+router.get("/orders/stream",           auth, requirePermission("orders", "read"),  streamOrders);
+router.get("/orders/instagram/stream", auth, requirePermission("instagram_orders", "read"),  streamInstagramOrders);
+router.get("/orders/instagram",        auth, requirePermission("instagram_orders", "read"),  getAllInstagramOrders);
+router.post("/orders/instagram",       auth, requirePermission("instagram_orders", "write"), createInstagramOrder);
+router.put("/orders/instagram/:orderId",auth, requirePermission("instagram_orders", "write"), updateInstagramOrder);
+router.get("/orders",                  auth, requirePermission("orders", "read"),  getAllOrders);
+router.get("/orders/:orderId",         auth, requirePermission("orders", "read"),  getOrderById);
+router.get("/users/:userId",           auth, requirePermission("users",  "read"),  getUserByUserId);
+router.patch("/orders/:orderId/status",  auth, requirePermission("orders", "write"), updateOrderStatus);
+router.patch("/orders/:orderId/tracking",auth, requirePermission("orders", "write"), updateOrderTracking);
 
-// Protected coupon routes
-router.post("/coupon/create", verifyAuth, createCoupon);
-router.get("/coupon/list", verifyAuth, listCoupons);
-router.put("/coupon/edit/:couponCodeId", verifyAuth, editCoupon);
-router.patch("/coupon/toggle/:couponCodeId", verifyAuth, togglePublish);
-router.delete("/coupon/delete/:couponCodeId", verifyAuth, deleteCoupon);
+// Coupons — admin: rwx (7), super_admin: rwx (7)
+router.post("/coupon/create",              auth, requirePermission("coupons", "write"),  createCoupon);
+router.get("/coupon/list",                 auth, requirePermission("coupons", "read"),   listCoupons);
+router.put("/coupon/edit/:couponCodeId",   auth, requirePermission("coupons", "write"),  editCoupon);
+router.patch("/coupon/toggle/:couponCodeId",auth, requirePermission("coupons", "write"), togglePublish);
+router.delete("/coupon/delete/:couponCodeId",auth, requirePermission("coupons", "delete"), deleteCoupon);
 
-// Testimonial routes
-router.get("/testimonials", verifyAuth, getAllTestimonials);
-router.patch("/testimonials/:id/approve", verifyAuth, approveTestimonial);
-router.patch("/testimonials/:id/decline", verifyAuth, declineTestimonial);
+router.get("/testimonials",          auth, requirePermission("testimonials", "read"),  getAllTestimonials);
+router.patch("/testimonials/:id/approve", auth, requirePermission("testimonials", "write"), approveTestimonial);
+router.patch("/testimonials/:id/decline", auth, requirePermission("testimonials", "write"), declineTestimonial);
 
-// Shipmozo shipping routes
-router.use("/shipmozo", verifyAuth, shipmozoRoutes);
+// Shipmozo
+router.use("/shipmozo", auth, shipmozoRoutes);
+
+// Admin management — super_admin only
+router.get("/admins",                auth, requirePermission("users", "read"),   listAdmins);
+router.patch("/admins/:id/role",     auth, requirePermission("users", "delete"), changeAdminRole);
+router.patch("/admins/:id/password", auth, requirePermission("users", "delete"), changeAdminPassword);
+router.patch("/admins/:id/suspend",  auth, requirePermission("users", "delete"), suspendAdmin);
+router.patch("/admins/:id/unsuspend",auth, requirePermission("users", "delete"), unsuspendAdmin);
+router.get("/permissions",           auth, requirePermission("users", "read"),   getPermissions);
+router.patch("/permissions",         auth, requirePermission("users", "delete"), updatePermission);
+router.get("/my-permissions",        auth, getMyPermissions);
+
+// User management
+router.get("/users",                          auth, requirePermission("users", "read"),   listUsers);
+router.patch("/users/:userId/suspend",        auth, requirePermission("users", "delete"), suspendUser);
+router.patch("/users/:userId/unsuspend",      auth, requirePermission("users", "delete"), unsuspendUser);
 
 export default router;

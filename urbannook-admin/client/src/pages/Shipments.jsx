@@ -1,5 +1,6 @@
 import { Package, AlertCircle, Inbox } from "lucide-react";
 import { useShipments } from "../hooks/useShipments";
+import { useEnv } from "../context/EnvContext";
 import ShipmentsHeader from "../components/shipments/ShipmentsHeader";
 import ShipmentsTabs from "../components/shipments/ShipmentsTabs";
 import ShipmentsTable from "../components/shipments/ShipmentsTable";
@@ -129,7 +130,8 @@ function EmptyState({ activeTab }) {
 // ── Page ───────────────────────
 
 export default function Shipments() {
-  const hook = useShipments();
+  const { refreshKey } = useEnv();
+  const hook = useShipments({ refreshKey });
 
   const showLoading = hook.loading && hook.shipments.length === 0;
   const showError = !hook.loading && hook.error && hook.shipments.length === 0;

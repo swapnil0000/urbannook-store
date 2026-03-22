@@ -224,7 +224,7 @@ function reducer(state, action) {
 }
 
 // ── Hook ───────────────────────
-export function useShipments() {
+export function useShipments({ refreshKey = 0 } = {}) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const { showToast } = useToast();
   const abortRef = useRef(null);
@@ -255,13 +255,13 @@ export function useShipments() {
     }
   }, []);
 
-  // Re-fetch when tab or page changes
+  // Re-fetch when tab or page changes, or env switches
   useEffect(() => {
     fetchShipments(state.activeTab, state.currentPage);
     return () => {
       abortRef.current?.abort();
     };
-  }, [state.activeTab, state.currentPage, fetchShipments]);
+  }, [state.activeTab, state.currentPage, fetchShipments, refreshKey]);
 
   // Lifecycle cleanup
   useEffect(() => {
