@@ -28,6 +28,7 @@ export function getChangedFields(original, current) {
     "productSubDes",
     "productSubCategory",
     "materialAndCare",
+    "warranty",
     "isPublished",
   ];
 
@@ -134,6 +135,7 @@ export default function EditProductForm({ product, onClose, onSuccess }) {
     productSubDes: product.productSubDes || "",
     productSubCategory: product.productSubCategory || "",
     materialAndCare: product.materialAndCare || "",
+    warranty: product.warranty || "",
     isPublished: product.isPublished ?? true,
     dimensions: {
       length: product.dimensions?.length ?? "",
@@ -696,6 +698,25 @@ export default function EditProductForm({ product, onClose, onSuccess }) {
               rows={2}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent resize-vertical"
               placeholder="e.g., Crafted with premium materials. Wipe clean with a soft and dry cloth."
+            />
+          </div>
+
+          {/* Warranty */}
+          <div>
+            <label
+              htmlFor="edit-warranty"
+              className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}
+            >
+              Warranty
+            </label>
+            <input
+              id="edit-warranty"
+              name="warranty"
+              type="text"
+              value={formData.warranty}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+              placeholder="e.g., 1 year warranty on wire, 6 months on accessories"
             />
           </div>
 
