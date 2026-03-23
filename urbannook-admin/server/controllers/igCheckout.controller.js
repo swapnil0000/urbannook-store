@@ -32,7 +32,7 @@ export const getCheckoutOrder = async (req, res, next) => {
   try {
     const order = await InstagramOrder.findOne(
       { orderId: req.params.orderId },
-      "orderId customerName amount status notes items",
+      "orderId customerName productName amount status notes items",
     ).lean();
 
     if (!order) throw new ApiError(404, "Order not found.");
