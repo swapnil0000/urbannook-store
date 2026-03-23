@@ -20,8 +20,8 @@ export default function OrderRow({ order, isSelected, onSelect, isShipped, isDis
       ? `₹${order.amount.toLocaleString()}`
       : "—";
 
-  // Instagram orders have customerName; website orders have userId
-  const isInstagram = Boolean(order.customerName);
+  // _channel is set by useAllOrders; fallback to orderId prefix
+  const isInstagram = order._channel === "instagram" || order.orderId?.startsWith("IG-") || Boolean(order.customerName);
 
   // Instagram orders show orderedAt (admin-entered date); website orders use createdAt
   const displayDate = isInstagram

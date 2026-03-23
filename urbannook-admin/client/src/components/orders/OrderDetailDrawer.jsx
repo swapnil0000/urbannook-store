@@ -109,7 +109,8 @@ export default function OrderDetailDrawer({ order, onClose, onOrderUpdated }) {
 
   if (!order) return null;
 
-  const isInstagram = Boolean(order.customerName);
+  // _channel is set by useAllOrders; fallback to orderId prefix for direct opens
+  const isInstagram = order._channel === "instagram" || order.orderId?.startsWith("IG-") || Boolean(order.customerName);
 
   const fmt = (d) =>
     d
@@ -210,34 +211,21 @@ export default function OrderDetailDrawer({ order, onClose, onOrderUpdated }) {
           >
             {isInstagram ? (
               <div className="flex-1 min-w-0 space-y-1">
-                <div>
-                  <p
-                    className="text-xs mb-0.5"
-                    style={{ color: "var(--color-urban-text-muted)" }}
-                  >
-                    Customer Name
+                {[
+                  { label: "Customer Name", value: order.customerName && order.customerName !== "Pending" ? order.customerName : null },
+                  { label: "Mobile", value: order.contactNumber },
+                  { label: "Email", value: order.email },
+                ].map(({ label, value }) => value ? (
+                  <div key={label}>
+                    <p className="text-xs mb-0.5" style={{ color: "var(--color-urban-text-muted)" }}>{label}</p>
+                    <p className="text-sm font-semibold truncate" style={{ color: "var(--color-urban-text)" }}>{value}</p>
+                  </div>
+                ) : null)}
+                {!order.contactNumber && !order.email && (
+                  <p className="text-xs italic" style={{ color: "var(--color-urban-text-muted)" }}>
+                    Customer details pending payment
                   </p>
-                  <p
-                    className="text-sm font-semibold truncate"
-                    style={{ color: "var(--color-urban-text)" }}
-                  >
-                    {order.customerName || "—"}
-                  </p>
-                </div>
-                <div>
-                  <p
-                    className="text-xs mb-0.5"
-                    style={{ color: "var(--color-urban-text-muted)" }}
-                  >
-                    Contact
-                  </p>
-                  <p
-                    className="text-sm font-semibold truncate"
-                    style={{ color: "var(--color-urban-text)" }}
-                  >
-                    {order.contactNumber || "—"}
-                  </p>
-                </div>
+                )}
               </div>
             ) : (
               <div className="flex-1 min-w-0 space-y-1">
@@ -347,11 +335,29 @@ export default function OrderDetailDrawer({ order, onClose, onOrderUpdated }) {
                 className="text-sm font-bold"
                 style={{ color: "var(--color-urban-text)" }}
               >
-                Items ({order.items?.length ?? 0})
+                Items ({order.items?.length > 0 ? order.items.length : order.productName ? 1 : 0})
               </h3>
             </div>
 
-            {!order.items || order.items.length === 0 ? (
+            {/* Payment-link order — no items array, just productName */}
+            {(!order.items || order.items.length === 0) && order.productName ? (
+              <div
+                className="flex items-center gap-4 rounded-lg p-3"
+                style={{ border: "1px solid var(--color-urban-border)", background: "var(--color-urban-raised)" }}
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold truncate" style={{ color: "var(--color-urban-text)" }}>
+                    {order.productName}
+                  </p>
+                  <p className="text-xs mt-0.5" style={{ color: "var(--color-urban-text-sec)" }}>
+                    Payment link order
+                  </p>
+                </div>
+                <p className="text-sm font-semibold shrink-0" style={{ color: "var(--color-urban-neon)" }}>
+                  ₹{order.amount?.toLocaleString() ?? "—"}
+                </p>
+              </div>
+            ) : !order.items || order.items.length === 0 ? (
               <p
                 className="text-sm italic"
                 style={{ color: "var(--color-urban-text-muted)" }}
@@ -483,8 +489,8 @@ export default function OrderDetailDrawer({ order, onClose, onOrderUpdated }) {
             </section>
           )}
 
-          {/*   Payment details     */}
-          {order.payment && (
+          {/*   Payment details — website orders     */}
+          {!isInstagram && order.payment && (
             <section aria-label="Payment details">
               <div className="flex items-center gap-2 mb-3">
                 <CreditCard
@@ -506,45 +512,50 @@ export default function OrderDetailDrawer({ order, onClose, onOrderUpdated }) {
                 }}
               >
                 {[
-                  {
-                    label: "Razorpay Order ID",
-                    value: order.payment.razorpayOrderId,
-                  },
-                  {
-                    label: "Payment ID",
-                    value: order.payment.razorpayPaymentId,
-                  },
-                  {
-                    label: "Signature",
-                    value: order.payment.razorpaySignature,
-                  },
+                  { label: "Razorpay Order ID", value: order.payment.razorpayOrderId },
+                  { label: "Payment ID", value: order.payment.razorpayPaymentId },
+                  { label: "Signature", value: order.payment.razorpaySignature },
                 ].map(({ label, value }) =>
                   value ? (
                     <div key={label}>
-                      <p
-                        className="text-xs"
-                        style={{ color: "var(--color-urban-text-muted)" }}
-                      >
-                        {label}
-                      </p>
-                      <p
-                        className="text-xs font-mono break-all"
-                        style={{ color: "var(--color-urban-text-sec)" }}
-                      >
-                        {value}
-                      </p>
+                      <p className="text-xs" style={{ color: "var(--color-urban-text-muted)" }}>{label}</p>
+                      <p className="text-xs font-mono break-all" style={{ color: "var(--color-urban-text-sec)" }}>{value}</p>
                     </div>
                   ) : null,
                 )}
-                {!order.payment.razorpayOrderId &&
-                  !order.payment.razorpayPaymentId && (
-                    <p
-                      className="text-sm italic"
-                      style={{ color: "var(--color-urban-text-muted)" }}
-                    >
-                      No payment reference recorded.
-                    </p>
-                  )}
+                {!order.payment.razorpayOrderId && !order.payment.razorpayPaymentId && (
+                  <p className="text-sm italic" style={{ color: "var(--color-urban-text-muted)" }}>
+                    No payment reference recorded.
+                  </p>
+                )}
+              </div>
+            </section>
+          )}
+
+          {/*   Payment details — Instagram orders     */}
+          {isInstagram && (order.razorpayOrderId || order.razorpayPaymentId) && (
+            <section aria-label="Payment details">
+              <div className="flex items-center gap-2 mb-3">
+                <CreditCard className="h-4 w-4" style={{ color: "var(--color-urban-text-muted)" }} />
+                <h3 className="text-sm font-bold" style={{ color: "var(--color-urban-text)" }}>
+                  Payment Reference
+                </h3>
+              </div>
+              <div
+                className="rounded-lg p-4 space-y-2"
+                style={{ background: "var(--color-urban-raised)", border: "1px solid var(--color-urban-border)" }}
+              >
+                {[
+                  { label: "Razorpay Order ID", value: order.razorpayOrderId },
+                  { label: "Payment ID", value: order.razorpayPaymentId },
+                ].map(({ label, value }) =>
+                  value ? (
+                    <div key={label}>
+                      <p className="text-xs" style={{ color: "var(--color-urban-text-muted)" }}>{label}</p>
+                      <p className="text-xs font-mono break-all" style={{ color: "var(--color-urban-text-sec)" }}>{value}</p>
+                    </div>
+                  ) : null,
+                )}
               </div>
             </section>
           )}
