@@ -1,13 +1,16 @@
 import { useReducer, useEffect, useRef, useCallback, useMemo } from "react";
-import apiClient from "../api/axios";
-import { useToast } from "../context/ToastContext";
-import { BASE } from "../constant/constant.js";
+import { useDispatch, useSelector } from "react-redux";
+import {
+  fetchWebsiteOrders,
+  fetchInstagramOrders,
+  selectWebsiteOrders,
+  selectInstagramOrders,
+  selectOrdersLoading,
+  selectOrdersError,
+  selectNewEventCount,
+} from "../store/ordersSlice";
 
-const WEB_SSE_URL = `${BASE}/admin/orders/stream`;
-const IG_SSE_URL = `${BASE}/admin/orders/instagram/stream`;
-
-const FETCH_LIMIT = 500;
-const PAGE_SIZE = 20;
+const PAGE_SIZE   = 20;
 const SESSION_KEY = "orders_session";
 
 const DEFAULT_FILTERS = { status: "", startDate: "", endDate: "", channel: "all" };
@@ -21,113 +24,26 @@ function readSession() {
 function getInitialState() {
   const saved = readSession();
   return {
-    rawWebsite: [],
-    rawInstagram: [],
-    loadingWebsite: true,
-    loadingInstagram: true,
-    errorWebsite: null,
-    errorInstagram: null,
-    filters: saved.filters ?? DEFAULT_FILTERS,
-    sort:    saved.sort    ?? DEFAULT_SORT,
-    currentPage: 1,
-    selectedOrder: null,
+    filters:          saved.filters ?? DEFAULT_FILTERS,
+    sort:             saved.sort    ?? DEFAULT_SORT,
+    currentPage:      1,
+    selectedOrder:    null,
     pendingNewOrders: 0,
   };
 }
 
 function reducer(state, action) {
   switch (action.type) {
-    case "WEBSITE_FETCH_START":
-      return { ...state, loadingWebsite: true, errorWebsite: null };
-    case "WEBSITE_FETCH_SUCCESS":
-      return {
-        ...state,
-        loadingWebsite: false,
-        rawWebsite: action.payload.map((o) => ({ ...o, _channel: "website" })),
-        pendingNewOrders: 0,
-      };
-    case "WEBSITE_FETCH_ERROR":
-      return { ...state, loadingWebsite: false, errorWebsite: action.payload };
-
-    case "INSTAGRAM_FETCH_START":
-      return { ...state, loadingInstagram: true, errorInstagram: null };
-    case "INSTAGRAM_FETCH_SUCCESS":
-      return {
-        ...state,
-        loadingInstagram: false,
-        rawInstagram: action.payload.map((o) => ({
-          ...o,
-          _channel: "instagram",
-        })),
-        pendingNewOrders: 0,
-      };
-    case "INSTAGRAM_FETCH_ERROR":
-      return {
-        ...state,
-        loadingInstagram: false,
-        errorInstagram: action.payload,
-      };
-
     case "SET_FILTERS":
-      return {
-        ...state,
-        filters: { ...state.filters, ...action.payload },
-        currentPage: 1,
-      };
+      return { ...state, filters: { ...state.filters, ...action.payload }, currentPage: 1 };
     case "RESET_FILTERS":
       return { ...state, filters: DEFAULT_FILTERS, currentPage: 1 };
     case "SET_SORT":
       return { ...state, sort: action.payload, currentPage: 1 };
     case "SET_PAGE":
       return { ...state, currentPage: action.payload };
-
-    case "NEW_WEBSITE_ORDER": {
-      const order = { ...action.payload, _channel: "website" };
-      if (
-        state.rawWebsite.some(
-          (o) => o._id === order._id || o.orderId === order.orderId,
-        )
-      )
-        return state;
-      if (state.filters.status && state.filters.status !== order.status)
-        return state;
-      const visible =
-        state.currentPage === 1 &&
-        state.sort.sortBy === "createdAt" &&
-        state.sort.sortOrder === "desc" &&
-        state.filters.channel !== "instagram";
-      return {
-        ...state,
-        rawWebsite: [order, ...state.rawWebsite],
-        pendingNewOrders: visible
-          ? state.pendingNewOrders
-          : state.pendingNewOrders + 1,
-      };
-    }
-    case "NEW_INSTAGRAM_ORDER": {
-      const order = { ...action.payload, _channel: "instagram" };
-      if (
-        state.rawInstagram.some(
-          (o) => o._id === order._id || o.orderId === order.orderId,
-        )
-      )
-        return state;
-      if (state.filters.status && state.filters.status !== order.status)
-        return state;
-      const visible =
-        state.currentPage === 1 &&
-        state.sort.sortBy === "createdAt" &&
-        state.sort.sortOrder === "desc" &&
-        state.filters.channel !== "website";
-      return {
-        ...state,
-        rawInstagram: [order, ...state.rawInstagram],
-        pendingNewOrders: visible
-          ? state.pendingNewOrders
-          : state.pendingNewOrders + 1,
-      };
-    }
-
+    case "INCREMENT_PENDING":
+      return { ...state, pendingNewOrders: state.pendingNewOrders + action.payload };
     case "DISMISS_PENDING":
       return { ...state, pendingNewOrders: 0 };
     case "SELECT_ORDER":
@@ -147,40 +63,77 @@ export function useAllOrders({
   dispatchFilter = "all",
   dispatchedOrderIds = null,
 } = {}) {
+  const reduxDispatch = useDispatch();
   const [state, dispatch] = useReducer(reducer, undefined, getInitialState);
-  const { showToast } = useToast();
 
-  // Persist filters and sort to sessionStorage so they survive navigation
+  // ── Raw data from Redux store ─────────────────────────────────────────────
+  const rawWebsite   = useSelector(selectWebsiteOrders);
+  const rawInstagram = useSelector(selectInstagramOrders);
+  const loading      = useSelector(selectOrdersLoading);
+  const error        = useSelector(selectOrdersError);
+  const newEventCount = useSelector(selectNewEventCount);
+
+  // Persist UI filters + sort to sessionStorage
   useEffect(() => {
-    try {
-      sessionStorage.setItem(SESSION_KEY, JSON.stringify({ filters: state.filters, sort: state.sort }));
-    } catch {}
+    try { sessionStorage.setItem(SESSION_KEY, JSON.stringify({ filters: state.filters, sort: state.sort })); }
+    catch {}
   }, [state.filters, state.sort]);
 
-  const isMountedRef = useRef(true);
-  const webAbortRef = useRef(null);
-  const igAbortRef = useRef(null);
-  // Keep showToast stable — avoids fetch functions recreating on every render
-  const showToastRef = useRef(showToast);
+  // ── Pending-new-orders notification ──────────────────────────────────────
+  // When SSE delivers a new order (newEventCount bumps), show the banner
+  // only if the new order wouldn't already be visible at the top of the list.
+  const seenEventCountRef = useRef(newEventCount);
   useEffect(() => {
-    showToastRef.current = showToast;
-  }, [showToast]);
+    const diff = newEventCount - seenEventCountRef.current;
+    if (diff <= 0) return;
+    seenEventCountRef.current = newEventCount;
+    const onDefaultView =
+      state.currentPage === 1 &&
+      state.sort.sortBy === "createdAt" &&
+      state.sort.sortOrder === "desc";
+    if (!onDefaultView) {
+      dispatch({ type: "INCREMENT_PENDING", payload: diff });
+    }
+  }, [newEventCount, state.currentPage, state.sort]);
 
-  // Computed: merge → channel-filter → sort → extra client filters → paginate
+  // ── Computed: merge → filter → sort → paginate ────────────────────────────
   const { displayOrders, totalOrders, totalPages } = useMemo(() => {
-    let merged = [...state.rawWebsite, ...state.rawInstagram];
+    let merged = [...rawWebsite, ...rawInstagram];
+
+    // Channel filter
     if (state.filters.channel === "website") {
       merged = merged.filter((o) => o._channel === "website");
     } else if (state.filters.channel === "instagram") {
       merged = merged.filter((o) => o._channel === "instagram");
     }
+
+    // Status filter (client-side — Redux holds all statuses)
+    if (state.filters.status) {
+      merged = merged.filter((o) => o.status === state.filters.status);
+    }
+
+    // Date range filter
+    if (state.filters.startDate || state.filters.endDate) {
+      const start = state.filters.startDate ? new Date(state.filters.startDate) : null;
+      const end   = state.filters.endDate   ? new Date(state.filters.endDate)   : null;
+      merged = merged.filter((o) => {
+        const d = new Date(o._channel === "instagram" ? (o.orderedAt || o.createdAt) : o.createdAt);
+        if (start && d < start) return false;
+        if (end)  {
+          const endOfDay = new Date(end); endOfDay.setHours(23, 59, 59, 999);
+          if (d > endOfDay) return false;
+        }
+        return true;
+      });
+    }
+
+    // Sort
     const effectiveDateOf = (o) =>
       o._channel === "instagram" ? (o.orderedAt || o.createdAt) : o.createdAt;
     merged.sort((a, b) => {
       let av, bv;
       if (state.sort.sortBy === "amount") {
-        av = a.amount ?? 0;
-        bv = b.amount ?? 0;
+        av = a.amount ?? 0; bv = b.amount ?? 0;
       } else {
         av = effectiveDateOf(a) ? new Date(effectiveDateOf(a)).getTime() : 0;
         bv = effectiveDateOf(b) ? new Date(effectiveDateOf(b)).getTime() : 0;
@@ -192,8 +145,7 @@ export function useAllOrders({
       return bc - ac;
     });
 
-    // Extra client-side filters (shipment, dispatch, search) — applied on the
-    // full sorted list so pagination counts are correct
+    // Shipment + dispatch + search filters
     if (shippedOrderIds && shipmentFilter === "shipped")
       merged = merged.filter((o) => shippedOrderIds.has(o.orderId));
     else if (shippedOrderIds && shipmentFilter === "not_shipped")
@@ -209,208 +161,52 @@ export function useAllOrders({
       merged = merged.filter(
         (o) =>
           o.orderId?.toLowerCase().includes(q) ||
-          o.customerName?.toLowerCase().includes(q) ||   // Instagram
-          o.userName?.toLowerCase().includes(q) ||       // Website (top-level)
-          o.deliveryAddress?.fullName?.toLowerCase().includes(q), // Website (address)
+          o.customerName?.toLowerCase().includes(q) ||
+          o.userName?.toLowerCase().includes(q) ||
+          o.deliveryAddress?.fullName?.toLowerCase().includes(q),
       );
     }
 
-    const total = merged.length;
-    const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    const total   = merged.length;
+    const pages   = Math.max(1, Math.ceil(total / PAGE_SIZE));
     const safePage = Math.min(state.currentPage, pages);
-    const display = merged.slice(
-      (safePage - 1) * PAGE_SIZE,
-      safePage * PAGE_SIZE,
-    );
+    const display = merged.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
     return { displayOrders: display, totalOrders: total, totalPages: pages };
   }, [
-    state.rawWebsite,
-    state.rawInstagram,
-    state.filters.channel,
-    state.sort,
-    state.currentPage,
-    searchQuery,
-    shipmentFilter,
-    shippedOrderIds,
-    dispatchFilter,
-    dispatchedOrderIds,
+    rawWebsite, rawInstagram,
+    state.filters, state.sort, state.currentPage,
+    searchQuery, shipmentFilter, shippedOrderIds, dispatchFilter, dispatchedOrderIds,
   ]);
 
-  // Stable fetch functions — empty deps, use refs for toast
-  const fetchWebsite = useCallback(async (serverFilters) => {
-    if (webAbortRef.current) webAbortRef.current.abort();
-    webAbortRef.current = new AbortController();
-    dispatch({ type: "WEBSITE_FETCH_START" });
-    try {
-      const params = { page: 1, limit: FETCH_LIMIT };
-      if (serverFilters.status) params.status = serverFilters.status;
-      if (serverFilters.startDate) params.startDate = serverFilters.startDate;
-      if (serverFilters.endDate) params.endDate = serverFilters.endDate;
-      const res = await apiClient.get("/admin/orders", {
-        params,
-        signal: webAbortRef.current.signal,
-      });
-      if (!isMountedRef.current) return;
-      dispatch({
-        type: "WEBSITE_FETCH_SUCCESS",
-        payload: res.data.data?.orders ?? [],
-      });
-    } catch (err) {
-      if (!isMountedRef.current) return;
-      if (err.code === "ERR_CANCELED" || err.name === "CanceledError") return;
-      const msg =
-        err.response?.data?.message || "Failed to fetch website orders";
-      dispatch({ type: "WEBSITE_FETCH_ERROR", payload: msg });
-      showToastRef.current(msg, "error");
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // ── Exposed actions ───────────────────────────────────────────────────────
 
-  const fetchInstagram = useCallback(async (serverFilters) => {
-    if (igAbortRef.current) igAbortRef.current.abort();
-    igAbortRef.current = new AbortController();
-    dispatch({ type: "INSTAGRAM_FETCH_START" });
-    try {
-      const params = { page: 1, limit: FETCH_LIMIT };
-      if (serverFilters.status) params.status = serverFilters.status;
-      if (serverFilters.startDate) params.startDate = serverFilters.startDate;
-      if (serverFilters.endDate) params.endDate = serverFilters.endDate;
-      const res = await apiClient.get("/admin/orders/instagram", {
-        params,
-        signal: igAbortRef.current.signal,
-      });
-      if (!isMountedRef.current) return;
-      dispatch({
-        type: "INSTAGRAM_FETCH_SUCCESS",
-        payload: res.data.data?.orders ?? [],
-      });
-    } catch (err) {
-      if (!isMountedRef.current) return;
-      if (err.code === "ERR_CANCELED" || err.name === "CanceledError") return;
-      const msg =
-        err.response?.data?.message || "Failed to fetch Instagram orders";
-      dispatch({ type: "INSTAGRAM_FETCH_ERROR", payload: msg });
-      showToastRef.current(msg, "error");
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const setPage        = useCallback((p) => dispatch({ type: "SET_PAGE",      payload: p }), []);
+  const setFilters     = useCallback((f) => dispatch({ type: "SET_FILTERS",   payload: f }), []);
+  const resetFilters   = useCallback(()  => dispatch({ type: "RESET_FILTERS"            }), []);
+  const setSort        = useCallback((s) => dispatch({ type: "SET_SORT",      payload: s }), []);
+  const selectOrder    = useCallback((o) => dispatch({ type: "SELECT_ORDER",  payload: o }), []);
+  const closeDrawer    = useCallback(()  => dispatch({ type: "CLOSE_DRAWER"              }), []);
+  const dismissPending = useCallback(()  => dispatch({ type: "DISMISS_PENDING"           }), []);
 
-  // Re-fetch only when server-side filters change OR env switches (refreshKey)
-  // channel filter is client-side only — does NOT trigger a re-fetch
-  useEffect(() => {
-    const f = {
-      status: state.filters.status,
-      startDate: state.filters.startDate,
-      endDate: state.filters.endDate,
-    };
-    fetchWebsite(f);
-    fetchInstagram(f);
-  }, [
-    state.filters.status,
-    state.filters.startDate,
-    state.filters.endDate,
-    refreshKey,
-    fetchWebsite,
-    fetchInstagram,
-  ]);
-
-  // SSE — website stream
-  useEffect(() => {
-    if (typeof EventSource === "undefined") return;
-    const es = new EventSource(WEB_SSE_URL, { withCredentials: true });
-    es.addEventListener("new_order", (e) => {
-      if (!isMountedRef.current) return;
-      try {
-        dispatch({ type: "NEW_WEBSITE_ORDER", payload: JSON.parse(e.data) });
-        showToastRef.current("New website order received!", "success");
-      } catch {
-        /* ignore */
-      }
-    });
-    es.onerror = () => {};
-    return () => es.close();
-  }, []);
-
-  // SSE — Instagram stream
-  useEffect(() => {
-    if (typeof EventSource === "undefined") return;
-    const es = new EventSource(IG_SSE_URL, { withCredentials: true });
-    es.addEventListener("new_instagram_order", (e) => {
-      if (!isMountedRef.current) return;
-      try {
-        dispatch({ type: "NEW_INSTAGRAM_ORDER", payload: JSON.parse(e.data) });
-        showToastRef.current("New Instagram order received!", "success");
-      } catch {
-        /* ignore */
-      }
-    });
-    es.onerror = () => {};
-    return () => es.close();
-  }, []);
-
-  // Mount / unmount lifecycle
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-      if (webAbortRef.current) webAbortRef.current.abort();
-      if (igAbortRef.current) igAbortRef.current.abort();
-    };
-  }, []);
-
-  const setPage = useCallback(
-    (p) => dispatch({ type: "SET_PAGE", payload: p }),
-    [],
-  );
-  const setFilters = useCallback(
-    (f) => dispatch({ type: "SET_FILTERS", payload: f }),
-    [],
-  );
-  const resetFilters = useCallback(
-    () => dispatch({ type: "RESET_FILTERS" }),
-    [],
-  );
-  const setSort = useCallback(
-    (s) => dispatch({ type: "SET_SORT", payload: s }),
-    [],
-  );
-  const selectOrder = useCallback(
-    (o) => dispatch({ type: "SELECT_ORDER", payload: o }),
-    [],
-  );
-  const closeDrawer = useCallback(() => dispatch({ type: "CLOSE_DRAWER" }), []);
-  const dismissPending = useCallback(
-    () => dispatch({ type: "DISMISS_PENDING" }),
-    [],
-  );
-
+  // Manual refetch — triggers Redux thunks
   const refetch = useCallback(() => {
-    const f = {
-      status: state.filters.status,
-      startDate: state.filters.startDate,
-      endDate: state.filters.endDate,
-    };
-    fetchWebsite(f);
-    fetchInstagram(f);
-  }, [
-    state.filters.status,
-    state.filters.startDate,
-    state.filters.endDate,
-    fetchWebsite,
-    fetchInstagram,
-  ]);
+    reduxDispatch(fetchWebsiteOrders());
+    reduxDispatch(fetchInstagramOrders());
+  }, [reduxDispatch]);
 
   return {
-    orders: displayOrders,
-    loading: state.loadingWebsite || state.loadingInstagram,
-    error: state.errorWebsite || state.errorInstagram,
+    orders:   displayOrders,
+    loading,
+    error,
     pagination: {
       currentPage: state.currentPage,
       totalPages,
       totalOrders,
       limit: PAGE_SIZE,
     },
-    filters: state.filters,
-    sort: state.sort,
-    selectedOrder: state.selectedOrder,
+    filters:          state.filters,
+    sort:             state.sort,
+    selectedOrder:    state.selectedOrder,
     pendingNewOrders: state.pendingNewOrders,
     setPage,
     setFilters,

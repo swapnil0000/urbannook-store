@@ -1,4 +1,9 @@
 import mongoose from "mongoose";
+import { randomBytes } from "crypto";
+
+function generateShipmentRefId() {
+  return "SHP-" + randomBytes(4).toString("hex").toUpperCase();
+}
 
 const trackingEventSchema = new mongoose.Schema(
   {
@@ -12,6 +17,12 @@ const trackingEventSchema = new mongoose.Schema(
 
 const shipmentRecordSchema = new mongoose.Schema(
   {
+    // Unique reference ID per push attempt — e.g. "SHP-A3F2C1D9"
+    shipmentRefId: {
+      type: String,
+      unique: true,
+      default: generateShipmentRefId,
+    },
     sourceOrderId: { type: String, required: true },
     sourceOrderType: {
       type: String,
@@ -67,12 +78,10 @@ const shipmentRecordSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-// Only one ACTIVE (non-cancelled) shipment per order is allowed.
-// Cancelled records are excluded from the uniqueness constraint so re-push works.
-shipmentRecordSchema.index(
-  { sourceOrderId: 1 },
-  { unique: true, partialFilterExpression: { isCancelled: { $ne: true } } },
-);
+// No unique index on sourceOrderId — multiple records per order are allowed
+// (one per push attempt). The duplicate check in the controller blocks re-push
+// only when an active (non-cancelled) record exists.
+shipmentRecordSchema.index({ sourceOrderId: 1 });
 shipmentRecordSchema.index({ awbNumber: 1 }, { sparse: true });
 shipmentRecordSchema.index({ isCancelled: 1, shipmentStatus: 1 });
 

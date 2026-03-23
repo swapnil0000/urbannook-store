@@ -105,7 +105,7 @@ export default function ShipmentSection({ orderId, orderType, order }) {
             Shipment
           </h3>
         </div>
-        {shipment && (
+        {shipment && !shipment.isCancelled && (
           <button
             type="button"
             onClick={() => navigate("/admin/shipments")}
@@ -119,7 +119,7 @@ export default function ShipmentSection({ orderId, orderType, order }) {
       </div>
 
       {/* ── Existing shipment record ───────────────────────────────────────── */}
-      {shipment ? (
+      {shipment && !shipment.isCancelled ? (
         <div
           className="rounded-xl p-4 space-y-3"
           style={{
