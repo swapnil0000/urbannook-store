@@ -181,10 +181,10 @@ export default function CreateShipment() {
     const dims = PRODUCT_DIMENSIONS[firstProductName] ?? null;
     return {
       paymentType: "PREPAID",
-      weight: dims ? String(dims.weight) : "500",
-      length: dims ? String(dims.length) : "10",
-      width: dims ? String(dims.width) : "10",
-      height: dims ? String(dims.height) : "10",
+      weight: dims ? String(dims.weight) : "1000",
+      length: dims ? String(dims.length) : "27",
+      width: dims ? String(dims.width) : "26",
+      height: dims ? String(dims.height) : "12",
       warehouseId: DEFAULT_WAREHOUSE_ID,
     };
   });
@@ -216,8 +216,9 @@ export default function CreateShipment() {
     typeof order.amount === "number"
       ? `₹${order.amount.toLocaleString()}`
       : "—";
-  const formattedDate = order.createdAt
-    ? new Date(order.createdAt).toLocaleDateString("en-IN", {
+  const rawOrderDate = isInstagram ? (order.orderedAt || order.createdAt) : order.createdAt;
+  const formattedDate = rawOrderDate
+    ? new Date(rawOrderDate).toLocaleDateString("en-IN", {
         day: "2-digit",
         month: "long",
         year: "numeric",

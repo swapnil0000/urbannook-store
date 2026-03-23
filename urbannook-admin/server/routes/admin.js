@@ -65,6 +65,7 @@ import {
   rejectDelete,
 } from "../controllers/delete.approval.controller.js";
 import shipmozoRoutes from "./shipmozo.js";
+import { markDispatched, getDispatchedOrderIds } from "../controllers/dispatch.controller.js";
 
 const router = express.Router();
 
@@ -155,6 +156,10 @@ router.patch("/testimonials/:id/decline", auth, requirePermission("testimonials"
 
 // Shipmozo
 router.use("/shipmozo", auth, shipmozoRoutes);
+
+// Dispatch — admin marks a parcel as handed to courier for pickup
+router.get("/dispatch/order-ids", auth, requirePermission("orders", "read"),  getDispatchedOrderIds);
+router.post("/dispatch/:orderId",  auth, requirePermission("orders", "write"), markDispatched);
 
 // Admin management — super_admin only
 router.get("/admins",                auth, requirePermission("users", "read"),   listAdmins);

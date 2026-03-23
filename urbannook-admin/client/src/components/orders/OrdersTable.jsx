@@ -3,7 +3,7 @@ import OrderRow from "./OrderRow";
 
 const COLUMNS = [
   { label: "Order ID", field: null },
-  { label: "Customer", field: null },
+  // { label: "Customer", field: null },
   { label: "Name", field: null },
   { label: "Items", field: null },
   { label: "Total", field: "amount" },
@@ -53,12 +53,21 @@ function SortableHeader({ label, field, activeSort, onSort }) {
         {label}
         {isActive ? (
           isAsc ? (
-            <ArrowUp className="h-3 w-3" style={{ color: "var(--color-urban-neon)" }} />
+            <ArrowUp
+              className="h-3 w-3"
+              style={{ color: "var(--color-urban-neon)" }}
+            />
           ) : (
-            <ArrowDown className="h-3 w-3" style={{ color: "var(--color-urban-neon)" }} />
+            <ArrowDown
+              className="h-3 w-3"
+              style={{ color: "var(--color-urban-neon)" }}
+            />
           )
         ) : (
-          <ArrowUpDown className="h-3 w-3" style={{ color: "var(--color-urban-border)" }} />
+          <ArrowUpDown
+            className="h-3 w-3"
+            style={{ color: "var(--color-urban-border)" }}
+          />
         )}
       </button>
     </th>
@@ -68,13 +77,28 @@ function SortableHeader({ label, field, activeSort, onSort }) {
 /**
  * The orders table shell.
  * Renders sortable column headers and delegates each row to OrderRow.
+ * shippedOrderIds — Set<string> of sourceOrderIds that have a ShipmentRecord.
  */
-export default function OrdersTable({ orders, sort, selectedOrder, onSort, onSelectOrder }) {
+export default function OrdersTable({
+  orders,
+  sort,
+  selectedOrder,
+  onSort,
+  onSelectOrder,
+  shippedOrderIds,
+  dispatchedOrderIds,
+  onDispatch,
+}) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full" role="grid">
         <thead>
-          <tr style={{ background: "color-mix(in srgb, var(--color-urban-raised) 80%, transparent)" }}>
+          <tr
+            style={{
+              background:
+                "color-mix(in srgb, var(--color-urban-raised) 80%, transparent)",
+            }}
+          >
             {COLUMNS.map((col) => (
               <SortableHeader
                 key={col.label}
@@ -93,6 +117,9 @@ export default function OrdersTable({ orders, sort, selectedOrder, onSort, onSel
               order={order}
               isSelected={selectedOrder?._id === order._id}
               onSelect={onSelectOrder}
+              isShipped={shippedOrderIds ? shippedOrderIds.has(order.orderId) : false}
+              isDispatched={dispatchedOrderIds ? dispatchedOrderIds.has(order.orderId) : false}
+              onDispatch={onDispatch}
             />
           ))}
         </tbody>

@@ -30,17 +30,14 @@ export default function ShipmentRow({
   const buttonRef  = useRef(null);
   const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
 
-  const src = shipment._sourceOrder;
+  const src         = shipment._sourceOrder;
   const isInstagram = shipment.sourceOrderType === "INSTAGRAM";
 
   // Compute menu position relative to viewport on open
   useEffect(() => {
     if (isMenuOpen && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
-      setMenuPos({
-        top:   rect.bottom + 4,
-        right: window.innerWidth - rect.right,
-      });
+      setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
     }
   }, [isMenuOpen]);
 
@@ -48,39 +45,57 @@ export default function ShipmentRow({
   useEffect(() => {
     if (!isMenuOpen) return;
     const handler = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target) &&
-          buttonRef.current && !buttonRef.current.contains(e.target)) {
-        onCloseMenu();
-      }
+      if (
+        menuRef.current && !menuRef.current.contains(e.target) &&
+        buttonRef.current && !buttonRef.current.contains(e.target)
+      ) onCloseMenu();
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [isMenuOpen, onCloseMenu]);
 
-  // Product summary from source order items
-  const items = src?.items ?? [];
-  const firstItemName =
-    items[0]?.productSnapshot?.productName ??
-    items[0]?.name ??
-    null;
-  const productSummary = firstItemName
-    ? items.length > 1
-      ? `${firstItemName} +${items.length - 1} more`
-      : firstItemName
-    : "—";
-
-  // Customer info
+  // ── Customer info ─────────────────────────────────────────────────────────
+  // Instagram: customerName + contactNumber
+  // Website: userName (top-level DB field) or deliveryAddress.fullName fallback
   const customerName = isInstagram
     ? (src?.customerName || "—")
-    : (src?.userId ? `User ${src.userId.slice(-6)}` : "Website Order");
-  const customerPhone = isInstagram ? (src?.contactNumber || null) : null;
+    : (src?.userName || src?.deliveryAddress?.fullName || src?.userEmail?.split("@")[0] || "—");
 
-  // Conditional action menu items
+  const customerPhone = isInstagram
+    ? (src?.contactNumber || null)
+    : (src?.userMobile ? String(src.userMobile) : null);
+
+  // ── Delivery address ──────────────────────────────────────────────────────
+  // Website orders have structured deliveryAddress with city/state/pinCode
+  // Instagram orders store deliveryAddress as a plain string
+  let deliveryLine1 = null;
+  let deliveryLine2 = shipment.deliveryPincode ? `PIN: ${shipment.deliveryPincode}` : null;
+
+  if (isInstagram) {
+    // String address — show first ~40 chars
+    const raw = typeof src?.deliveryAddress === "string" ? src.deliveryAddress : null;
+    deliveryLine1 = raw ? raw.slice(0, 45) + (raw.length > 45 ? "…" : "") : null;
+  } else {
+    const addr = src?.deliveryAddress;
+    const city  = addr?.city  || null;
+    const state = addr?.state || null;
+    if (city && state) deliveryLine1 = `${city}, ${state}`;
+    else if (city || state) deliveryLine1 = city || state;
+    if (addr?.pinCode) deliveryLine2 = `PIN: ${addr.pinCode}`;
+  }
+
+  // ── Product summary ───────────────────────────────────────────────────────
+  const items = src?.items ?? [];
+  const firstItemName = items[0]?.productSnapshot?.productName ?? items[0]?.name ?? null;
+  const productSummary = firstItemName
+    ? items.length > 1 ? `${firstItemName} +${items.length - 1} more` : firstItemName
+    : "—";
+
+  // ── Action availability ───────────────────────────────────────────────────
   const canAssign = shipment.shipmentStatus === "PUSHED";
   const canLabel  = Boolean(shipment.awbNumber);
   const canTrack  = Boolean(shipment.awbNumber);
   const canCancel = !shipment.isCancelled && !NON_CANCELLABLE.has(shipment.shipmentStatus);
-
   const hasAnyAction = canAssign || canLabel || canTrack || canCancel;
 
   return (
@@ -101,18 +116,35 @@ export default function ShipmentRow({
         <div className="flex items-center gap-1.5 mb-1">
           {isInstagram
             ? <Camera className="h-3 w-3 text-pink-400 shrink-0" />
-            : <Globe   className="h-3 w-3 text-blue-400 shrink-0" />
-          }
-          <p className="text-xs font-mono truncate" style={{ color: "var(--color-urban-text-sec)" }}>{shipment.sourceOrderId}</p>
+            : <Globe   className="h-3 w-3 text-blue-400 shrink-0" />}
+          <p className="text-xs font-mono truncate" style={{ color: "var(--color-urban-text-sec)" }}>
+            {shipment.sourceOrderId}
+          </p>
         </div>
         <ShipmentStatusBadge status={shipment.shipmentStatus} />
       </td>
 
-      {/* Product Details */}
+      {/* Customer */}
       <td className="px-4 py-3 max-w-[160px]">
+        <p className="text-xs font-medium truncate" style={{ color: "var(--color-urban-text)" }}>{customerName}</p>
+        {customerPhone && (
+          <p className="text-xs mt-0.5" style={{ color: "var(--color-urban-text-sec)" }}>{customerPhone}</p>
+        )}
+        {deliveryLine1 && (
+          <p className="text-xs mt-1 truncate" style={{ color: "var(--color-urban-text-muted)" }}>{deliveryLine1}</p>
+        )}
+        {deliveryLine2 && (
+          <p className="text-xs" style={{ color: "var(--color-urban-text-muted)" }}>{deliveryLine2}</p>
+        )}
+      </td>
+
+      {/* Product Details */}
+      <td className="px-4 py-3 max-w-[150px]">
         <p className="text-xs truncate" style={{ color: "var(--color-urban-text)" }}>{productSummary}</p>
         {items.length > 0 && (
-          <p className="text-xs mt-0.5" style={{ color: "var(--color-urban-text-muted)" }}>{items.length} item{items.length !== 1 ? "s" : ""}</p>
+          <p className="text-xs mt-0.5" style={{ color: "var(--color-urban-text-muted)" }}>
+            {items.length} item{items.length !== 1 ? "s" : ""}
+          </p>
         )}
       </td>
 
@@ -127,41 +159,25 @@ export default function ShipmentRow({
       {/* Payment */}
       <td className="px-4 py-3 whitespace-nowrap">
         {shipment.paymentType === "PREPAID" ? (
-          <span
-            className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold uppercase"
-            style={{ background: "#dcfce7", color: "#15803d" }}
-          >
-            Prepaid
-          </span>
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold uppercase"
+            style={{ background: "#dcfce7", color: "#15803d" }}>Prepaid</span>
         ) : (
-          <span
-            className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold uppercase"
-            style={{ background: "#fef9c3", color: "#92400e" }}
-          >
-            COD
-          </span>
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold uppercase"
+            style={{ background: "#fef9c3", color: "#92400e" }}>COD</span>
         )}
       </td>
 
-      {/* Shipping Details */}
-      <td className="px-4 py-3 max-w-[180px]">
-        <p className="text-xs truncate" style={{ color: "var(--color-urban-text)" }}>{customerName}</p>
-        {customerPhone && (
-          <p className="text-xs mt-0.5" style={{ color: "var(--color-urban-text-sec)" }}>{customerPhone}</p>
-        )}
-        {shipment.awbNumber && (
-          <p className="text-xs font-mono mt-1 truncate" style={{ color: "var(--color-urban-text-muted)" }}>{shipment.awbNumber}</p>
-        )}
-        {shipment.courierCompany && (
-          <p className="text-xs mt-0.5 truncate" style={{ color: "var(--color-urban-text-muted)" }}>{shipment.courierCompany}</p>
-        )}
-      </td>
-
-      {/* Pickup Address */}
-      <td className="px-4 py-3 whitespace-nowrap">
-        <p className="text-xs" style={{ color: "var(--color-urban-text-sec)" }}>WH: {shipment.warehouseId}</p>
-        {shipment.pickupPincode && (
-          <p className="text-xs mt-0.5" style={{ color: "var(--color-urban-text-muted)" }}>PIN: {shipment.pickupPincode}</p>
+      {/* Courier Info */}
+      <td className="px-4 py-3 max-w-[160px]">
+        {shipment.awbNumber ? (
+          <>
+            <p className="text-xs font-mono truncate" style={{ color: "var(--color-urban-text)" }}>{shipment.awbNumber}</p>
+            {shipment.courierCompany && (
+              <p className="text-xs mt-0.5 truncate" style={{ color: "var(--color-urban-text-sec)" }}>{shipment.courierCompany}</p>
+            )}
+          </>
+        ) : (
+          <p className="text-xs" style={{ color: "var(--color-urban-text-muted)" }}>—</p>
         )}
       </td>
 
@@ -179,50 +195,42 @@ export default function ShipmentRow({
               <MoreVertical className="h-4 w-4" />
             </button>
 
-            {/* Dropdown — rendered via portal-like fixed positioning */}
             {isMenuOpen && (
               <div
                 ref={menuRef}
                 className="fixed z-[9999] min-w-[168px] rounded-lg shadow-2xl py-1"
                 style={{
-                  top:        menuPos.top,
-                  right:      menuPos.right,
+                  top: menuPos.top, right: menuPos.right,
                   background: "var(--color-urban-surface)",
-                  border:     "1px solid var(--color-urban-border)",
+                  border: "1px solid var(--color-urban-border)",
                 }}
               >
                 {canAssign && (
-                  <button
-                    onClick={() => { onCloseMenu(); onAssign(shipment); }}
+                  <button onClick={() => { onCloseMenu(); onAssign(shipment); }}
                     className="flex items-center gap-2 w-full px-3 py-2 text-sm transition-colors"
                     style={{ color: "var(--color-urban-text)" }}
                     onMouseEnter={(e) => e.currentTarget.style.background = "var(--color-urban-raised)"}
-                    onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                  >
+                    onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
                     <Truck className="h-4 w-4" style={{ color: "var(--color-urban-text-muted)" }} />
                     Assign Courier
                   </button>
                 )}
                 {canLabel && (
-                  <button
-                    onClick={() => { onCloseMenu(); onPrintLabel(shipment); }}
+                  <button onClick={() => { onCloseMenu(); onPrintLabel(shipment); }}
                     className="flex items-center gap-2 w-full px-3 py-2 text-sm transition-colors"
                     style={{ color: "var(--color-urban-text)" }}
                     onMouseEnter={(e) => e.currentTarget.style.background = "var(--color-urban-raised)"}
-                    onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                  >
+                    onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
                     <Printer className="h-4 w-4" style={{ color: "var(--color-urban-text-muted)" }} />
                     Print Label
                   </button>
                 )}
                 {canTrack && (
-                  <button
-                    onClick={() => { onCloseMenu(); onTrack(shipment); }}
+                  <button onClick={() => { onCloseMenu(); onTrack(shipment); }}
                     className="flex items-center gap-2 w-full px-3 py-2 text-sm transition-colors"
                     style={{ color: "var(--color-urban-text)" }}
                     onMouseEnter={(e) => e.currentTarget.style.background = "var(--color-urban-raised)"}
-                    onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                  >
+                    onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
                     <MapPin className="h-4 w-4" style={{ color: "var(--color-urban-text-muted)" }} />
                     Track Package
                   </button>
@@ -232,13 +240,11 @@ export default function ShipmentRow({
                     {(canAssign || canLabel || canTrack) && (
                       <div className="my-1" style={{ borderTop: "1px solid var(--color-urban-border)" }} />
                     )}
-                    <button
-                      onClick={() => { onCloseMenu(); onCancel(shipment); }}
+                    <button onClick={() => { onCloseMenu(); onCancel(shipment); }}
                       className="flex items-center gap-2 w-full px-3 py-2 text-sm transition-colors"
                       style={{ color: "#ef4444" }}
                       onMouseEnter={(e) => e.currentTarget.style.background = "var(--color-urban-raised)"}
-                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                    >
+                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
                       <XCircle className="h-4 w-4" />
                       Cancel Shipment
                     </button>

@@ -1,6 +1,6 @@
-import { Truck, RefreshCw } from "lucide-react";
+import { Truck, RefreshCw, ArrowRightLeft } from "lucide-react";
 
-export default function ShipmentsHeader({ loading, totalRecords, onRefresh }) {
+export default function ShipmentsHeader({ loading, totalRecords, onRefresh, onSync, syncing }) {
   return (
     <div
       className="flex items-center justify-between px-6 py-5"
@@ -25,19 +25,35 @@ export default function ShipmentsHeader({ loading, totalRecords, onRefresh }) {
         </div>
       </div>
 
-      <button
-        onClick={onRefresh}
-        disabled={loading}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
-        style={{
-          border: "1px solid var(--color-urban-border)",
-          color: "var(--color-urban-text-sec)",
-          background: "var(--color-urban-raised)",
-        }}
-      >
-        <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-        Refresh
-      </button>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={onSync}
+          disabled={syncing || loading}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
+          style={{
+            border: "1px solid var(--color-urban-border)",
+            color: "var(--color-urban-neon)",
+            background: "color-mix(in srgb, var(--color-urban-neon) 8%, var(--color-urban-raised))",
+          }}
+        >
+          <ArrowRightLeft className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} />
+          Sync Status
+        </button>
+
+        <button
+          onClick={onRefresh}
+          disabled={loading}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
+          style={{
+            border: "1px solid var(--color-urban-border)",
+            color: "var(--color-urban-text-sec)",
+            background: "var(--color-urban-raised)",
+          }}
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+          Refresh
+        </button>
+      </div>
     </div>
   );
 }

@@ -56,8 +56,11 @@ const getAllInstagramOrders = async (req, res, next) => {
     }
     if (Object.keys(matchStage).length) pipeline.push({ $match: matchStage });
 
+    // Step 3 — sort (date sorts use effectiveDate; amount sorts normally)
+    // Secondary sort: createdAt DESC breaks ties when multiple orders share
+    // the same effectiveDate (happens when orderedAt is a date-only value).
     const sortField = sortBy === "createdAt" ? "effectiveDate" : sortBy;
-    pipeline.push({ $sort: { [sortField]: sortOrder } });
+    pipeline.push({ $sort: { [sortField]: sortOrder, createdAt: -1 } });
 
     pipeline.push({
       $facet: {
@@ -157,7 +160,13 @@ const createInstagramOrder = async (req, res, next) => {
       items.forEach((item, i) => {
         if (!item.productId?.trim()) validationErrors.push(`Item ${i + 1}: product is required.`);
         const qty = parseInt(item.quantity, 10);
-        if (!Number.isFinite(qty) || qty < 1) validationErrors.push(`Item ${i + 1}: quantity must be at least 1.`);
+        if (!Number.isFinite(qty) || qty < 1)
+          validationErrors.push(`Item ${i + 1}: quantity must be at least 1.`);
+        if (item.isCustomPrice === true) {
+          const price = parseFloat(item.priceAtPurchase);
+          if (!Number.isFinite(price) || price < 0)
+            validationErrors.push(`Item ${i + 1}: custom price must be a non-negative number.`);
+        }
       });
     }
     if (status !== undefined && !ALLOWED_STATUSES.has(status)) {
@@ -172,18 +181,27 @@ const createInstagramOrder = async (req, res, next) => {
     const missingIds = productIds.filter((id) => !productMap.has(id));
     if (missingIds.length > 0) throw new ApiError(400, `Products not found: ${missingIds.join(", ")}`);
 
+    // Build items — custom price is scoped to THIS order only.
+    // The Product document is read but NEVER written here.
     const builtItems = items.map((item) => {
       const p        = productMap.get(item.productId.trim());
       const quantity = parseInt(item.quantity, 10);
+      const isCustomPrice = item.isCustomPrice === true;
+      const customPrice   = parseFloat(item.priceAtPurchase);
+      const priceAtPurchase =
+        isCustomPrice && Number.isFinite(customPrice) && customPrice >= 0
+          ? customPrice
+          : p.sellingPrice; // fallback to catalogue price — Product untouched
       return {
         productId: p.productId,
         productSnapshot: {
-          productName:        p.productName,
-          productImg:         p.productImg,
+          productName:      p.productName,
+          productImg:       p.productImg,
           quantity,
-          productCategory:    p.productCategory,
+          productCategory:  p.productCategory,
           productSubCategory: p.productSubCategory ?? null,
-          priceAtPurchase:    p.sellingPrice,
+          priceAtPurchase,
+          isCustomPrice,
         },
       };
     });
@@ -228,47 +246,7 @@ const createInstagramOrder = async (req, res, next) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // PUT /admin/orders/instagram/:orderId  — manual edit (address, items, etc.)
 // ─────────────────────────────────────────────────────────────────────────────
-const updateInstagramOrder = async (req, res, next) => {
-  try {
-    const {
-      customerName,
-      contactNumber,
-      deliveryAddress,
-      email,
-      notes,
-      status,
-      orderedAt,
-    } = req.body;
 
-    const validationErrors = [];
-    if (!customerName?.trim()) validationErrors.push("Customer name is required.");
-    if (status !== undefined && !ALLOWED_STATUSES.has(status)) {
-      validationErrors.push(`Status must be one of: ${[...ALLOWED_STATUSES].join(", ")}.`);
-    }
-    if (validationErrors.length > 0) throw new ApiError(400, validationErrors.join(" "));
-
-    const order = await InstagramOrder.findOne({ orderId: req.params.orderId });
-    if (!order) throw new ApiError(404, `Instagram order "${req.params.orderId}" not found.`);
-
-    order.customerName    = customerName.trim();
-    if (contactNumber   !== undefined) order.contactNumber   = contactNumber?.trim()   || undefined;
-    if (deliveryAddress !== undefined) order.deliveryAddress = deliveryAddress?.trim() || undefined;
-    if (email           !== undefined) order.email           = email?.trim()           || undefined;
-    if (notes           !== undefined) order.notes           = notes?.trim()           || undefined;
-    if (status)                        order.status          = status;
-
-    const parsedOrderedAt = orderedAt ? new Date(orderedAt) : null;
-    if (parsedOrderedAt && !isNaN(parsedOrderedAt)) order.orderedAt = parsedOrderedAt;
-
-    await order.save();
-
-    return res.status(200).json(
-      new ApiResponse(200, "Instagram order updated successfully.", order),
-    );
-  } catch (err) {
-    next(err);
-  }
-};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /admin/orders/instagram/stream  — SSE
@@ -297,6 +275,157 @@ const streamInstagramOrders = (req, res) => {
     clearInterval(heartbeat);
     orderEventEmitter.off("new_instagram_order", sendOrder);
   });
+};
+
+// PUT /admin/orders/instagram/:orderId
+// Updates an existing Instagram order. Product snapshots are rebuilt from current
+// product data so prices are always current. orderId is immutable.
+const updateInstagramOrder = async (req, res, next) => {
+  try {
+    const {
+      orderedAt,
+      customerName,
+      contactNumber,
+      deliveryAddress,
+      notes,
+      status,
+      items,
+    } = req.body;
+
+    // ── Validate ───────────────
+    const validationErrors = [];
+
+    if (
+      !customerName ||
+      typeof customerName !== "string" ||
+      !customerName.trim()
+    ) {
+      validationErrors.push("Customer name is required.");
+    }
+    if (
+      !contactNumber ||
+      typeof contactNumber !== "string" ||
+      !contactNumber.trim()
+    ) {
+      validationErrors.push("Contact number is required.");
+    }
+    if (
+      !deliveryAddress ||
+      typeof deliveryAddress !== "string" ||
+      !deliveryAddress.trim()
+    ) {
+      validationErrors.push("Delivery address is required.");
+    }
+    if (!Array.isArray(items) || items.length === 0) {
+      validationErrors.push("At least one item is required.");
+    } else {
+      items.forEach((item, i) => {
+        if (
+          !item.productId ||
+          typeof item.productId !== "string" ||
+          !item.productId.trim()
+        ) {
+          validationErrors.push(`Item ${i + 1}: product is required.`);
+        }
+        const qty = parseInt(item.quantity, 10);
+        if (!Number.isFinite(qty) || qty < 1) {
+          validationErrors.push(`Item ${i + 1}: quantity must be at least 1.`);
+        }
+        if (item.isCustomPrice === true) {
+          const price = parseFloat(item.priceAtPurchase);
+          if (!Number.isFinite(price) || price < 0)
+            validationErrors.push(`Item ${i + 1}: custom price must be a non-negative number.`);
+        }
+      });
+    }
+    if (status !== undefined && !ALLOWED_STATUSES.has(status)) {
+      validationErrors.push(
+        `Status must be one of: ${[...ALLOWED_STATUSES].join(", ")}.`,
+      );
+    }
+
+    if (validationErrors.length > 0) {
+      throw new ApiError(400, validationErrors.join(" "));
+    }
+
+    // ── Find order ─────────────
+    const order = await InstagramOrder.findOne({ orderId: req.params.orderId });
+    if (!order)
+      throw new ApiError(
+        404,
+        `Instagram order "${req.params.orderId}" not found.`,
+      );
+
+    // ── Rebuild items with fresh product snapshots ────────────────────────────
+    const productIds = items.map((i) => i.productId.trim());
+    const products = await Product.find({
+      productId: { $in: productIds },
+    }).lean();
+    const productMap = new Map(products.map((p) => [p.productId, p]));
+
+    const missingIds = productIds.filter((id) => !productMap.has(id));
+    if (missingIds.length > 0) {
+      throw new ApiError(400, `Products not found: ${missingIds.join(", ")}`);
+    }
+
+    // Rebuild items with fresh product metadata — price may be custom.
+    // The Product document is read but NEVER written here.
+    const builtItems = items.map((item) => {
+      const p = productMap.get(item.productId.trim());
+      const quantity      = parseInt(item.quantity, 10);
+      const isCustomPrice = item.isCustomPrice === true;
+      const customPrice   = parseFloat(item.priceAtPurchase);
+      const priceAtPurchase =
+        isCustomPrice && Number.isFinite(customPrice) && customPrice >= 0
+          ? customPrice
+          : p.sellingPrice; // fallback to catalogue price — Product untouched
+      return {
+        productId: p.productId,
+        productSnapshot: {
+          productName:      p.productName,
+          productImg:       p.productImg,
+          quantity,
+          productCategory:  p.productCategory,
+          productSubCategory: p.productSubCategory ?? null,
+          priceAtPurchase,
+          isCustomPrice,
+        },
+      };
+    });
+
+    const amount = builtItems.reduce(
+      (sum, item) =>
+        sum +
+        item.productSnapshot.priceAtPurchase * item.productSnapshot.quantity,
+      0,
+    );
+
+    // ── Apply changes ──────────
+    const parsedOrderedAt = orderedAt ? new Date(orderedAt) : null;
+    // Only overwrite if a valid new date was provided; otherwise keep the existing value
+    if (parsedOrderedAt && !isNaN(parsedOrderedAt)) {
+      order.orderedAt = parsedOrderedAt;
+    } else if (!order.orderedAt) {
+      order.orderedAt = order.createdAt ?? new Date(); // backfill if somehow missing
+    }
+    order.customerName = customerName.trim();
+    order.contactNumber = contactNumber.trim();
+    order.deliveryAddress = deliveryAddress.trim();
+    order.notes = notes?.trim() || undefined;
+    order.items = builtItems;
+    order.amount = amount;
+    if (status) order.status = status;
+
+    await order.save();
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(200, "Instagram order updated successfully.", order),
+      );
+  } catch (err) {
+    next(err);
+  }
 };
 
 export {

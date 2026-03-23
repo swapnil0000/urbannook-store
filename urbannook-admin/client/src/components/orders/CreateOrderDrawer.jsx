@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback, useReducer, useState } from "react";
 import { X, Plus, Trash2, Loader2, Camera } from "lucide-react";
 import apiClient from "../../api/axios";
 import { useToast } from "../../context/ToastContext";
+import SmartAddressInput from "../SmartAddressInput";
 
 //   Form state
 const today = () => new Date().toISOString().split("T")[0]; // "YYYY-MM-DD"
@@ -9,11 +10,11 @@ const today = () => new Date().toISOString().split("T")[0]; // "YYYY-MM-DD"
 const initialForm = {
   customerName: "",
   contactNumber: "",
-  deliveryAddress: "",
+  addressFields: { raw: "", line1: "", line2: "", pincode: "", city: "", state: "" },
   notes: "",
   status: "CREATED",
   orderedAt: today(),
-  items: [{ productId: "", quantity: 1 }],
+  items: [{ productId: "", quantity: 1, priceAtPurchase: "", isCustomPrice: false }],
 };
 
 const initialState = {
@@ -34,18 +35,34 @@ function formReducer(state, action) {
       };
 
     case "SET_ITEM_FIELD": {
-      const items = state.form.items.map((item, i) =>
-        i === action.index ? { ...item, [action.field]: action.value } : item,
-      );
+      const items = state.form.items.map((item, i) => {
+        if (i !== action.index) return item;
+        const updated = { ...item, [action.field]: action.value };
+        // Changing the product resets any price override
+        if (action.field === "productId") {
+          updated.isCustomPrice = false;
+          updated.priceAtPurchase = "";
+        }
+        return updated;
+      });
       const errors = { ...state.errors };
       delete errors[`items[${action.index}].${action.field}`];
-      return { ...state, form: { ...state.form, items }, errors, submitError: null };
+      delete errors[`items[${action.index}].priceAtPurchase`];
+      return {
+        ...state,
+        form: { ...state.form, items },
+        errors,
+        submitError: null,
+      };
     }
 
     case "ADD_ITEM":
       return {
         ...state,
-        form: { ...state.form, items: [...state.form.items, { productId: "", quantity: 1 }] },
+        form: {
+          ...state.form,
+          items: [...state.form.items, { productId: "", quantity: 1, priceAtPurchase: "", isCustomPrice: false }],
+        },
       };
 
     case "REMOVE_ITEM":
@@ -76,16 +93,23 @@ function validate(form) {
   const errors = {};
   if (!form.customerName.trim()) errors.customerName = "Required";
   if (!form.contactNumber.trim()) errors.contactNumber = "Required";
-  if (!form.deliveryAddress.trim()) {
-    errors.deliveryAddress = "Delivery address is required";
-  } else if (!/\b\d{6}\b/.test(form.deliveryAddress)) {
-    errors.deliveryAddress = "Address must include a 6-digit pincode";
-  }
+
+  const addr = form.addressFields;
+  if (!addr.line1.trim()) errors["addressFields.line1"] = "Address Line 1 is required";
+  if (!addr.pincode.trim()) errors["addressFields.pincode"] = "Pincode is required";
+  else if (!/^[1-9][0-9]{5}$/.test(addr.pincode)) errors["addressFields.pincode"] = "Enter a valid 6-digit pincode";
+  if (!addr.city.trim()) errors["addressFields.city"] = "City is required";
+  if (!addr.state.trim()) errors["addressFields.state"] = "State is required";
 
   form.items.forEach((item, i) => {
     if (!item.productId) errors[`items[${i}].productId`] = "Select a product";
     const qty = parseInt(item.quantity, 10);
     if (!Number.isFinite(qty) || qty < 1) errors[`items[${i}].quantity`] = "Min 1";
+    if (item.isCustomPrice) {
+      const price = parseFloat(item.priceAtPurchase);
+      if (!Number.isFinite(price) || price < 0)
+        errors[`items[${i}].priceAtPurchase`] = "Enter a valid price (≥ 0)";
+    }
   });
 
   return errors;
@@ -150,10 +174,12 @@ export default function CreateOrderDrawer({ open, onClose }) {
   const productMap = new Map(products.map((p) => [p.productId, p]));
 
   const computedTotal = state.form.items.reduce((sum, item) => {
-    const p = productMap.get(item.productId);
     const qty = parseInt(item.quantity, 10);
-    if (p && Number.isFinite(qty) && qty > 0) return sum + p.sellingPrice * qty;
-    return sum;
+    if (!Number.isFinite(qty) || qty <= 0) return sum;
+    const unitPrice = item.isCustomPrice
+      ? parseFloat(item.priceAtPurchase)
+      : productMap.get(item.productId)?.sellingPrice;
+    return Number.isFinite(unitPrice) && unitPrice >= 0 ? sum + unitPrice * qty : sum;
   }, 0);
 
   const handleSubmit = async (e) => {
@@ -161,7 +187,8 @@ export default function CreateOrderDrawer({ open, onClose }) {
     const errors = validate(state.form);
     if (Object.keys(errors).length > 0) {
       dispatch({ type: "SET_ERRORS", payload: errors });
-      if (errors.deliveryAddress) showToast(errors.deliveryAddress, "error");
+      const addrErr = errors["addressFields.line1"] || errors["addressFields.pincode"] || errors["addressFields.city"] || errors["addressFields.state"];
+      if (addrErr) showToast(addrErr, "error");
       return;
     }
 
@@ -169,15 +196,17 @@ export default function CreateOrderDrawer({ open, onClose }) {
 
     try {
       await apiClient.post("/admin/orders/instagram", {
-        customerName:    state.form.customerName,
-        contactNumber:   state.form.contactNumber,
-        deliveryAddress: state.form.deliveryAddress,
-        notes:           state.form.notes || undefined,
-        status:          state.form.status,
-        orderedAt:       state.form.orderedAt || undefined,
+        customerName: state.form.customerName,
+        contactNumber: state.form.contactNumber,
+        deliveryAddress: state.form.addressFields.raw,
+        notes: state.form.notes || undefined,
+        status: state.form.status,
+        orderedAt: state.form.orderedAt || undefined,
         items: state.form.items.map((item) => ({
-          productId: item.productId,
-          quantity:  parseInt(item.quantity, 10),
+          productId:        item.productId,
+          quantity:         parseInt(item.quantity, 10),
+          isCustomPrice:    item.isCustomPrice,
+          priceAtPurchase:  item.isCustomPrice ? parseFloat(item.priceAtPurchase) : undefined,
         })),
       });
 
@@ -300,19 +329,20 @@ export default function CreateOrderDrawer({ open, onClose }) {
                 Delivery
               </h3>
               <div className="space-y-3">
-                <div>
-                  <label className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}>
-                    Address <span className="text-red-500">*</span>
-                  </label>
-                  <textarea
-                    value={form.deliveryAddress}
-                    onChange={(e) => dispatch({ type: "SET_FIELD", field: "deliveryAddress", value: e.target.value })}
-                    rows={3}
-                    placeholder="Full delivery address"
-                    className={`w-full text-sm border rounded-lg px-3 py-2 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent resize-none ${errors.deliveryAddress ? "border-red-400" : "border-gray-200"}`}
-                  />
-                  {errors.deliveryAddress && <p className="text-xs text-red-500 mt-1">{errors.deliveryAddress}</p>}
-                </div>
+                <SmartAddressInput
+                  value={form.addressFields}
+                  onChange={(structured) =>
+                    dispatch({ type: "SET_FIELD", field: "addressFields", value: structured })
+                  }
+                  errors={{
+                    line1:   errors["addressFields.line1"],
+                    pincode: errors["addressFields.pincode"],
+                    city:    errors["addressFields.city"],
+                    state:   errors["addressFields.state"],
+                  }}
+                  disabled={submitting}
+                  label=""
+                />
 
                 <div>
                   <label className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}>
@@ -356,9 +386,12 @@ export default function CreateOrderDrawer({ open, onClose }) {
                   {form.items.map((item, i) => {
                     const selectedProduct = productMap.get(item.productId);
                     const qty = parseInt(item.quantity, 10);
+                    const unitPrice = item.isCustomPrice
+                      ? parseFloat(item.priceAtPurchase)
+                      : selectedProduct?.sellingPrice;
                     const lineTotal =
-                      selectedProduct && Number.isFinite(qty) && qty > 0
-                        ? selectedProduct.sellingPrice * qty
+                      Number.isFinite(qty) && qty > 0 && Number.isFinite(unitPrice)
+                        ? unitPrice * qty
                         : null;
 
                     return (
@@ -405,13 +438,83 @@ export default function CreateOrderDrawer({ open, onClose }) {
                           </button>
                         </div>
 
+                        {/* Price row — override toggle + editable input */}
                         {selectedProduct && (
-                          <div className="flex items-center justify-between text-xs px-0.5" style={{ color: "var(--color-urban-text-muted)" }}>
-                            <span>₹{selectedProduct.sellingPrice.toLocaleString()} each</span>
+                          <div className="space-y-1 px-0.5">
+                            <div className="flex items-center justify-between gap-3">
+                              {/* Price display or editable input */}
+                              <div className="flex items-center gap-1.5 text-xs" style={{ color: "var(--color-urban-text-muted)" }}>
+                                <span>₹</span>
+                                {item.isCustomPrice ? (
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    value={item.priceAtPurchase}
+                                    onChange={(e) =>
+                                      dispatch({
+                                        type: "SET_ITEM_FIELD",
+                                        index: i,
+                                        field: "priceAtPurchase",
+                                        value: e.target.value,
+                                      })
+                                    }
+                                    placeholder={String(selectedProduct.sellingPrice)}
+                                    className="w-24 text-sm rounded px-2 py-0.5 focus:outline-none"
+                                    style={{
+                                      border: "1px solid var(--color-urban-neon)",
+                                      background: "var(--color-urban-raised)",
+                                      color: "var(--color-urban-text)",
+                                    }}
+                                    aria-label={`Custom price for item ${i + 1}`}
+                                  />
+                                ) : (
+                                  <span>{selectedProduct.sellingPrice.toLocaleString()}</span>
+                                )}
+                                <span>each</span>
+                                {!item.isCustomPrice && (
+                                  <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded" style={{ background: "var(--color-urban-raised)", color: "var(--color-urban-text-muted)" }}>
+                                    catalogue
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Override checkbox */}
+                              <label
+                                className="flex items-center gap-1.5 text-xs cursor-pointer select-none"
+                                style={{ color: "var(--color-urban-text-muted)" }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={item.isCustomPrice}
+                                  onChange={(e) =>
+                                    dispatch({
+                                      type: "SET_ITEM_FIELD",
+                                      index: i,
+                                      field: "isCustomPrice",
+                                      value: e.target.checked,
+                                    })
+                                  }
+                                  className="h-3 w-3"
+                                />
+                                Override price
+                              </label>
+                            </div>
+
+                            {/* Price validation error */}
+                            {errors[`items[${i}].priceAtPurchase`] && (
+                              <p className="text-xs text-red-500">
+                                {errors[`items[${i}].priceAtPurchase`]}
+                              </p>
+                            )}
+
+                            {/* Line total */}
                             {lineTotal !== null && (
-                              <span className="font-medium" style={{ color: "var(--color-urban-text-sec)" }}>
-                                = ₹{lineTotal.toLocaleString()}
-                              </span>
+                              <div className="flex justify-end text-xs">
+                                <span className="font-medium" style={{ color: "var(--color-urban-text-sec)" }}>
+                                  = ₹{lineTotal.toLocaleString()}
+                                </span>
+                              </div>
                             )}
                           </div>
                         )}

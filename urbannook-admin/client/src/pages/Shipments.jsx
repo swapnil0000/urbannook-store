@@ -144,6 +144,8 @@ export default function Shipments() {
         loading={hook.loading}
         totalRecords={hook.totalRecords}
         onRefresh={hook.refetch}
+        onSync={hook.syncStatuses}
+        syncing={hook.syncing}
       />
 
       <ShipmentsTabs activeTab={hook.activeTab} onTabChange={hook.setTab} />

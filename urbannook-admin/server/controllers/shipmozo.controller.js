@@ -90,9 +90,12 @@ const pushOrderToCourier = async (req, res, next) => {
 
     const cleanOrderId = orderId.trim();
 
-    // ── 2. Duplicate check ─────
+    // ── 2. Duplicate check — block if an active (non-cancelled) shipment exists.
+    // Query for non-cancelled records directly so the check is deterministic
+    // even when multiple records exist for the same order (e.g. after cancel + re-push).
     const existing = await ShipmentRecord.findOne({
       sourceOrderId: cleanOrderId,
+      isCancelled: { $ne: true },
     });
     if (existing) {
       throw new ApiError(400, "Shipment already exists for this order.");
@@ -186,7 +189,7 @@ const pushOrderToCourier = async (req, res, next) => {
     // ── 6. Build product_detail array ────────────────────────────────────────
     const productDetail = (order.items || []).map((item) => ({
       name: item.productSnapshot?.productName || "Product",
-      sku_number: item.productId || "",
+      sku_number: "",
       quantity: item.productSnapshot?.quantity || 1,
       unit_price: item.productSnapshot?.priceAtPurchase || 0,
       discount: "",
@@ -194,9 +197,23 @@ const pushOrderToCourier = async (req, res, next) => {
     }));
 
     // ── 7. Build Shipmozo payload ─────────────────────────────────────────────
+    // For Instagram orders use orderedAt (when the customer actually placed it).
+    // For website orders createdAt is the order date (payment creates the record).
+    const rawOrderDate =
+      orderType === "INSTAGRAM" ? (order.orderedAt || order.createdAt) : order.createdAt;
+    const orderDate = new Date(rawOrderDate).toISOString().split("T")[0];
+
+    // For website orders the orderId is a UUID — shorten to WS-{last-segment}
+    // so it appears clean in Shipmozo's dashboard (mirrors IG-0016 style).
+    // e.g. "019cf323-0e87-736e-89f4-5cd9004b6a23" → "WS-5cd9004b6a23"
+    // sourceOrderId in our DB stays as the full UUID for internal lookups.
+    const shipmozoOrderRef = orderType === "INSTAGRAM"
+      ? cleanOrderId
+      : `WS-${cleanOrderId.split("-").pop()}`;
+
     const shipmozoPayload = {
-      order_id: cleanOrderId,
-      order_date: new Date().toISOString().split("T")[0],
+      order_id: shipmozoOrderRef,
+      order_date: orderDate,
       consignee_name: consigneeName,
       consignee_phone: consigneePhone,
       consignee_address_line_one: parsed.addressLine1,
@@ -227,13 +244,21 @@ const pushOrderToCourier = async (req, res, next) => {
       JSON.stringify(shipmozoResponse, null, 2),
     );
 
-    // Shipmozo generates its own order_id (e.g. "48321AP367463468983").
-    // Our UUID is stored as data.refrence_id (their typo) and is NOT accepted by
-    // assign-courier, rate-calculator, or cancel-order — we must use their ID.
-    const shipmozoGeneratedId = shipmozoResponse?.data?.order_id ?? null;
+    // Shipmozo generates its own order_id (e.g. "48321AP367463468983") — stored as
+    // shipmozoOrderId and used for ALL subsequent API calls (assign, rate, cancel).
+    // They echo back what we sent as refrence_id (their typo) — stored as shipmozoRefId.
+    const shipmozoGeneratedId =
+      shipmozoResponse?.data?.order_id ??
+      shipmozoResponse?.order_id ??
+      null;
+    const shipmozoRefId =
+      shipmozoResponse?.data?.refrence_id ??
+      shipmozoResponse?.data?.reference_id ??
+      null;
     if (!shipmozoGeneratedId) {
       console.warn(
-        "[Shipmozo] push-order response did not include data.order_id — shipmozoOrderId will be null",
+        "[Shipmozo] push-order response did not include order_id — shipmozoOrderId will be null. Full response:",
+        JSON.stringify(shipmozoResponse),
       );
     }
 
@@ -242,6 +267,7 @@ const pushOrderToCourier = async (req, res, next) => {
       sourceOrderId: cleanOrderId,
       sourceOrderType: orderType,
       shipmozoOrderId: shipmozoGeneratedId,
+      shipmozoRefId,
       warehouseId: warehouseId.trim(),
       paymentType,
       weight: numWeight,
@@ -266,9 +292,11 @@ const pushOrderToCourier = async (req, res, next) => {
 // Always responds 200 — frontend uses data === null to determine button state.
 const getShipmentByOrderId = async (req, res, next) => {
   try {
-    const record = await ShipmentRecord.findOne({
-      sourceOrderId: req.params.orderId,
-    }).lean();
+    // Return the most recent record — after cancel + re-push there can be multiple.
+    // Sorting by createdAt desc ensures we always get the latest one.
+    const record = await ShipmentRecord.findOne({ sourceOrderId: req.params.orderId })
+      .sort({ createdAt: -1 })
+      .lean();
 
     return res
       .status(200)
@@ -281,7 +309,7 @@ const getShipmentByOrderId = async (req, res, next) => {
 // GET /admin/shipmozo/warehouses
 // Returns the warehouse list from Shipmozo.
 // Frontend pre-selects the one matching SHIPMOZO_DEFAULT_WAREHOUSE_ID.
-const listWarehouses = async (req, res, next) => {
+const listWarehouses = async (_req, res, next) => {
   try {
     const data = await shipmozoService.getWarehouses();
     return res
@@ -422,8 +450,15 @@ const getRatesForShipment = async (req, res, next) => {
       // Non-fatal — proceed with 0
     }
 
+    if (!record.shipmozoOrderId) {
+      throw new ApiError(
+        400,
+        "Shipmozo order ID not found for this shipment. The push may not have completed successfully.",
+      );
+    }
+
     const ratePayload = {
-      order_id: record.shipmozoOrderId || record.sourceOrderId,
+      order_id: record.shipmozoOrderId,
       pickup_pincode: parseInt(record.pickupPincode, 10),
       delivery_pincode: parseInt(record.deliveryPincode, 10),
       payment_type: record.paymentType,
@@ -469,8 +504,15 @@ const assignCourierToShipment = async (req, res, next) => {
       );
     }
 
+    if (!record.shipmozoOrderId) {
+      throw new ApiError(
+        400,
+        "Shipmozo order ID not found for this shipment. The push may not have completed successfully.",
+      );
+    }
+
     const result = await shipmozoService.assignCourier({
-      order_id: record.shipmozoOrderId || record.sourceOrderId,
+      order_id: record.shipmozoOrderId,
       courier_id: Number(courierId),
     });
 
@@ -495,7 +537,7 @@ const assignCourierToShipment = async (req, res, next) => {
     if (!record.awbNumber) {
       try {
         const pickupResult = await shipmozoService.schedulePickup(
-          record.shipmozoOrderId || record.sourceOrderId,
+          record.shipmozoOrderId,
         );
         const awbFromPickup =
           pickupResult?.data?.awb_number ??
@@ -602,9 +644,14 @@ const trackShipment = async (req, res, next) => {
 
     await ShipmentRecord.findByIdAndUpdate(record._id, updateFields);
 
+    // Include normalizedStatus so the frontend can update the row badge correctly
+    // without mapping raw Shipmozo strings ("Pickup Pending" etc.) itself.
     return res
       .status(200)
-      .json(new ApiResponse(200, "Tracking data fetched.", trackData));
+      .json(new ApiResponse(200, "Tracking data fetched.", {
+        ...trackData,
+        _normalizedStatus: updateFields.shipmentStatus ?? null,
+      }));
   } catch (err) {
     next(err);
   }
@@ -627,19 +674,26 @@ const cancelShipment = async (req, res, next) => {
       throw new ApiError(400, "Shipment is already cancelled.");
     }
 
-    const shipmozoOrderId = record.shipmozoOrderId || record.sourceOrderId;
+    // If we never captured Shipmozo's generated order ID, skip the API call —
+    // there's nothing registered on their side (or we can't identify the order).
+    // Just mark it cancelled locally so it stops appearing as active.
+    if (record.shipmozoOrderId) {
+      // Only include awb_number when we have a real one — sending 0 causes
+      // Shipmozo to return result:"1" without actually cancelling the order.
+      const cancelPayload = { order_id: record.shipmozoOrderId };
+      if (record.awbNumber) {
+        const awbNum = parseInt(record.awbNumber, 10);
+        if (!isNaN(awbNum)) cancelPayload.awb_number = awbNum;
+      }
 
-    // Only include awb_number when we have a real one — sending 0 causes
-    // Shipmozo to return result:"1" without actually cancelling the order.
-    const cancelPayload = { order_id: shipmozoOrderId };
-    if (record.awbNumber) {
-      const awbNum = parseInt(record.awbNumber, 10);
-      if (!isNaN(awbNum)) cancelPayload.awb_number = awbNum;
+      console.log("[Shipmozo] Cancel payload:", JSON.stringify(cancelPayload));
+      const cancelResult = await shipmozoService.cancelOrder(cancelPayload);
+      console.log("[Shipmozo] Cancel response:", JSON.stringify(cancelResult));
+    } else {
+      console.warn(
+        `[Shipmozo] cancelShipment: no shipmozoOrderId for record ${record._id} — cancelling locally only.`,
+      );
     }
-
-    console.log("[Shipmozo] Cancel payload:", JSON.stringify(cancelPayload));
-    const cancelResult = await shipmozoService.cancelOrder(cancelPayload);
-    console.log("[Shipmozo] Cancel response:", JSON.stringify(cancelResult));
 
     record.shipmentStatus = "CANCELLED";
     record.isCancelled = true;
@@ -648,6 +702,70 @@ const cancelShipment = async (req, res, next) => {
     return res
       .status(200)
       .json(new ApiResponse(200, "Shipment cancelled.", record.toObject()));
+  } catch (err) {
+    next(err);
+  }
+};
+
+// GET /admin/shipmozo/shipped-order-ids
+// Returns a plain array of sourceOrderId strings for all non-cancelled ShipmentRecords.
+// Used by the Orders table to show the "Shipped" button state and shipment filter
+// without N+1 API calls per row.
+const getShippedOrderIds = async (_req, res, next) => {
+  try {
+    const records = await ShipmentRecord.find(
+      { isCancelled: { $ne: true } },
+      { sourceOrderId: 1, _id: 0 },
+    ).lean();
+    const ids = records.map((r) => r.sourceOrderId);
+    return res
+      .status(200)
+      .json(new ApiResponse(200, "Shipped order IDs fetched.", ids));
+  } catch (err) {
+    next(err);
+  }
+};
+
+// POST /admin/shipmozo/shipments/sync-statuses
+// Batch-tracks all active shipments (those with an AWB that are not in a terminal state)
+// and writes the updated status back to our DB. Returns counts of synced/error records.
+const TERMINAL_STATUSES = new Set(["DELIVERED", "CANCELLED", "RTO_DELIVERED"]);
+
+const syncAllStatuses = async (_req, res, next) => {
+  try {
+    const activeRecords = await ShipmentRecord.find({
+      isCancelled: { $ne: true },
+      awbNumber:   { $ne: null },
+      shipmentStatus: { $nin: [...TERMINAL_STATUSES] },
+    }).lean();
+
+    const results = { synced: 0, updated: 0, errors: 0 };
+
+    await Promise.allSettled(
+      activeRecords.map(async (record) => {
+        try {
+          const result    = await shipmozoService.trackOrder(record.awbNumber);
+          const trackData = result?.data ?? result;
+          const updates   = { lastTrackedAt: new Date() };
+
+          const mapped = TRACKING_STATUS_MAP[trackData?.current_status];
+          if (mapped && mapped !== record.shipmentStatus) {
+            updates.shipmentStatus = mapped;
+            if (mapped === "CANCELLED") updates.isCancelled = true;
+            results.updated++;
+          }
+
+          await ShipmentRecord.findByIdAndUpdate(record._id, updates);
+          results.synced++;
+        } catch {
+          results.errors++;
+        }
+      }),
+    );
+
+    return res
+      .status(200)
+      .json(new ApiResponse(200, "Status sync complete.", results));
   } catch (err) {
     next(err);
   }
@@ -663,4 +781,6 @@ export {
   getLabelForShipment,
   trackShipment,
   cancelShipment,
+  getShippedOrderIds,
+  syncAllStatuses,
 };

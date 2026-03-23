@@ -2,20 +2,37 @@ import { useEffect, useRef, useCallback, useReducer, useState } from "react";
 import { X, Plus, Trash2, Loader2, Camera, AlertTriangle } from "lucide-react";
 import apiClient from "../../api/axios";
 import { useToast } from "../../context/ToastContext";
+import SmartAddressInput from "../SmartAddressInput";
+import { parseRawAddress } from "../../utils/addressParser";
 
 const today = () => new Date().toISOString().split("T")[0];
 
 function buildInitialForm(order) {
+  // Parse the stored address string eagerly so discrete fields are pre-filled
+  // and validation passes without the admin having to retype anything.
+  const rawAddress = order.deliveryAddress ?? "";
+  const parsed     = parseRawAddress(rawAddress);
+
   return {
-    orderedAt:       order.orderedAt ? new Date(order.orderedAt).toISOString().split("T")[0] : today(),
-    customerName:    order.customerName    ?? "",
-    contactNumber:   order.contactNumber   ?? "",
-    deliveryAddress: order.deliveryAddress ?? "",
-    notes:           order.notes           ?? "",
-    status:          order.status          ?? "CREATED",
+    orderedAt:     order.orderedAt ? new Date(order.orderedAt).toISOString().split("T")[0] : today(),
+    customerName:  order.customerName  ?? "",
+    contactNumber: order.contactNumber ?? "",
+    addressFields: {
+      raw:     rawAddress,
+      line1:   parsed.line1   || "",
+      line2:   parsed.line2   || "",
+      pincode: parsed.pincode || "",
+      city:    parsed.city    || "",
+      state:   parsed.state   || "",
+    },
+    notes:  order.notes  ?? "",
+    status: order.status ?? "CREATED",
     items: (order.items ?? []).map((item) => ({
-      productId: item.productId ?? "",
-      quantity:  item.productSnapshot?.quantity ?? 1,
+      productId:       item.productId                          ?? "",
+      quantity:        item.productSnapshot?.quantity          ?? 1,
+      priceAtPurchase: item.productSnapshot?.priceAtPurchase   ?? "",
+      // Restore the override flag so saved custom prices show correctly
+      isCustomPrice:   item.productSnapshot?.isCustomPrice     ?? false,
     })),
   };
 }
@@ -30,17 +47,28 @@ function formReducer(state, action) {
         submitError: null,
       };
     case "SET_ITEM_FIELD": {
-      const items = state.form.items.map((item, i) =>
-        i === action.index ? { ...item, [action.field]: action.value } : item,
-      );
+      const items = state.form.items.map((item, i) => {
+        if (i !== action.index) return item;
+        const updated = { ...item, [action.field]: action.value };
+        // Changing the product resets any price override
+        if (action.field === "productId") {
+          updated.isCustomPrice   = false;
+          updated.priceAtPurchase = "";
+        }
+        return updated;
+      });
       const errors = { ...state.errors };
       delete errors[`items[${action.index}].${action.field}`];
+      delete errors[`items[${action.index}].priceAtPurchase`];
       return { ...state, form: { ...state.form, items }, errors, submitError: null };
     }
     case "ADD_ITEM":
       return {
         ...state,
-        form: { ...state.form, items: [...state.form.items, { productId: "", quantity: 1 }] },
+        form: {
+          ...state.form,
+          items: [...state.form.items, { productId: "", quantity: 1, priceAtPurchase: "", isCustomPrice: false }],
+        },
       };
     case "REMOVE_ITEM":
       if (state.form.items.length <= 1) return state;
@@ -61,17 +89,30 @@ function formReducer(state, action) {
 
 function validate(form) {
   const errors = {};
-  if (!form.customerName.trim())    errors.customerName    = "Required";
-  if (!form.contactNumber.trim())   errors.contactNumber   = "Required";
-  if (!form.deliveryAddress.trim()) {
-    errors.deliveryAddress = "Delivery address is required";
-  } else if (!/\b\d{6}\b/.test(form.deliveryAddress)) {
-    errors.deliveryAddress = "Address must include a 6-digit pincode";
-  }
+  if (!form.customerName.trim())  errors.customerName  = "Required";
+  if (!form.contactNumber.trim()) errors.contactNumber = "Required";
+
+  const addr = form.addressFields;
+  if (!addr.line1.trim())
+    errors["addressFields.line1"] = "Address Line 1 is required";
+  if (!addr.pincode.trim())
+    errors["addressFields.pincode"] = "Pincode is required";
+  else if (!/^[1-9][0-9]{5}$/.test(addr.pincode))
+    errors["addressFields.pincode"] = "Enter a valid 6-digit pincode";
+  if (!addr.city.trim())
+    errors["addressFields.city"] = "City is required";
+  if (!addr.state.trim())
+    errors["addressFields.state"] = "State is required";
+
   form.items.forEach((item, i) => {
     if (!item.productId) errors[`items[${i}].productId`] = "Select a product";
     const qty = parseInt(item.quantity, 10);
     if (!Number.isFinite(qty) || qty < 1) errors[`items[${i}].quantity`] = "Min 1";
+    if (item.isCustomPrice) {
+      const price = parseFloat(item.priceAtPurchase);
+      if (!Number.isFinite(price) || price < 0)
+        errors[`items[${i}].priceAtPurchase`] = "Enter a valid price (≥ 0)";
+    }
   });
   return errors;
 }
@@ -133,11 +174,15 @@ export default function EditOrderDrawer({ order, onClose, onSuccess }) {
     closeTimerRef.current = setTimeout(onClose, 300);
   }, [onClose]);
 
-  const productMap    = new Map(products.map((p) => [p.productId, p]));
+  const productMap = new Map(products.map((p) => [p.productId, p]));
+
   const computedTotal = state.form.items.reduce((sum, item) => {
-    const p   = productMap.get(item.productId);
     const qty = parseInt(item.quantity, 10);
-    return p && Number.isFinite(qty) && qty > 0 ? sum + p.sellingPrice * qty : sum;
+    if (!Number.isFinite(qty) || qty <= 0) return sum;
+    const unitPrice = item.isCustomPrice
+      ? parseFloat(item.priceAtPurchase)
+      : productMap.get(item.productId)?.sellingPrice;
+    return Number.isFinite(unitPrice) && unitPrice >= 0 ? sum + unitPrice * qty : sum;
   }, 0);
 
   // Step 1 — validate then show confirm step
@@ -146,7 +191,12 @@ export default function EditOrderDrawer({ order, onClose, onSuccess }) {
     const errors = validate(state.form);
     if (Object.keys(errors).length > 0) {
       dispatch({ type: "SET_ERRORS", payload: errors });
-      if (errors.deliveryAddress) showToast(errors.deliveryAddress, "error");
+      const addrErr =
+        errors["addressFields.line1"] ||
+        errors["addressFields.pincode"] ||
+        errors["addressFields.city"] ||
+        errors["addressFields.state"];
+      if (addrErr) showToast(addrErr, "error");
       return;
     }
     setConfirmStep(true);
@@ -162,12 +212,14 @@ export default function EditOrderDrawer({ order, onClose, onSuccess }) {
           orderedAt:       state.form.orderedAt || undefined,
           customerName:    state.form.customerName,
           contactNumber:   state.form.contactNumber,
-          deliveryAddress: state.form.deliveryAddress,
+          deliveryAddress: state.form.addressFields.raw,
           notes:           state.form.notes || undefined,
           status:          state.form.status,
           items: state.form.items.map((item) => ({
-            productId: item.productId,
-            quantity:  parseInt(item.quantity, 10),
+            productId:       item.productId,
+            quantity:        parseInt(item.quantity, 10),
+            isCustomPrice:   item.isCustomPrice,
+            priceAtPurchase: item.isCustomPrice ? parseFloat(item.priceAtPurchase) : undefined,
           })),
         },
       );
@@ -184,9 +236,9 @@ export default function EditOrderDrawer({ order, onClose, onSuccess }) {
 
   return (
     <>
-      {/* Backdrop — higher z than detail drawer */}
+      {/* Backdrop */}
       <div
-        className={`fixed inset-0 bg-black/50 z-[60] transition-opacity duration-300 ${
+        className={`fixed inset-0 bg-black/50 z-60 transition-opacity duration-300 ${
           visible ? "opacity-100" : "opacity-0"
         }`}
         onClick={handleClose}
@@ -195,7 +247,7 @@ export default function EditOrderDrawer({ order, onClose, onSuccess }) {
 
       {/* Drawer panel */}
       <aside
-        className={`fixed inset-y-0 right-0 w-full sm:w-[560px] z-[70] flex flex-col shadow-2xl transition-transform duration-300 ease-in-out ${
+        className={`fixed inset-y-0 right-0 w-full sm:w-140 z-70 flex flex-col shadow-2xl transition-transform duration-300 ease-in-out ${
           visible ? "translate-x-0" : "translate-x-full"
         }`}
         style={{ background: "var(--color-urban-panel)", borderLeft: "1px solid var(--color-urban-border)" }}
@@ -211,9 +263,13 @@ export default function EditOrderDrawer({ order, onClose, onSuccess }) {
           <div className="flex items-center gap-2.5">
             <Camera className="h-5 w-5 text-pink-400" />
             <div>
-              <h2 className="text-base font-bold" style={{ color: "var(--color-urban-text)" }}>Edit Instagram Order</h2>
+              <h2 className="text-base font-bold" style={{ color: "var(--color-urban-text)" }}>
+                Edit Instagram Order
+              </h2>
               {order.orderId && (
-                <p className="text-xs font-mono mt-0.5" style={{ color: "var(--color-urban-text-muted)" }}>{order.orderId}</p>
+                <p className="text-xs font-mono mt-0.5" style={{ color: "var(--color-urban-text-muted)" }}>
+                  {order.orderId}
+                </p>
               )}
             </div>
           </div>
@@ -239,24 +295,36 @@ export default function EditOrderDrawer({ order, onClose, onSuccess }) {
 
             {/* Order Date */}
             <section>
-              <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--color-urban-text-muted)" }}>Order Date</h3>
+              <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--color-urban-text-muted)" }}>
+                Order Date
+              </h3>
               <div>
                 <label className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}>
-                  Date <span className="font-normal ml-1" style={{ color: "var(--color-urban-text-muted)" }}>(when order was placed)</span>
+                  Date{" "}
+                  <span className="font-normal ml-1" style={{ color: "var(--color-urban-text-muted)" }}>
+                    (when order was placed)
+                  </span>
                 </label>
                 <input
                   type="date"
                   value={form.orderedAt}
                   max={today()}
                   onChange={(e) => dispatch({ type: "SET_FIELD", field: "orderedAt", value: e.target.value })}
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  style={{
+                    border: "1px solid var(--color-urban-border)",
+                    background: "var(--color-urban-raised)",
+                    color: "var(--color-urban-text)",
+                  }}
+                  className="w-full text-sm rounded-lg px-3 py-2 focus:outline-none"
                 />
               </div>
             </section>
 
             {/* Customer */}
             <section>
-              <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--color-urban-text-muted)" }}>Customer</h3>
+              <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--color-urban-text-muted)" }}>
+                Customer
+              </h3>
               <div className="space-y-3">
                 <div>
                   <label className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}>
@@ -266,7 +334,9 @@ export default function EditOrderDrawer({ order, onClose, onSuccess }) {
                     type="text"
                     value={form.customerName}
                     onChange={(e) => dispatch({ type: "SET_FIELD", field: "customerName", value: e.target.value })}
-                    className={`w-full text-sm border rounded-lg px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent ${errors.customerName ? "border-red-400" : "border-gray-200"}`}
+                    className={`w-full text-sm border rounded-lg px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent ${
+                      errors.customerName ? "border-red-400" : "border-gray-200"
+                    }`}
                   />
                   {errors.customerName && <p className="text-xs text-red-500 mt-1">{errors.customerName}</p>}
                 </div>
@@ -278,7 +348,9 @@ export default function EditOrderDrawer({ order, onClose, onSuccess }) {
                     type="text"
                     value={form.contactNumber}
                     onChange={(e) => dispatch({ type: "SET_FIELD", field: "contactNumber", value: e.target.value })}
-                    className={`w-full text-sm border rounded-lg px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent ${errors.contactNumber ? "border-red-400" : "border-gray-200"}`}
+                    className={`w-full text-sm border rounded-lg px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent ${
+                      errors.contactNumber ? "border-red-400" : "border-gray-200"
+                    }`}
                   />
                   {errors.contactNumber && <p className="text-xs text-red-500 mt-1">{errors.contactNumber}</p>}
                 </div>
@@ -287,29 +359,41 @@ export default function EditOrderDrawer({ order, onClose, onSuccess }) {
 
             {/* Delivery */}
             <section>
-              <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--color-urban-text-muted)" }}>Delivery</h3>
+              <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--color-urban-text-muted)" }}>
+                Delivery
+              </h3>
               <div className="space-y-3">
+                <SmartAddressInput
+                  value={form.addressFields}
+                  onChange={(structured) =>
+                    dispatch({ type: "SET_FIELD", field: "addressFields", value: structured })
+                  }
+                  errors={{
+                    line1:   errors["addressFields.line1"],
+                    pincode: errors["addressFields.pincode"],
+                    city:    errors["addressFields.city"],
+                    state:   errors["addressFields.state"],
+                  }}
+                  disabled={submitting}
+                  label=""
+                />
                 <div>
                   <label className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}>
-                    Address <span className="text-red-500">*</span>
-                  </label>
-                  <textarea
-                    value={form.deliveryAddress}
-                    onChange={(e) => dispatch({ type: "SET_FIELD", field: "deliveryAddress", value: e.target.value })}
-                    rows={3}
-                    className={`w-full text-sm border rounded-lg px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent resize-none ${errors.deliveryAddress ? "border-red-400" : "border-gray-200"}`}
-                  />
-                  {errors.deliveryAddress && <p className="text-xs text-red-500 mt-1">{errors.deliveryAddress}</p>}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}>
-                    Notes <span className="font-normal ml-1" style={{ color: "var(--color-urban-text-muted)" }}>(optional)</span>
+                    Notes{" "}
+                    <span className="font-normal ml-1" style={{ color: "var(--color-urban-text-muted)" }}>
+                      (optional)
+                    </span>
                   </label>
                   <textarea
                     value={form.notes}
                     onChange={(e) => dispatch({ type: "SET_FIELD", field: "notes", value: e.target.value })}
                     rows={2}
-                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent resize-none"
+                    style={{
+                      border: "1px solid var(--color-urban-border)",
+                      background: "var(--color-urban-raised)",
+                      color: "var(--color-urban-text)",
+                    }}
+                    className="w-full text-sm rounded-lg px-3 py-2 focus:outline-none resize-none"
                   />
                 </div>
               </div>
@@ -318,11 +402,14 @@ export default function EditOrderDrawer({ order, onClose, onSuccess }) {
             {/* Items */}
             <section>
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--color-urban-text-muted)" }}>Items</h3>
+                <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--color-urban-text-muted)" }}>
+                  Items
+                </h3>
                 <button
                   type="button"
                   onClick={() => dispatch({ type: "ADD_ITEM" })}
-                  className="inline-flex items-center gap-1 text-xs font-medium transition-colors" style={{ color: "var(--color-urban-neon)" }}
+                  className="inline-flex items-center gap-1 text-xs font-medium transition-colors"
+                  style={{ color: "var(--color-urban-neon)" }}
                 >
                   <Plus className="h-3.5 w-3.5" />
                   Add item
@@ -338,19 +425,32 @@ export default function EditOrderDrawer({ order, onClose, onSuccess }) {
                 <div className="space-y-3">
                   {form.items.map((item, i) => {
                     const selectedProduct = productMap.get(item.productId);
-                    const qty = parseInt(item.quantity, 10);
+                    const qty       = parseInt(item.quantity, 10);
+                    const unitPrice = item.isCustomPrice
+                      ? parseFloat(item.priceAtPurchase)
+                      : selectedProduct?.sellingPrice;
                     const lineTotal =
-                      selectedProduct && Number.isFinite(qty) && qty > 0
-                        ? selectedProduct.sellingPrice * qty
+                      Number.isFinite(qty) && qty > 0 && Number.isFinite(unitPrice)
+                        ? unitPrice * qty
                         : null;
+
                     return (
-                      <div key={i} className="rounded-lg p-3 space-y-2" style={{ border: "1px solid var(--color-urban-border)" }}>
+                      <div
+                        key={i}
+                        className="rounded-lg p-3 space-y-2"
+                        style={{ border: "1px solid var(--color-urban-border)" }}
+                      >
                         <div className="flex items-start gap-2">
+                          {/* Product select */}
                           <div className="flex-1 min-w-0">
                             <select
                               value={item.productId}
-                              onChange={(e) => dispatch({ type: "SET_ITEM_FIELD", index: i, field: "productId", value: e.target.value })}
-                              className={`w-full text-sm border rounded-lg px-3 py-2 text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent ${errors[`items[${i}].productId`] ? "border-red-400" : "border-gray-200"}`}
+                              onChange={(e) =>
+                                dispatch({ type: "SET_ITEM_FIELD", index: i, field: "productId", value: e.target.value })
+                              }
+                              className={`w-full text-sm border rounded-lg px-3 py-2 text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent ${
+                                errors[`items[${i}].productId`] ? "border-red-400" : "border-gray-200"
+                              }`}
                             >
                               <option value="">Select product</option>
                               {products.map((p) => (
@@ -361,33 +461,115 @@ export default function EditOrderDrawer({ order, onClose, onSuccess }) {
                               <p className="text-xs text-red-500 mt-1">{errors[`items[${i}].productId`]}</p>
                             )}
                           </div>
+
+                          {/* Quantity */}
                           <div className="w-20 shrink-0">
                             <input
                               type="number"
                               min="1"
                               value={item.quantity}
-                              onChange={(e) => dispatch({ type: "SET_ITEM_FIELD", index: i, field: "quantity", value: e.target.value })}
-                              className={`w-full text-sm border rounded-lg px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent ${errors[`items[${i}].quantity`] ? "border-red-400" : "border-gray-200"}`}
+                              onChange={(e) =>
+                                dispatch({ type: "SET_ITEM_FIELD", index: i, field: "quantity", value: e.target.value })
+                              }
+                              className={`w-full text-sm border rounded-lg px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent ${
+                                errors[`items[${i}].quantity`] ? "border-red-400" : "border-gray-200"
+                              }`}
                             />
                             {errors[`items[${i}].quantity`] && (
                               <p className="text-xs text-red-500 mt-1">{errors[`items[${i}].quantity`]}</p>
                             )}
                           </div>
+
+                          {/* Remove */}
                           <button
                             type="button"
                             onClick={() => dispatch({ type: "REMOVE_ITEM", index: i })}
                             disabled={form.items.length === 1}
-                            className="p-1.5 mt-0.5 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed shrink-0" style={{ color: "var(--color-urban-text-muted)" }}
+                            className="p-1.5 mt-0.5 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+                            style={{ color: "var(--color-urban-text-muted)" }}
                             aria-label="Remove item"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
+
+                        {/* Price row — override toggle + editable input */}
                         {selectedProduct && (
-                          <div className="flex items-center justify-between text-xs px-0.5" style={{ color: "var(--color-urban-text-muted)" }}>
-                            <span>₹{selectedProduct.sellingPrice.toLocaleString()} each</span>
+                          <div className="space-y-1 px-0.5">
+                            <div className="flex items-center justify-between gap-3">
+                              {/* Price display or editable input */}
+                              <div className="flex items-center gap-1.5 text-xs" style={{ color: "var(--color-urban-text-muted)" }}>
+                                <span>₹</span>
+                                {item.isCustomPrice ? (
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    value={item.priceAtPurchase}
+                                    onChange={(e) =>
+                                      dispatch({
+                                        type: "SET_ITEM_FIELD",
+                                        index: i,
+                                        field: "priceAtPurchase",
+                                        value: e.target.value,
+                                      })
+                                    }
+                                    placeholder={String(selectedProduct.sellingPrice)}
+                                    className="w-24 text-sm rounded px-2 py-0.5 focus:outline-none"
+                                    style={{
+                                      border: "1px solid var(--color-urban-neon)",
+                                      background: "var(--color-urban-raised)",
+                                      color: "var(--color-urban-text)",
+                                    }}
+                                    aria-label={`Custom price for item ${i + 1}`}
+                                  />
+                                ) : (
+                                  <span>{selectedProduct.sellingPrice.toLocaleString()}</span>
+                                )}
+                                <span>each</span>
+                                {!item.isCustomPrice && (
+                                  <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded" style={{ background: "var(--color-urban-raised)", color: "var(--color-urban-text-muted)" }}>
+                                    catalogue
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Override checkbox */}
+                              <label
+                                className="flex items-center gap-1.5 text-xs cursor-pointer select-none"
+                                style={{ color: "var(--color-urban-text-muted)" }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={item.isCustomPrice}
+                                  onChange={(e) =>
+                                    dispatch({
+                                      type: "SET_ITEM_FIELD",
+                                      index: i,
+                                      field: "isCustomPrice",
+                                      value: e.target.checked,
+                                    })
+                                  }
+                                  className="h-3 w-3"
+                                />
+                                Override price
+                              </label>
+                            </div>
+
+                            {/* Price validation error */}
+                            {errors[`items[${i}].priceAtPurchase`] && (
+                              <p className="text-xs text-red-500">
+                                {errors[`items[${i}].priceAtPurchase`]}
+                              </p>
+                            )}
+
+                            {/* Line total */}
                             {lineTotal !== null && (
-                              <span className="font-medium" style={{ color: "var(--color-urban-text-sec)" }}>= ₹{lineTotal.toLocaleString()}</span>
+                              <div className="flex justify-end text-xs">
+                                <span className="font-medium" style={{ color: "var(--color-urban-text-sec)" }}>
+                                  = ₹{lineTotal.toLocaleString()}
+                                </span>
+                              </div>
                             )}
                           </div>
                         )}
@@ -400,9 +582,13 @@ export default function EditOrderDrawer({ order, onClose, onSuccess }) {
 
             {/* Status */}
             <section>
-              <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--color-urban-text-muted)" }}>Payment</h3>
+              <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--color-urban-text-muted)" }}>
+                Payment
+              </h3>
               <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}>Status</label>
+                <label className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}>
+                  Status
+                </label>
                 <select
                   value={form.status}
                   onChange={(e) => dispatch({ type: "SET_FIELD", field: "status", value: e.target.value })}
@@ -431,7 +617,8 @@ export default function EditOrderDrawer({ order, onClose, onSuccess }) {
                   <div>
                     <p className="text-sm font-semibold text-amber-800">Confirm update?</p>
                     <p className="text-xs text-amber-700 mt-0.5">
-                      Product prices will be refreshed to current selling prices. This cannot be undone.
+                      Product metadata will be refreshed. Custom prices you set are preserved.
+                      Global catalogue prices remain untouched.
                     </p>
                   </div>
                 </div>
