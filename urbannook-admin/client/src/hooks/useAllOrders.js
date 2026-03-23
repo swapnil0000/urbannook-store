@@ -8,20 +8,32 @@ const IG_SSE_URL = `${BASE}/admin/orders/instagram/stream`;
 
 const FETCH_LIMIT = 500;
 const PAGE_SIZE = 20;
+const SESSION_KEY = "orders_session";
 
-const initialState = {
-  rawWebsite: [],
-  rawInstagram: [],
-  loadingWebsite: true,
-  loadingInstagram: true,
-  errorWebsite: null,
-  errorInstagram: null,
-  filters: { status: "", startDate: "", endDate: "", channel: "all" },
-  sort: { sortBy: "createdAt", sortOrder: "desc" },
-  currentPage: 1,
-  selectedOrder: null,
-  pendingNewOrders: 0,
-};
+const DEFAULT_FILTERS = { status: "", startDate: "", endDate: "", channel: "all" };
+const DEFAULT_SORT    = { sortBy: "createdAt", sortOrder: "desc" };
+
+function readSession() {
+  try { return JSON.parse(sessionStorage.getItem(SESSION_KEY) ?? "{}"); }
+  catch { return {}; }
+}
+
+function getInitialState() {
+  const saved = readSession();
+  return {
+    rawWebsite: [],
+    rawInstagram: [],
+    loadingWebsite: true,
+    loadingInstagram: true,
+    errorWebsite: null,
+    errorInstagram: null,
+    filters: saved.filters ?? DEFAULT_FILTERS,
+    sort:    saved.sort    ?? DEFAULT_SORT,
+    currentPage: 1,
+    selectedOrder: null,
+    pendingNewOrders: 0,
+  };
+}
 
 function reducer(state, action) {
   switch (action.type) {
@@ -63,7 +75,7 @@ function reducer(state, action) {
         currentPage: 1,
       };
     case "RESET_FILTERS":
-      return { ...state, filters: initialState.filters, currentPage: 1 };
+      return { ...state, filters: DEFAULT_FILTERS, currentPage: 1 };
     case "SET_SORT":
       return { ...state, sort: action.payload, currentPage: 1 };
     case "SET_PAGE":
@@ -127,9 +139,23 @@ function reducer(state, action) {
   }
 }
 
-export function useAllOrders({ refreshKey = 0 } = {}) {
-  const [state, dispatch] = useReducer(reducer, initialState);
+export function useAllOrders({
+  refreshKey = 0,
+  searchQuery = "",
+  shipmentFilter = "all",
+  shippedOrderIds = null,
+  dispatchFilter = "all",
+  dispatchedOrderIds = null,
+} = {}) {
+  const [state, dispatch] = useReducer(reducer, undefined, getInitialState);
   const { showToast } = useToast();
+
+  // Persist filters and sort to sessionStorage so they survive navigation
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify({ filters: state.filters, sort: state.sort }));
+    } catch {}
+  }, [state.filters, state.sort]);
 
   const isMountedRef = useRef(true);
   const webAbortRef = useRef(null);
@@ -140,7 +166,7 @@ export function useAllOrders({ refreshKey = 0 } = {}) {
     showToastRef.current = showToast;
   }, [showToast]);
 
-  // Computed: merge → channel-filter → sort → paginate
+  // Computed: merge → channel-filter → sort → extra client filters → paginate
   const { displayOrders, totalOrders, totalPages } = useMemo(() => {
     let merged = [...state.rawWebsite, ...state.rawInstagram];
     if (state.filters.channel === "website") {
@@ -159,8 +185,36 @@ export function useAllOrders({ refreshKey = 0 } = {}) {
         av = effectiveDateOf(a) ? new Date(effectiveDateOf(a)).getTime() : 0;
         bv = effectiveDateOf(b) ? new Date(effectiveDateOf(b)).getTime() : 0;
       }
-      return state.sort.sortOrder === "desc" ? bv - av : av - bv;
+      const primary = state.sort.sortOrder === "desc" ? bv - av : av - bv;
+      if (primary !== 0) return primary;
+      const ac = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bc = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return bc - ac;
     });
+
+    // Extra client-side filters (shipment, dispatch, search) — applied on the
+    // full sorted list so pagination counts are correct
+    if (shippedOrderIds && shipmentFilter === "shipped")
+      merged = merged.filter((o) => shippedOrderIds.has(o.orderId));
+    else if (shippedOrderIds && shipmentFilter === "not_shipped")
+      merged = merged.filter((o) => !shippedOrderIds.has(o.orderId));
+
+    if (dispatchedOrderIds && dispatchFilter === "dispatched")
+      merged = merged.filter((o) => dispatchedOrderIds.has(o.orderId));
+    else if (dispatchedOrderIds && dispatchFilter === "not_dispatched")
+      merged = merged.filter((o) => !dispatchedOrderIds.has(o.orderId));
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      merged = merged.filter(
+        (o) =>
+          o.orderId?.toLowerCase().includes(q) ||
+          o.customerName?.toLowerCase().includes(q) ||   // Instagram
+          o.userName?.toLowerCase().includes(q) ||       // Website (top-level)
+          o.deliveryAddress?.fullName?.toLowerCase().includes(q), // Website (address)
+      );
+    }
+
     const total = merged.length;
     const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
     const safePage = Math.min(state.currentPage, pages);
@@ -175,6 +229,11 @@ export function useAllOrders({ refreshKey = 0 } = {}) {
     state.filters.channel,
     state.sort,
     state.currentPage,
+    searchQuery,
+    shipmentFilter,
+    shippedOrderIds,
+    dispatchFilter,
+    dispatchedOrderIds,
   ]);
 
   // Stable fetch functions — empty deps, use refs for toast

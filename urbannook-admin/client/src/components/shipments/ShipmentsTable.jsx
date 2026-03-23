@@ -3,11 +3,11 @@ import ShipmentRow from "./ShipmentRow";
 const HEADERS = [
   "Order Date",
   "Order Details",
-  "Product Details",
-  "Package Details",
+  "Customer",
+  "Products",
+  "Package",
   "Payment",
-  "Shipping Details",
-  "Pickup Address",
+  "Courier",
   "Actions",
 ];
 

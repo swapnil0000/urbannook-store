@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { SlidersHorizontal, X } from "lucide-react";
+import { SlidersHorizontal, X, Search } from "lucide-react";
 
 const STATUSES = ["PAID", "CREATED", "FAILED"];
 
@@ -25,6 +25,12 @@ export default function OrdersToolbar({
   onSortChange,
   onReset,
   showChannelFilter = false,
+  shipmentFilter = "all",
+  onShipmentFilterChange,
+  dispatchFilter = "all",
+  onDispatchFilterChange,
+  searchQuery = "",
+  onSearchChange,
 }) {
   // Local date state — avoids calling onFilterChange on every partial date input
   const [localStartDate, setLocalStartDate] = useState(filters.startDate);
@@ -76,7 +82,10 @@ export default function OrdersToolbar({
     filters.status ||
     filters.startDate ||
     filters.endDate ||
-    (showChannelFilter && filters.channel && filters.channel !== "all");
+    (showChannelFilter && filters.channel && filters.channel !== "all") ||
+    (shipmentFilter && shipmentFilter !== "all") ||
+    (dispatchFilter && dispatchFilter !== "all") ||
+    searchQuery.trim() !== "";
 
   const inputStyle = {
     border: "1px solid var(--color-urban-border)",
@@ -86,22 +95,63 @@ export default function OrdersToolbar({
 
   return (
     <div
-      className="rounded-xl px-4 py-3"
+      className="rounded-xl px-4 py-3 space-y-3"
       style={{
         background: "var(--color-urban-surface)",
         border: "1px solid var(--color-urban-border)",
       }}
     >
+      {/* Search bar */}
+      {onSearchChange && (
+        <div className="relative">
+          <Search
+            className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none"
+            style={{ color: "var(--color-urban-text-muted)" }}
+          />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder="Search by name or order ID…"
+            className="w-full text-sm rounded-lg pl-9 pr-4 py-2 focus:outline-none"
+            style={{
+              border: "1px solid var(--color-urban-border)",
+              background: "var(--color-urban-raised)",
+              color: "var(--color-urban-text)",
+            }}
+          />
+          {searchQuery && (
+            <button
+              onClick={() => onSearchChange("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2"
+              style={{ color: "var(--color-urban-text-muted)" }}
+              aria-label="Clear search"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-3">
         {/* Icon + result count */}
         <div className="flex items-center gap-2 mr-auto">
-          <SlidersHorizontal className="h-4 w-4 shrink-0" style={{ color: "var(--color-urban-text-muted)" }} />
-          <span className="text-sm" style={{ color: "var(--color-urban-text-sec)" }}>
+          <SlidersHorizontal
+            className="h-4 w-4 shrink-0"
+            style={{ color: "var(--color-urban-text-muted)" }}
+          />
+          <span
+            className="text-sm"
+            style={{ color: "var(--color-urban-text-sec)" }}
+          >
             {loading ? (
               "Loading…"
             ) : (
               <>
-                <span className="font-semibold" style={{ color: "var(--color-urban-text)" }}>
+                <span
+                  className="font-semibold"
+                  style={{ color: "var(--color-urban-text)" }}
+                >
                   {totalOrders}
                 </span>{" "}
                 {totalOrders === 1 ? "order" : "orders"}
@@ -120,7 +170,9 @@ export default function OrdersToolbar({
         >
           <option value="">All statuses</option>
           {STATUSES.map((s) => (
-            <option key={s} value={s}>{s}</option>
+            <option key={s} value={s}>
+              {s}
+            </option>
           ))}
         </select>
 
@@ -139,6 +191,36 @@ export default function OrdersToolbar({
           </select>
         )}
 
+        {/* Shipment filter */}
+        {onShipmentFilterChange && (
+          <select
+            value={shipmentFilter}
+            onChange={(e) => onShipmentFilterChange(e.target.value)}
+            className="text-sm rounded-lg px-2 py-1.5 focus:outline-none cursor-pointer"
+            style={inputStyle}
+            aria-label="Filter by shipment"
+          >
+            <option value="all">All shipments</option>
+            <option value="shipped">Shipped</option>
+            <option value="not_shipped">Not shipped</option>
+          </select>
+        )}
+
+        {/* Dispatch filter */}
+        {onDispatchFilterChange && (
+          <select
+            value={dispatchFilter}
+            onChange={(e) => onDispatchFilterChange(e.target.value)}
+            className="text-sm rounded-lg px-2 py-1.5 focus:outline-none cursor-pointer"
+            style={inputStyle}
+            aria-label="Filter by dispatch"
+          >
+            <option value="all">All dispatches</option>
+            <option value="dispatched">Dispatched</option>
+            <option value="not_dispatched">Not dispatched</option>
+          </select>
+        )}
+
         {/* Date range */}
         <div className="flex items-center gap-2">
           <input
@@ -150,7 +232,12 @@ export default function OrdersToolbar({
             style={inputStyle}
             aria-label="Start date"
           />
-          <span className="text-sm" style={{ color: "var(--color-urban-text-muted)" }}>→</span>
+          <span
+            className="text-sm"
+            style={{ color: "var(--color-urban-text-muted)" }}
+          >
+            →
+          </span>
           <input
             type="date"
             value={localEndDate}
@@ -171,7 +258,10 @@ export default function OrdersToolbar({
           aria-label="Sort orders"
         >
           {SORT_OPTIONS.map((opt) => (
-            <option key={`${opt.sortBy}:${opt.sortOrder}`} value={`${opt.sortBy}:${opt.sortOrder}`}>
+            <option
+              key={`${opt.sortBy}:${opt.sortOrder}`}
+              value={`${opt.sortBy}:${opt.sortOrder}`}
+            >
               {opt.label}
             </option>
           ))}

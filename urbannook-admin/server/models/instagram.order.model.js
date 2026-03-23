@@ -16,6 +16,7 @@ const instagramOrderSchema = new mongoose.Schema(
           productCategory: { type: String },
           productSubCategory: { type: String },
           priceAtPurchase: { type: Number },
+          isCustomPrice: { type: Boolean, default: false },
         },
       },
     ],

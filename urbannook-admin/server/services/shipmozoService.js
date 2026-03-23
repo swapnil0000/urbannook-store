@@ -1,16 +1,25 @@
 import axios from "axios";
 import { ApiError } from "../utils/apiResponse.js";
 
-// Created once at module load — never recreated per request
+// Created once at module load.
+// Auth headers and baseURL are applied lazily via the request interceptor below
+// so that dotenv has had time to populate process.env before the first request.
 const shipmozoClient = axios.create({
-  baseURL: process.env.SHIPMOZO_BASE_URL, // no trailing slash
   timeout: 15000,
   headers: {
-    "public-key": process.env.SHIPMOZO_PUBLIC_KEY,
-    "private-key": process.env.SHIPMOZO_PRIVATE_KEY,
     "Content-Type": "application/json",
     accept: "application/json",
   },
+});
+
+// Read credentials and baseURL at request time, not at module-load time.
+// Fixes: ES-module hoisting causes this file to initialize before dotenv.config()
+// runs in index.js, so process.env.SHIPMOZO_* would be undefined at creation time.
+shipmozoClient.interceptors.request.use((config) => {
+  config.baseURL = process.env.SHIPMOZO_BASE_URL;
+  config.headers["public-key"] = process.env.SHIPMOZO_PUBLIC_KEY;
+  config.headers["private-key"] = process.env.SHIPMOZO_PRIVATE_KEY;
+  return config;
 });
 
 // Dual error handling:

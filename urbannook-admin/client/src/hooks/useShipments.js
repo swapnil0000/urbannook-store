@@ -19,6 +19,7 @@ const initialState = {
   shipments: [],
   loading: false,
   error: null,
+  syncing: false,
   activeTab: "ALL",
   currentPage: 1,
   totalPages: 1,
@@ -49,6 +50,11 @@ function reducer(state, action) {
     case "FETCH_START":
       return { ...state, loading: true, error: null };
 
+    case "SYNC_START":
+      return { ...state, syncing: true };
+    case "SYNC_DONE":
+      return { ...state, syncing: false };
+
     case "FETCH_SUCCESS":
       return {
         ...state,
@@ -67,13 +73,21 @@ function reducer(state, action) {
     case "SET_PAGE":
       return { ...state, currentPage: action.payload };
 
-    // Replace a single record in the list (used after assign/cancel/track)
+    // Replace a single record in the list (used after assign/track)
     case "UPDATE_SHIPMENT":
       return {
         ...state,
         shipments: state.shipments.map((s) =>
           s._id === action.payload._id ? { ...s, ...action.payload } : s,
         ),
+      };
+
+    // Remove a record from the list immediately (used after cancel)
+    case "REMOVE_SHIPMENT":
+      return {
+        ...state,
+        shipments: state.shipments.filter((s) => s._id !== action.payload),
+        totalRecords: Math.max(0, state.totalRecords - 1),
       };
 
     // Action menu
@@ -333,13 +347,13 @@ export function useShipments({ refreshKey = 0 } = {}) {
       const res = await apiClient.get(
         `/admin/shipmozo/shipments/${shipment._id}/track`,
       );
-      // Also sync the status in the row
-      if (res.data.data?.current_status) {
+      // Also sync the status in the row using normalized status
+      if (res.data.data?._normalizedStatus) {
         dispatch({
           type: "UPDATE_SHIPMENT",
           payload: {
             _id: shipment._id,
-            shipmentStatus: res.data.data.current_status,
+            shipmentStatus: res.data.data._normalizedStatus,
           },
         });
       }
@@ -395,12 +409,15 @@ export function useShipments({ refreshKey = 0 } = {}) {
     async (shipmentId) => {
       dispatch({ type: "SET_CANCEL_LOADING" });
       try {
-        const res = await apiClient.post(
+        await apiClient.post(
           `/admin/shipmozo/shipments/${shipmentId}/cancel`,
         );
-        dispatch({ type: "UPDATE_SHIPMENT", payload: res.data.data });
+        // Remove the row instantly so it doesn't linger in the wrong tab
+        dispatch({ type: "REMOVE_SHIPMENT", payload: shipmentId });
         dispatch({ type: "CLOSE_CANCEL_DIALOG" });
         showToast("Shipment cancelled.", "info");
+        // Refetch to sync pagination counts
+        fetchShipments(state.activeTab, state.currentPage);
       } catch (err) {
         dispatch({
           type: "SET_CANCEL_ERROR",
@@ -408,14 +425,29 @@ export function useShipments({ refreshKey = 0 } = {}) {
         });
       }
     },
-    [showToast],
+    [showToast, fetchShipments, state.activeTab, state.currentPage],
   );
+
+  // ── Sync all statuses ────────
+  const syncStatuses = useCallback(async () => {
+    dispatch({ type: "SYNC_START" });
+    try {
+      await apiClient.post("/admin/shipmozo/shipments/sync-statuses");
+      showToast("Statuses synced successfully.", "success");
+      fetchShipments(state.activeTab, state.currentPage);
+    } catch (err) {
+      showToast(err.response?.data?.message || "Sync failed.", "error");
+    } finally {
+      dispatch({ type: "SYNC_DONE" });
+    }
+  }, [state.activeTab, state.currentPage, fetchShipments, showToast]);
 
   return {
     // State
     shipments: state.shipments,
     loading: state.loading,
     error: state.error,
+    syncing: state.syncing,
     activeTab: state.activeTab,
     currentPage: state.currentPage,
     totalPages: state.totalPages,
@@ -442,5 +474,6 @@ export function useShipments({ refreshKey = 0 } = {}) {
     openCancelDialog,
     closeCancelDialog,
     confirmCancel,
+    syncStatuses,
   };
 }

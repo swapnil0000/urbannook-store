@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Truck, Loader2, ArrowRight } from "lucide-react";
+import { Truck, Loader2, ArrowRight, ExternalLink } from "lucide-react";
 import apiClient from "../../api/axios";
 import { useToast } from "../../context/ToastContext";
 
@@ -27,7 +27,7 @@ const STATUS_STYLES = {
  *
  * Shows:
  *   • Loading spinner while checking for an existing shipment
- *   • Shipment status card if one exists
+ *   • Shipment status card if one exists (with shipmozoOrderId, AWB, courier, etc.)
  *   • "Create Shipment →" navigation button if none exists
  */
 export default function ShipmentSection({ orderId, orderType, order }) {
@@ -92,17 +92,30 @@ export default function ShipmentSection({ orderId, orderType, order }) {
 
   return (
     <section aria-label="Shipment">
-      <div className="flex items-center gap-2 mb-3">
-        <Truck
-          className="h-4 w-4"
-          style={{ color: "var(--color-urban-text-muted)" }}
-        />
-        <h3
-          className="text-sm font-semibold"
-          style={{ color: "var(--color-urban-text-sec)" }}
-        >
-          Shipment
-        </h3>
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <div className="flex items-center gap-2">
+          <Truck
+            className="h-4 w-4"
+            style={{ color: "var(--color-urban-text-muted)" }}
+          />
+          <h3
+            className="text-sm font-semibold"
+            style={{ color: "var(--color-urban-text-sec)" }}
+          >
+            Shipment
+          </h3>
+        </div>
+        {shipment && (
+          <button
+            type="button"
+            onClick={() => navigate("/admin/shipments")}
+            className="inline-flex items-center gap-1 text-xs font-semibold transition-colors"
+            style={{ color: "var(--color-urban-neon)" }}
+          >
+            View in Shipments
+            <ExternalLink className="h-3 w-3" />
+          </button>
+        )}
       </div>
 
       {/* ── Existing shipment record ───────────────────────────────────────── */}
@@ -114,6 +127,7 @@ export default function ShipmentSection({ orderId, orderType, order }) {
             border: "1px solid var(--color-urban-border)",
           }}
         >
+          {/* Status + AWB row */}
           <div className="flex items-center justify-between">
             <span
               className="inline-flex items-center text-[10px] font-bold uppercase px-2.5 py-1 rounded-full"
@@ -136,6 +150,25 @@ export default function ShipmentSection({ orderId, orderType, order }) {
             )}
           </div>
 
+          {/* Shipmozo order ID */}
+          {shipment.shipmozoOrderId && (
+            <div>
+              <p
+                className="text-[10px] uppercase font-semibold mb-0.5"
+                style={{ color: "var(--color-urban-text-muted)" }}
+              >
+                Shipmozo Order ID
+              </p>
+              <p
+                className="text-xs font-mono break-all"
+                style={{ color: "var(--color-urban-text-sec)" }}
+              >
+                {shipment.shipmozoOrderId}
+              </p>
+            </div>
+          )}
+
+          {/* Package details grid */}
           <div
             className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs"
             style={{ color: "var(--color-urban-text-muted)" }}
@@ -211,8 +244,7 @@ export default function ShipmentSection({ orderId, orderType, order }) {
           <button
             type="button"
             onClick={() => {
-              const isInstagram = Boolean(order?.customerName);
-              if (!isInstagram && order?.status !== "PAID") {
+              if (order?.status !== "PAID") {
                 showToast(
                   `Action Denied: Only PAID orders can be shipped. Current status: ${order?.status ?? "unknown"}.`,
                   "error",

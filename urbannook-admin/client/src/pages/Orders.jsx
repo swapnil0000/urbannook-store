@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   ShoppingCart,
   Loader2,
@@ -14,9 +14,55 @@ import OrderDetailDrawer from "../components/orders/OrderDetailDrawer";
 import Pagination from "../components/orders/Pagination";
 import CreateOrderDrawer from "../components/orders/CreateOrderDrawer";
 import { useEnv } from "../context/EnvContext";
+import apiClient from "../api/axios";
 
 export default function Orders() {
   const { refreshKey } = useEnv();
+
+  const [createOpen, setCreateOpen] = useState(false);
+
+  // ── Shipped order IDs ────────────────────────────────────────────────────
+  const [shippedOrderIds, setShippedOrderIds] = useState(new Set());
+  useEffect(() => {
+    apiClient
+      .get("/admin/shipmozo/shipped-order-ids")
+      .then((res) => setShippedOrderIds(new Set(res.data.data ?? [])))
+      .catch(() => {});
+  }, []);
+
+  // ── Dispatched order IDs ──────────────────────────────────────────────────
+  const [dispatchedOrderIds, setDispatchedOrderIds] = useState(new Set());
+  useEffect(() => {
+    apiClient
+      .get("/admin/dispatch/order-ids")
+      .then((res) => setDispatchedOrderIds(new Set(res.data.data ?? [])))
+      .catch(() => {});
+  }, []);
+
+  const handleDispatch = (orderId, orderType) => {
+    apiClient
+      .post(`/admin/dispatch/${orderId}`, { orderType })
+      .then(() => setDispatchedOrderIds((prev) => new Set([...prev, orderId])))
+      .catch(() => {});
+  };
+
+  // ── Shipment + Dispatch filters + Search ─────────────────────────────────
+  // Initialised from sessionStorage so filters survive navigation.
+  // Declared before useAllOrders so they can be passed in — filtering happens
+  // inside the hook before pagination so all 500 orders are searched/filtered.
+  const [shipmentFilter, setShipmentFilter] = useState(
+    () => { try { return sessionStorage.getItem("orders_shipmentFilter") ?? "all"; } catch { return "all"; } },
+  );
+  const [dispatchFilter, setDispatchFilter] = useState(
+    () => { try { return sessionStorage.getItem("orders_dispatchFilter") ?? "all"; } catch { return "all"; } },
+  );
+  const [searchQuery, setSearchQuery] = useState(
+    () => { try { return sessionStorage.getItem("orders_searchQuery") ?? ""; } catch { return ""; } },
+  );
+
+  useEffect(() => { try { sessionStorage.setItem("orders_shipmentFilter", shipmentFilter); } catch {} }, [shipmentFilter]);
+  useEffect(() => { try { sessionStorage.setItem("orders_dispatchFilter", dispatchFilter); } catch {} }, [dispatchFilter]);
+  useEffect(() => { try { sessionStorage.setItem("orders_searchQuery",    searchQuery);    } catch {} }, [searchQuery]);
 
   const {
     orders,
@@ -35,9 +81,14 @@ export default function Orders() {
     closeDrawer,
     dismissPending,
     refetch,
-  } = useAllOrders({ refreshKey });
-
-  const [createOpen, setCreateOpen] = useState(false);
+  } = useAllOrders({
+    refreshKey,
+    searchQuery,
+    shipmentFilter,
+    shippedOrderIds,
+    dispatchFilter,
+    dispatchedOrderIds,
+  });
 
   if (loading && orders.length === 0) {
     return (
@@ -84,7 +135,10 @@ export default function Orders() {
     filters.status ||
     filters.startDate ||
     filters.endDate ||
-    (filters.channel && filters.channel !== "all");
+    (filters.channel && filters.channel !== "all") ||
+    shipmentFilter !== "all" ||
+    dispatchFilter !== "all" ||
+    searchQuery.trim() !== "";
 
   const isEmpty = !loading && orders.length === 0;
 
@@ -175,8 +229,14 @@ export default function Orders() {
         loading={loading}
         onFilterChange={setFilters}
         onSortChange={setSort}
-        onReset={resetFilters}
+        onReset={() => { resetFilters(); setShipmentFilter("all"); setDispatchFilter("all"); setSearchQuery(""); }}
         showChannelFilter
+        shipmentFilter={shipmentFilter}
+        onShipmentFilterChange={setShipmentFilter}
+        dispatchFilter={dispatchFilter}
+        onDispatchFilterChange={setDispatchFilter}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
       />
 
       {/* Orders table or empty state */}
@@ -226,6 +286,9 @@ export default function Orders() {
             selectedOrder={selectedOrder}
             onSort={setSort}
             onSelectOrder={selectOrder}
+            shippedOrderIds={shippedOrderIds}
+            dispatchedOrderIds={dispatchedOrderIds}
+            onDispatch={handleDispatch}
           />
           <Pagination
             currentPage={pagination.currentPage}
