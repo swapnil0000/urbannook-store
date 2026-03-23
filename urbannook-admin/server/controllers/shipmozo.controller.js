@@ -90,7 +90,9 @@ const pushOrderToCourier = async (req, res, next) => {
 
     const cleanOrderId = orderId.trim();
 
-    // ── 2. Duplicate check — only block if an active (non-cancelled) shipment exists
+    // ── 2. Duplicate check — block if an active (non-cancelled) shipment exists.
+    // Query for non-cancelled records directly so the check is deterministic
+    // even when multiple records exist for the same order (e.g. after cancel + re-push).
     const existing = await ShipmentRecord.findOne({
       sourceOrderId: cleanOrderId,
       isCancelled: { $ne: true },
@@ -195,8 +197,11 @@ const pushOrderToCourier = async (req, res, next) => {
     }));
 
     // ── 7. Build Shipmozo payload ─────────────────────────────────────────────
-    // Use the order's own creation date, not today's date
-    const orderDate = new Date(order.createdAt).toISOString().split("T")[0];
+    // For Instagram orders use orderedAt (when the customer actually placed it).
+    // For website orders createdAt is the order date (payment creates the record).
+    const rawOrderDate =
+      orderType === "INSTAGRAM" ? (order.orderedAt || order.createdAt) : order.createdAt;
+    const orderDate = new Date(rawOrderDate).toISOString().split("T")[0];
 
     // For website orders the orderId is a UUID — shorten to WS-{last-segment}
     // so it appears clean in Shipmozo's dashboard (mirrors IG-0016 style).
@@ -287,9 +292,11 @@ const pushOrderToCourier = async (req, res, next) => {
 // Always responds 200 — frontend uses data === null to determine button state.
 const getShipmentByOrderId = async (req, res, next) => {
   try {
-    const record = await ShipmentRecord.findOne({
-      sourceOrderId: req.params.orderId,
-    }).lean();
+    // Return the most recent record — after cancel + re-push there can be multiple.
+    // Sorting by createdAt desc ensures we always get the latest one.
+    const record = await ShipmentRecord.findOne({ sourceOrderId: req.params.orderId })
+      .sort({ createdAt: -1 })
+      .lean();
 
     return res
       .status(200)
