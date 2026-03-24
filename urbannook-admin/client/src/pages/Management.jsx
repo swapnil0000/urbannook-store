@@ -154,8 +154,6 @@ export default function Management() {
 
   // ── Ship Now ─────────────────────────────────────────────────────────────────
   const handleShipNow = useCallback((row) => {
-    console.log("[Management] Ship Now clicked:", { orderId: row.orderId, source: row.source });
-
     // Guard: only PAID orders can be shipped (same check as Orders page)
     if (row.status && row.status !== "PAID") {
       showToast(`Only PAID orders can be shipped. Current status: ${row.status}`, "error");
@@ -166,28 +164,10 @@ export default function Management() {
     const pool      = row.source === "WEBSITE" ? websiteOrders : instagramOrders;
     const fullOrder = pool.find((o) => o.orderId === row.orderId);
 
-    console.log("[Management] Redux pool size:", pool.length);
-    console.log("[Management] Full order found:", fullOrder ? "yes" : "NOT FOUND");
-
     if (!fullOrder) {
-      console.warn(
-        "[Management] Order not in Redux store. Redux website count:",
-        websiteOrders.length,
-        "Instagram count:",
-        instagramOrders.length,
-      );
       showToast("Order data not loaded yet — please refresh the page.", "error");
       return;
     }
-
-    console.log("[Management] Navigating to CreateShipment with order:", {
-      orderId:        fullOrder.orderId,
-      status:         fullOrder.status,
-      hasItems:       Array.isArray(fullOrder.items) && fullOrder.items.length > 0,
-      hasAddress:     !!fullOrder.deliveryAddress,
-      isInstagram:    !!fullOrder.customerName,
-      returnTo:       "/admin/management",
-    });
 
     // Optimistic removal from Table 1
     setData((prev) =>

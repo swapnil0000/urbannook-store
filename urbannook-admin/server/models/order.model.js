@@ -35,10 +35,10 @@ const orderSchema = new mongoose.Schema(
       enum: ["PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED"],
       default: "PROCESSING",
     },
-    tracking: {
-      carrier: { type: String },
+    trackingInfo: {
+      carrier:        { type: String },
       trackingNumber: { type: String },
-      updatedAt: { type: Date },
+      updatedAt:      { type: Date },
     },
   },
   { timestamps: true },

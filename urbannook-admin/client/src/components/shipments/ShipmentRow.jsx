@@ -219,7 +219,7 @@ export default function ShipmentRow({
                   </button>
                 )}
                 {canSync && (
-                  <button onClick={() => { console.log("[ShipmentRow] Sync clicked, _id:", shipment._id, "onSync type:", typeof onSync); onCloseMenu(); onSync(shipment._id); }}
+                  <button onClick={() => { onCloseMenu(); onSync(shipment._id); }}
                     className="flex items-center gap-2 w-full px-3 py-2 text-sm transition-colors"
                     style={{ color: "var(--color-urban-text)" }}
                     onMouseEnter={(e) => e.currentTarget.style.background = "var(--color-urban-raised)"}

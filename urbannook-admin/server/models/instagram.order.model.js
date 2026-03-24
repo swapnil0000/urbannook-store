@@ -27,6 +27,11 @@ const instagramOrderSchema = new mongoose.Schema(
       default: "CREATED",
     },
     orderedAt: { type: Date }, // admin-entered order date (when customer actually placed it)
+    trackingInfo: {
+      carrier:        { type: String },
+      trackingNumber: { type: String },
+      updatedAt:      { type: Date },
+    },
   },
   { timestamps: true },
 );

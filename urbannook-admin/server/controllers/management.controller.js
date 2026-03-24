@@ -152,7 +152,8 @@ const getFulfillmentData = async (req, res, next) => {
         status:       "PAID",   // same
         source:       "INSTAGRAM",
       })),
-    ].sort((a, b) => new Date(a.date) - new Date(b.date)); // OLDEST FIRST → FIFO
+    ].sort((a, b) => new Date(a.date) - new Date(b.date))  // OLDEST FIRST → FIFO
+     .filter((o, idx, arr) => arr.findIndex((x) => x.orderId === o.orderId) === idx); // deduplicate
 
     // ── Table 2: All active (non-cancelled) ShipmentRecords ──────────────────
     const activeShipments = await ShipmentRecord.find(

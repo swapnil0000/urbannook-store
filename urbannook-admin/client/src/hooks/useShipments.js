@@ -445,12 +445,10 @@ export function useShipments({ refreshKey = 0 } = {}) {
   // ── Sync single shipment from Shipmozo (pulls AWB + status after web-side assignment) ──
   const syncSingleShipment = useCallback(
     async (shipmentId) => {
-      console.log("[Sync] Triggered for shipmentId:", shipmentId);
       try {
         const res = await apiClient.post(
           `/admin/shipmozo/shipments/${shipmentId}/sync`,
         );
-        console.log("[Sync] Response:", res.data);
         const record = res.data.data?.record;
         if (record) {
           dispatch({ type: "UPDATE_SHIPMENT", payload: record });
