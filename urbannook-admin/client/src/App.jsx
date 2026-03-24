@@ -3,7 +3,7 @@ import AuthGuard from "./components/AuthGuard";
 import Layout from "./components/Layout";
 import {
   Login, Dashboard, Products, Waitlist, Orders, Coupons,
-  AbandonedCarts, Shipments, CreateShipment, Testimonial, AdminManagement,
+  AbandonedCarts, Shipments, CreateShipment, Testimonial, AdminManagement, Management,
 } from "./pages/index.js";
 import { Analytics } from "./pages/Analytics";
 
@@ -23,6 +23,7 @@ function App() {
           <Route path="/admin/analytics" element={<Analytics />} />
           <Route path="/admin/shipments" element={<Shipments />} />
           <Route path="/admin/admins" element={<AdminManagement />} />
+          <Route path="/admin/management" element={<Management />} />
           <Route path="/admin/shipment/create/:orderId" element={<CreateShipment />} />
         </Route>
       </Route>

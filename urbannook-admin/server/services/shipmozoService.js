@@ -119,6 +119,16 @@ async function cancelOrder(payload) {
 }
 
 /**
+ * Fetch the full order detail from Shipmozo (including AWB + courier after assignment).
+ * Use this to sync AWB/status when courier was assigned on the Shipmozo website directly.
+ * @param {string} shipmozoOrderId — the order_id returned by push-order
+ */
+async function getOrderDetail(shipmozoOrderId) {
+  const response = await shipmozoClient.get(`/get-order-detail/${shipmozoOrderId}`);
+  return response.data;
+}
+
+/**
  * Track an order by its AWB number.
  * @param {string} awbNumber
  */
@@ -150,4 +160,5 @@ export {
   cancelOrder,
   trackOrder,
   schedulePickup,
+  getOrderDetail,
 };

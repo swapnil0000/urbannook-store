@@ -20,6 +20,7 @@ export default function ShipmentsTable({
   openLabelModal,
   openTrackDrawer,
   openCancelDialog,
+  onSync,
 }) {
   return (
     <div
@@ -53,6 +54,7 @@ export default function ShipmentsTable({
                 onPrintLabel={openLabelModal}
                 onTrack={openTrackDrawer}
                 onCancel={openCancelDialog}
+                onSync={onSync}
               />
             ))}
           </tbody>

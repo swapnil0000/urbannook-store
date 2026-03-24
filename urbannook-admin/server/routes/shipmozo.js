@@ -11,6 +11,7 @@ import {
   cancelShipment,
   getShippedOrderIds,
   syncAllStatuses,
+  syncStatusForShipment,
 } from "../controllers/shipmozo.controller.js";
 
 const router = express.Router();
@@ -30,5 +31,6 @@ router.post("/shipments/:id/assign",          assignCourierToShipment);
 router.get("/shipments/:id/label",            getLabelForShipment);
 router.get("/shipments/:id/track",            trackShipment);
 router.post("/shipments/:id/cancel",          cancelShipment);
+router.post("/shipments/:id/sync",            syncStatusForShipment);
 
 export default router;

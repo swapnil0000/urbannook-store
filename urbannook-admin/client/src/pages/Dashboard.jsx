@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, useCallback } from "react";
+import { useSelector } from "react-redux";
 import apiClient from "../api/axios";
 import { useToast } from "../context/ToastContext";
 import { useEnv } from "../context/EnvContext";
+import { selectNewEventCount } from "../store/ordersSlice";
 import KpiSection from "../components/dashboard/KpiSection";
 import LatestProducts from "../components/dashboard/LatestProducts";
 import RecentActivity from "../components/dashboard/RecentActivity";
@@ -41,23 +43,16 @@ export default function Dashboard() {
     };
   }, [fetchStats, refreshKey]);
 
-  // SSE — silent refetch on new order events
+  // When OrdersSyncProvider receives a new SSE order, silently refresh stats.
+  // No separate SSE connections needed here — Redux newEventCount acts as the signal.
+  const newEventCount = useSelector(selectNewEventCount);
+  const prevEventCountRef = useRef(newEventCount);
   useEffect(() => {
-    const base = import.meta.env.VITE_API_BASE_URL;
-    const webSrc = new EventSource(`${base}/admin/orders/stream`, {
-      withCredentials: true,
-    });
-    const instaSrc = new EventSource(`${base}/admin/orders/instagram/stream`, {
-      withCredentials: true,
-    });
-    const silentRefetch = () => fetchStats(true);
-    webSrc.addEventListener("new_order", silentRefetch);
-    instaSrc.addEventListener("new_instagram_order", silentRefetch);
-    return () => {
-      webSrc.close();
-      instaSrc.close();
-    };
-  }, [fetchStats]);
+    if (newEventCount > prevEventCountRef.current) {
+      prevEventCountRef.current = newEventCount;
+      fetchStats(true);
+    }
+  }, [newEventCount, fetchStats]);
 
   const kpi = stats?.kpi;
   const recentOrders = stats?.recentOrders ?? [];

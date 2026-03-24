@@ -5,6 +5,7 @@ import User from "../models/user.model.js";
 import { ApiResponse, ApiError } from "../utils/apiResponse.js";
 import { parseAddress } from "../utils/addressParser.js";
 import * as shipmozoService from "../services/shipmozoService.js";
+import { sendInTransitEmail } from "../services/emailService.js";
 
 // Valid payment types accepted by Shipmozo
 const ALLOWED_PAYMENT_TYPES = new Set(["PREPAID", "COD"]);
@@ -19,16 +20,98 @@ const NON_CANCELLABLE_STATUSES = new Set([
   "RTO_DELIVERED",
 ]);
 
-// Map Shipmozo tracking status strings → our ShipmentRecord enum values
+// Map Shipmozo tracking status strings → our ShipmentRecord enum values.
+// Shipmozo returns human-readable strings like "In Transit", "Delivered" etc.
+// Keys are lowercased at lookup time (see normalizeTrackingStatus below).
 const TRACKING_STATUS_MAP = {
-  IN_TRANSIT: "IN_TRANSIT",
-  OUT_FOR_DELIVERY: "OUT_FOR_DELIVERY",
-  DELIVERED: "DELIVERED",
-  RTO_INITIATED: "RTO_INITIATED",
-  RTO_DELIVERED: "RTO_DELIVERED",
-  CANCELLED: "CANCELLED",
-  EXCEPTION: "EXCEPTION",
+  // ── Pre-pickup ────────────────────────────────────────────────────────────
+  "data received":            "PUSHED",
+  "pickup pending":           "PUSHED",
+  "out for pickup":           "PICKUP_SCHEDULED",
+  "scheduled":                "PICKUP_SCHEDULED",
+  "pickup scheduled":         "PICKUP_SCHEDULED",
+  "assigned":                 "ASSIGNED",
+
+  // ── Pickup done / in motion ───────────────────────────────────────────────
+  "pickdone":                 "IN_TRANSIT",   // XpressBees: "PickDone"
+  "pickup done":              "IN_TRANSIT",
+  "pickup completed":         "IN_TRANSIT",
+  "picked":                   "IN_TRANSIT",   // XpressBees: "Picked"
+  "in transit":               "IN_TRANSIT",
+  "intransit":                "IN_TRANSIT",   // XpressBees: "InTransit"
+  "shipped":                  "IN_TRANSIT",
+
+  // ── Last-mile ─────────────────────────────────────────────────────────────
+  "at delivery center":       "OUT_FOR_DELIVERY",   // XpressBees current_status
+  "reached at destination":   "OUT_FOR_DELIVERY",   // XpressBees scan_detail
+  "out for delivery":         "OUT_FOR_DELIVERY",
+  "with delivery boy":        "OUT_FOR_DELIVERY",
+
+  // ── Terminal ──────────────────────────────────────────────────────────────
+  "delivered":                "DELIVERED",
+  "cancelled":                "CANCELLED",
+  "cancel":                   "CANCELLED",
+  "rto initiated":            "RTO_INITIATED",
+  "return initiated":         "RTO_INITIATED",
+  "rto in transit":           "RTO_INITIATED",
+  "rto delivered":            "RTO_DELIVERED",
+  "exception":                "EXCEPTION",
+  "lost":                     "EXCEPTION",
+  "damaged":                  "EXCEPTION",
+
+  // ── Backward-compat uppercase (assign-courier / schedule-pickup responses) ─
+  "IN_TRANSIT":               "IN_TRANSIT",
+  "OUT_FOR_DELIVERY":         "OUT_FOR_DELIVERY",
+  "DELIVERED":                "DELIVERED",
+  "RTO_INITIATED":            "RTO_INITIATED",
+  "RTO_DELIVERED":            "RTO_DELIVERED",
+  "CANCELLED":                "CANCELLED",
+  "EXCEPTION":                "EXCEPTION",
 };
+
+/**
+ * Normalize a raw Shipmozo status string to our enum value.
+ * Tries exact match first, then lowercase lookup.
+ */
+function normalizeTrackingStatus(raw) {
+  if (!raw) return null;
+  return TRACKING_STATUS_MAP[raw] ?? TRACKING_STATUS_MAP[raw.toLowerCase()] ?? null;
+}
+
+/**
+ * If a ShipmentRecord has transitioned to IN_TRANSIT and no email has been sent yet,
+ * look up the customer and send the transit email (WEBSITE orders only).
+ * Non-fatal — email failure is logged but does not abort the calling operation.
+ * @param {import('../models/shipment.record.model.js').default} record — mongoose doc (not lean)
+ */
+async function maybeFireTransitEmail(record) {
+  if (
+    record.shipmentStatus !== "IN_TRANSIT" ||
+    record.transitEmailSentAt ||
+    record.sourceOrderType !== "WEBSITE"
+  ) return;
+
+  try {
+    const order = await Order.findOne({ orderId: record.sourceOrderId }, { userId: 1 }).lean();
+    if (!order) return;
+    const user = await User.findOne({ userId: order.userId }, { name: 1, email: 1 }).lean();
+    if (!user?.email) return;
+
+    await sendInTransitEmail({
+      to: user.email,
+      customerName: user.name || "Valued Customer",
+      orderId: record.sourceOrderId,
+      awbNumber: record.awbNumber,
+      courierCompany: record.courierCompany,
+    });
+
+    record.transitEmailSentAt = new Date();
+    await record.save();
+    console.log(`[Email] IN_TRANSIT email sent for order ${record.sourceOrderId}`);
+  } catch (emailErr) {
+    console.error("[Email] Transit email failed (non-fatal):", emailErr.message);
+  }
+}
 
 // POST /admin/shipmozo/push-order
 // Pushes a website or Instagram order to Shipmozo as a new shipment.
@@ -615,7 +698,8 @@ const getLabelForShipment = async (req, res, next) => {
 // Fetches live tracking data and optionally syncs shipmentStatus.
 const trackShipment = async (req, res, next) => {
   try {
-    const record = await ShipmentRecord.findById(req.params.id).lean();
+    // Use mutable doc so maybeFireTransitEmail can save transitEmailSentAt
+    const record = await ShipmentRecord.findById(req.params.id);
     if (!record) throw new ApiError(404, "Shipment record not found.");
     if (!record.awbNumber) {
       throw new ApiError(
@@ -625,24 +709,31 @@ const trackShipment = async (req, res, next) => {
     }
 
     const result = await shipmozoService.trackOrder(record.awbNumber);
-    const trackData = result?.data ?? result;
+    console.log("[trackShipment] raw result:", JSON.stringify(result));
+    // track-order data can be an object or array — normalize
+    const rawData = result?.data;
+    const trackData = Array.isArray(rawData) ? rawData[0] : (rawData ?? result);
+    console.log("[trackShipment] current_status:", trackData?.current_status, "| awb:", record.awbNumber);
 
     // Sync status and dates back to our record
     const updateFields = { lastTrackedAt: new Date() };
 
-    if (
-      trackData?.current_status &&
-      TRACKING_STATUS_MAP[trackData.current_status]
-    ) {
-      updateFields.shipmentStatus =
-        TRACKING_STATUS_MAP[trackData.current_status];
+    const normalizedStatus = normalizeTrackingStatus(trackData?.current_status);
+    console.log("[trackShipment] normalizedStatus:", normalizedStatus);
+    if (normalizedStatus) {
+      updateFields.shipmentStatus = normalizedStatus;
     }
     if (trackData?.expected_delivery_date) {
       const parsed = new Date(trackData.expected_delivery_date);
       if (!isNaN(parsed.getTime())) updateFields.expectedDeliveryDate = parsed;
     }
 
-    await ShipmentRecord.findByIdAndUpdate(record._id, updateFields);
+    // Apply updates to the doc so maybeFireTransitEmail sees the new status
+    Object.assign(record, updateFields);
+    await record.save();
+
+    // Fire IN_TRANSIT email if newly transitioned (idempotent)
+    await maybeFireTransitEmail(record);
 
     // Include normalizedStatus so the frontend can update the row badge correctly
     // without mapping raw Shipmozo strings ("Pickup Pending" etc.) itself.
@@ -650,7 +741,7 @@ const trackShipment = async (req, res, next) => {
       .status(200)
       .json(new ApiResponse(200, "Tracking data fetched.", {
         ...trackData,
-        _normalizedStatus: updateFields.shipmentStatus ?? null,
+        _normalizedStatus: normalizedStatus ?? null,
       }));
   } catch (err) {
     next(err);
@@ -733,11 +824,12 @@ const TERMINAL_STATUSES = new Set(["DELIVERED", "CANCELLED", "RTO_DELIVERED"]);
 
 const syncAllStatuses = async (_req, res, next) => {
   try {
+    // Fetch mutable docs so maybeFireTransitEmail can save fields
     const activeRecords = await ShipmentRecord.find({
       isCancelled: { $ne: true },
       awbNumber:   { $ne: null },
       shipmentStatus: { $nin: [...TERMINAL_STATUSES] },
-    }).lean();
+    });
 
     const results = { synced: 0, updated: 0, errors: 0 };
 
@@ -746,16 +838,20 @@ const syncAllStatuses = async (_req, res, next) => {
         try {
           const result    = await shipmozoService.trackOrder(record.awbNumber);
           const trackData = result?.data ?? result;
-          const updates   = { lastTrackedAt: new Date() };
 
-          const mapped = TRACKING_STATUS_MAP[trackData?.current_status];
+          const mapped = normalizeTrackingStatus(trackData?.current_status);
           if (mapped && mapped !== record.shipmentStatus) {
-            updates.shipmentStatus = mapped;
-            if (mapped === "CANCELLED") updates.isCancelled = true;
+            record.shipmentStatus = mapped;
+            if (mapped === "CANCELLED") record.isCancelled = true;
             results.updated++;
           }
 
-          await ShipmentRecord.findByIdAndUpdate(record._id, updates);
+          record.lastTrackedAt = new Date();
+          await record.save();
+
+          // Fire IN_TRANSIT email if newly transitioned (idempotent)
+          await maybeFireTransitEmail(record);
+
           results.synced++;
         } catch {
           results.errors++;
@@ -766,6 +862,97 @@ const syncAllStatuses = async (_req, res, next) => {
     return res
       .status(200)
       .json(new ApiResponse(200, "Status sync complete.", results));
+  } catch (err) {
+    next(err);
+  }
+};
+
+// POST /admin/shipmozo/shipments/:id/sync
+// Pulls the latest order detail from Shipmozo (AWB, courier, status) and writes it back.
+// Use this for rows where the courier was assigned on the Shipmozo website (not via our API),
+// meaning awbNumber is still null locally. If Shipmozo says the order doesn't exist, marks
+// the record as cancelled (handles the "deleted from Shipmozo website" bug).
+const syncStatusForShipment = async (req, res, next) => {
+  try {
+    console.log("[syncStatusForShipment] id:", req.params.id);
+    const record = await ShipmentRecord.findById(req.params.id);
+    if (!record) throw new ApiError(404, "Shipment record not found.");
+
+    console.log("[syncStatusForShipment] shipmozoOrderId:", record.shipmozoOrderId, "sourceOrderId:", record.sourceOrderId);
+
+    if (!record.shipmozoOrderId) {
+      throw new ApiError(
+        400,
+        "No Shipmozo order ID stored — cannot sync. The push may not have completed successfully.",
+      );
+    }
+
+    let orderDetail;
+    try {
+      console.log("[syncStatusForShipment] Calling getOrderDetail...");
+      const result = await shipmozoService.getOrderDetail(record.shipmozoOrderId);
+      console.log("[syncStatusForShipment] getOrderDetail raw response:", JSON.stringify(result));
+      // Shipmozo returns data as an array — always take the first element
+      const rawData = result?.data;
+      orderDetail = Array.isArray(rawData) ? rawData[0] : (rawData ?? result);
+    } catch (fetchErr) {
+      // If Shipmozo returns 404 / not-found, treat as deleted from their side
+      const status = fetchErr?.statusCode ?? fetchErr?.status ?? 0;
+      if (status === 404 || fetchErr?.message?.toLowerCase().includes("not found")) {
+        record.isCancelled = true;
+        record.shipmentStatus = "CANCELLED";
+        await record.save();
+        return res.status(200).json(
+          new ApiResponse(200, "Order not found on Shipmozo — marked as cancelled.", {
+            cancelled: true,
+            record: record.toObject(),
+          }),
+        );
+      }
+      throw fetchErr;
+    }
+
+    // Pull AWB and courier — Shipmozo nests these under shipping_details
+    const shippingDetails = orderDetail?.shipping_details ?? {};
+    const awb = shippingDetails?.awb_number ?? orderDetail?.awb_number ?? orderDetail?.awb ?? null;
+    const courier =
+      shippingDetails?.courier_company ??
+      (typeof orderDetail?.courier === "string"
+        ? orderDetail.courier
+        : (orderDetail?.courier?.name ?? orderDetail?.courier_name ?? null));
+
+    console.log("[syncStatusForShipment] awb:", awb, "courier:", courier, "order_status:", orderDetail?.order_status);
+
+    if (awb && !record.awbNumber) {
+      record.awbNumber = String(awb);
+    }
+    if (courier && !record.courierCompany) {
+      record.courierCompany = courier;
+    }
+
+    // Shipmozo uses order_status at the top level (e.g. "SCHEDULED", "IN_TRANSIT")
+    const rawStatus = orderDetail?.order_status ?? orderDetail?.status ?? orderDetail?.current_status ?? null;
+    const normalized = normalizeTrackingStatus(rawStatus);
+    if (normalized && normalized !== record.shipmentStatus) {
+      record.shipmentStatus = normalized;
+      if (normalized === "CANCELLED") record.isCancelled = true;
+    } else if (record.awbNumber && record.shipmentStatus === "PUSHED") {
+      // AWB now assigned but no status change — bump to ASSIGNED
+      record.shipmentStatus = "ASSIGNED";
+    }
+
+    record.lastTrackedAt = new Date();
+    await record.save();
+
+    // Fire IN_TRANSIT email if applicable
+    await maybeFireTransitEmail(record);
+
+    return res.status(200).json(
+      new ApiResponse(200, "Shipment synced from Shipmozo.", {
+        cancelled: false,
+        record: record.toObject(),
+      }),
+    );
   } catch (err) {
     next(err);
   }
@@ -783,4 +970,5 @@ export {
   cancelShipment,
   getShippedOrderIds,
   syncAllStatuses,
+  syncStatusForShipment,
 };
