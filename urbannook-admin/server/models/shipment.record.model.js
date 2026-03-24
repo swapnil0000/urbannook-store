@@ -74,6 +74,10 @@ const shipmentRecordSchema = new mongoose.Schema(
     trackingHistory: { type: [trackingEventSchema], default: [] },
     expectedDeliveryDate: { type: Date, default: null },
     lastTrackedAt: { type: Date, default: null },
+    // Set once when courier confirms pickup — used for idempotent email trigger
+    dispatchConfirmedAt: { type: Date, default: null },
+    // Set once when shipment moves to IN_TRANSIT — prevents duplicate dispatch emails
+    transitEmailSentAt: { type: Date, default: null },
   },
   { timestamps: true },
 );

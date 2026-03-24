@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from "react";
-import { Camera, Globe, MoreVertical, Truck, Printer, MapPin, XCircle } from "lucide-react";
+import { Camera, Globe, MoreVertical, Truck, Printer, MapPin, XCircle, RefreshCw } from "lucide-react";
 import ShipmentStatusBadge from "./ShipmentStatusBadge";
 
 const NON_CANCELLABLE = new Set(["DELIVERED", "CANCELLED", "RTO_DELIVERED"]);
@@ -24,6 +24,7 @@ export default function ShipmentRow({
   onPrintLabel,
   onTrack,
   onCancel,
+  onSync,
   onCloseMenu,
 }) {
   const menuRef    = useRef(null);
@@ -96,7 +97,9 @@ export default function ShipmentRow({
   const canLabel  = Boolean(shipment.awbNumber);
   const canTrack  = Boolean(shipment.awbNumber);
   const canCancel = !shipment.isCancelled && !NON_CANCELLABLE.has(shipment.shipmentStatus);
-  const hasAnyAction = canAssign || canLabel || canTrack || canCancel;
+  // Sync: courier was assigned on Shipmozo website but AWB not yet in our DB
+  const canSync   = !shipment.awbNumber && Boolean(shipment.shipmozoOrderId) && !shipment.isCancelled;
+  const hasAnyAction = canAssign || canLabel || canTrack || canCancel || canSync;
 
   return (
     <tr
@@ -215,6 +218,16 @@ export default function ShipmentRow({
                     Assign Courier
                   </button>
                 )}
+                {canSync && (
+                  <button onClick={() => { console.log("[ShipmentRow] Sync clicked, _id:", shipment._id, "onSync type:", typeof onSync); onCloseMenu(); onSync(shipment._id); }}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-sm transition-colors"
+                    style={{ color: "var(--color-urban-text)" }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = "var(--color-urban-raised)"}
+                    onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
+                    <RefreshCw className="h-4 w-4" style={{ color: "var(--color-urban-text-muted)" }} />
+                    Sync from Shipmozo
+                  </button>
+                )}
                 {canLabel && (
                   <button onClick={() => { onCloseMenu(); onPrintLabel(shipment); }}
                     className="flex items-center gap-2 w-full px-3 py-2 text-sm transition-colors"
@@ -237,7 +250,7 @@ export default function ShipmentRow({
                 )}
                 {canCancel && (
                   <>
-                    {(canAssign || canLabel || canTrack) && (
+                    {(canAssign || canSync || canLabel || canTrack) && (
                       <div className="my-1" style={{ borderTop: "1px solid var(--color-urban-border)" }} />
                     )}
                     <button onClick={() => { onCloseMenu(); onCancel(shipment); }}

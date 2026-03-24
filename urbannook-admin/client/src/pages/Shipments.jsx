@@ -168,6 +168,7 @@ export default function Shipments() {
               openLabelModal={hook.openLabelModal}
               openTrackDrawer={hook.openTrackDrawer}
               openCancelDialog={hook.openCancelDialog}
+              onSync={hook.syncSingleShipment}
             />
             <ShipmentsPagination
               currentPage={hook.currentPage}

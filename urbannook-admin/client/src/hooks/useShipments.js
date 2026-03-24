@@ -442,6 +442,37 @@ export function useShipments({ refreshKey = 0 } = {}) {
     }
   }, [state.activeTab, state.currentPage, fetchShipments, showToast]);
 
+  // ── Sync single shipment from Shipmozo (pulls AWB + status after web-side assignment) ──
+  const syncSingleShipment = useCallback(
+    async (shipmentId) => {
+      console.log("[Sync] Triggered for shipmentId:", shipmentId);
+      try {
+        const res = await apiClient.post(
+          `/admin/shipmozo/shipments/${shipmentId}/sync`,
+        );
+        console.log("[Sync] Response:", res.data);
+        const record = res.data.data?.record;
+        if (record) {
+          dispatch({ type: "UPDATE_SHIPMENT", payload: record });
+        }
+        if (res.data.data?.cancelled) {
+          // Shipmozo deleted — remove from list
+          dispatch({ type: "REMOVE_SHIPMENT", payload: shipmentId });
+          showToast("Order not found on Shipmozo — marked as cancelled.", "info");
+        } else {
+          showToast("Shipment synced successfully.", "success");
+        }
+        return res.data.data;
+      } catch (err) {
+        console.error("[Sync] Error:", err.response?.data ?? err.message);
+        const msg = err.response?.data?.message || "Sync failed.";
+        showToast(msg, "error");
+        throw err;
+      }
+    },
+    [showToast],
+  );
+
   return {
     // State
     shipments: state.shipments,
@@ -475,5 +506,6 @@ export function useShipments({ refreshKey = 0 } = {}) {
     closeCancelDialog,
     confirmCancel,
     syncStatuses,
+    syncSingleShipment,
   };
 }

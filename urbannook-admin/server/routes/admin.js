@@ -65,7 +65,7 @@ import {
 } from "../controllers/delete.approval.controller.js";
 import shipmozoRoutes from "./shipmozo.js";
 import { markDispatched, getDispatchedOrderIds } from "../controllers/dispatch.controller.js";
-import { getPaidOrders } from "../controllers/management.controller.js";
+import { getPaidOrders, getFulfillmentData, confirmDispatch } from "../controllers/management.controller.js";
 
 const router = express.Router();
 
@@ -157,7 +157,9 @@ router.patch("/testimonials/:id/decline", auth, requirePermission("testimonials"
 router.use("/shipmozo", auth, shipmozoRoutes);
 
 // Management
-router.get("/management/orders", auth, requirePermission("orders", "read"), getPaidOrders);
+router.get("/management/orders",                         auth, requirePermission("orders", "read"),  getPaidOrders);
+router.get("/management/fulfillment",                    auth, requirePermission("orders", "read"),  getFulfillmentData);
+router.post("/management/confirm-dispatch/:shipmentId",  auth, requirePermission("orders", "write"), confirmDispatch);
 
 // Dispatch — admin marks a parcel as handed to courier for pickup
 router.get("/dispatch/order-ids", auth, requirePermission("orders", "read"),  getDispatchedOrderIds);
