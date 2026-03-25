@@ -231,21 +231,19 @@ export default function SmartAddressInput({
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
         const parsed = parseRawAddress(raw);
-        setFields((prev) => {
-          const next = {
-            raw,
-            line1: parsed.line1 !== "" ? parsed.line1 : prev.line1,
-            line2: parsed.line2 !== "" ? parsed.line2 : prev.line2,
-            pincode: parsed.pincode !== "" ? parsed.pincode : prev.pincode,
-            city: parsed.city !== "" ? parsed.city : prev.city,
-            state: parsed.state !== "" ? parsed.state : prev.state,
-          };
-          // Only override if parse actually found structure
-          const merged = parsed.parseSuccess ? next : { ...prev, raw };
-          fieldsRef.current = merged;
-          notifyParent(merged);
-          return merged;
-        });
+        const prev = fieldsRef.current;
+        const next = {
+          raw,
+          line1: parsed.line1 !== "" ? parsed.line1 : prev.line1,
+          line2: parsed.line2 !== "" ? parsed.line2 : prev.line2,
+          pincode: parsed.pincode !== "" ? parsed.pincode : prev.pincode,
+          city: parsed.city !== "" ? parsed.city : prev.city,
+          state: parsed.state !== "" ? parsed.state : prev.state,
+        };
+        const merged = parsed.parseSuccess ? next : { ...prev, raw };
+        fieldsRef.current = merged;
+        setFields(merged);
+        notifyParent(merged);
       }, PARSE_DEBOUNCE_MS);
     },
     [notifyParent],
@@ -259,14 +257,13 @@ export default function SmartAddressInput({
           ? sanitizeAddressLine(rawValue)
           : rawValue;
 
-      setFields((prev) => {
-        const next = { ...prev, [field]: sanitized };
-        // Rebuild raw synchronously
-        next.raw = buildRawAddress(next);
-        fieldsRef.current = next;
-        notifyParent(next);
-        return next;
-      });
+      // Compute next state from ref (always up to date) — avoids calling
+      // notifyParent inside a setState updater which triggers React warning
+      const next = { ...fieldsRef.current, [field]: sanitized };
+      next.raw = buildRawAddress(next);
+      fieldsRef.current = next;
+      setFields(next);
+      notifyParent(next);
     },
     [notifyParent],
   );

@@ -204,7 +204,7 @@ export default function ShipmentRow({
                 className="fixed z-[9999] min-w-[168px] rounded-lg shadow-2xl py-1"
                 style={{
                   top: menuPos.top, right: menuPos.right,
-                  background: "var(--color-urban-surface)",
+                  background: "var(--color-urban-panel)",
                   border: "1px solid var(--color-urban-border)",
                 }}
               >
@@ -219,7 +219,7 @@ export default function ShipmentRow({
                   </button>
                 )}
                 {canSync && (
-                  <button onClick={() => { console.log("[ShipmentRow] Sync clicked, _id:", shipment._id, "onSync type:", typeof onSync); onCloseMenu(); onSync(shipment._id); }}
+                  <button onClick={() => { onCloseMenu(); onSync(shipment._id); }}
                     className="flex items-center gap-2 w-full px-3 py-2 text-sm transition-colors"
                     style={{ color: "var(--color-urban-text)" }}
                     onMouseEnter={(e) => e.currentTarget.style.background = "var(--color-urban-raised)"}

@@ -29,16 +29,18 @@ const orderSchema = new mongoose.Schema(
       razorpayPaymentId: { type: String },
       razorpaySignature: { type: String },
     },
+    isPriority:   { type: Boolean, default: false },
+    prioritizedAt:{ type: Date,    default: null },
     status: { type: String, enum: ["CREATED", "PAID", "FAILED"] },
     fulfillmentStatus: {
       type: String,
       enum: ["PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED"],
       default: "PROCESSING",
     },
-    tracking: {
-      carrier: { type: String },
+    trackingInfo: {
+      carrier:        { type: String },
       trackingNumber: { type: String },
-      updatedAt: { type: Date },
+      updatedAt:      { type: Date },
     },
   },
   { timestamps: true },

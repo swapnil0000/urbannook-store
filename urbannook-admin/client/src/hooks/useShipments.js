@@ -2,28 +2,15 @@ import { useReducer, useEffect, useRef, useCallback } from "react";
 import apiClient from "../api/axios";
 import { useToast } from "../context/ToastContext";
 
-// Tab → status query param mapping
-const TAB_STATUS_MAP = {
-  ALL: "",
-  NEW: "PUSHED",
-  ASSIGNED: "ASSIGNED,PICKUP_SCHEDULED",
-  TRANSIT: "IN_TRANSIT,OUT_FOR_DELIVERY",
-  DELIVERED: "DELIVERED",
-  RTO: "RTO_INITIATED,RTO_DELIVERED,EXCEPTION,CANCELLED",
-};
-
-const PAGE_SIZE = 20;
+// Fetch all shipments in one request — tabs are filtered client-side for instant switching
+const FETCH_LIMIT = 500;
 
 // ── Initial state ──────────────
 const initialState = {
-  shipments: [],
+  allShipments: [],
   loading: false,
   error: null,
   syncing: false,
-  activeTab: "ALL",
-  currentPage: 1,
-  totalPages: 1,
-  totalRecords: 0,
   // Overlays — only one active at a time
   actionMenu: { open: false, shipmentId: null },
   assignDrawer: { open: false, shipment: null },
@@ -56,28 +43,16 @@ function reducer(state, action) {
       return { ...state, syncing: false };
 
     case "FETCH_SUCCESS":
-      return {
-        ...state,
-        loading: false,
-        shipments: action.payload.shipments,
-        totalPages: action.payload.pagination.totalPages,
-        totalRecords: action.payload.pagination.totalRecords,
-      };
+      return { ...state, loading: false, allShipments: action.payload };
 
     case "FETCH_ERROR":
       return { ...state, loading: false, error: action.payload };
-
-    case "SET_TAB":
-      return { ...state, activeTab: action.payload, currentPage: 1 };
-
-    case "SET_PAGE":
-      return { ...state, currentPage: action.payload };
 
     // Replace a single record in the list (used after assign/track)
     case "UPDATE_SHIPMENT":
       return {
         ...state,
-        shipments: state.shipments.map((s) =>
+        allShipments: state.allShipments.map((s) =>
           s._id === action.payload._id ? { ...s, ...action.payload } : s,
         ),
       };
@@ -86,16 +61,12 @@ function reducer(state, action) {
     case "REMOVE_SHIPMENT":
       return {
         ...state,
-        shipments: state.shipments.filter((s) => s._id !== action.payload),
-        totalRecords: Math.max(0, state.totalRecords - 1),
+        allShipments: state.allShipments.filter((s) => s._id !== action.payload),
       };
 
     // Action menu
     case "OPEN_ACTION_MENU":
-      return {
-        ...state,
-        actionMenu: { open: true, shipmentId: action.payload },
-      };
+      return { ...state, actionMenu: { open: true, shipmentId: action.payload } };
     case "CLOSE_ACTION_MENU":
       return { ...state, actionMenu: { open: false, shipmentId: null } };
 
@@ -125,31 +96,17 @@ function reducer(state, action) {
     case "SET_TRACK_DATA":
       return {
         ...state,
-        trackDrawer: {
-          ...state.trackDrawer,
-          loading: false,
-          trackData: action.payload,
-        },
+        trackDrawer: { ...state.trackDrawer, loading: false, trackData: action.payload },
       };
     case "SET_TRACK_ERROR":
       return {
         ...state,
-        trackDrawer: {
-          ...state.trackDrawer,
-          loading: false,
-          error: action.payload,
-        },
+        trackDrawer: { ...state.trackDrawer, loading: false, error: action.payload },
       };
     case "CLOSE_TRACK_DRAWER":
       return {
         ...state,
-        trackDrawer: {
-          open: false,
-          shipment: null,
-          trackData: null,
-          loading: false,
-          error: null,
-        },
+        trackDrawer: { open: false, shipment: null, trackData: null, loading: false, error: null },
       };
 
     // Label modal
@@ -168,31 +125,17 @@ function reducer(state, action) {
     case "SET_LABEL_DATA":
       return {
         ...state,
-        labelModal: {
-          ...state.labelModal,
-          loading: false,
-          label: action.payload,
-        },
+        labelModal: { ...state.labelModal, loading: false, label: action.payload },
       };
     case "SET_LABEL_ERROR":
       return {
         ...state,
-        labelModal: {
-          ...state.labelModal,
-          loading: false,
-          error: action.payload,
-        },
+        labelModal: { ...state.labelModal, loading: false, error: action.payload },
       };
     case "CLOSE_LABEL_MODAL":
       return {
         ...state,
-        labelModal: {
-          open: false,
-          shipment: null,
-          label: null,
-          loading: false,
-          error: null,
-        },
+        labelModal: { open: false, shipment: null, label: null, loading: false, error: null },
       };
 
     // Cancel dialog
@@ -200,12 +143,7 @@ function reducer(state, action) {
       return {
         ...state,
         actionMenu: { open: false, shipmentId: null },
-        cancelDialog: {
-          open: true,
-          shipment: action.payload,
-          loading: false,
-          error: null,
-        },
+        cancelDialog: { open: true, shipment: action.payload, loading: false, error: null },
       };
     case "SET_CANCEL_LOADING":
       return {
@@ -215,21 +153,12 @@ function reducer(state, action) {
     case "SET_CANCEL_ERROR":
       return {
         ...state,
-        cancelDialog: {
-          ...state.cancelDialog,
-          loading: false,
-          error: action.payload,
-        },
+        cancelDialog: { ...state.cancelDialog, loading: false, error: action.payload },
       };
     case "CLOSE_CANCEL_DIALOG":
       return {
         ...state,
-        cancelDialog: {
-          open: false,
-          shipment: null,
-          loading: false,
-          error: null,
-        },
+        cancelDialog: { open: false, shipment: null, loading: false, error: null },
       };
 
     default:
@@ -244,38 +173,34 @@ export function useShipments({ refreshKey = 0 } = {}) {
   const abortRef = useRef(null);
   const isMountedRef = useRef(true);
 
-  // ── Core fetch ───────────────
-  const fetchShipments = useCallback(async (tab, page) => {
+  // ── Fetch all at once (no tab filter — filtering is done client-side) ───────
+  const fetchAll = useCallback(async () => {
     if (abortRef.current) abortRef.current.abort();
     abortRef.current = new AbortController();
 
     dispatch({ type: "FETCH_START" });
     try {
-      const params = { page, limit: PAGE_SIZE };
-      const statusFilter = TAB_STATUS_MAP[tab];
-      if (statusFilter) params.status = statusFilter;
-
       const res = await apiClient.get("/admin/shipmozo/shipments", {
-        params,
+        params: { page: 1, limit: FETCH_LIMIT },
         signal: abortRef.current.signal,
       });
       if (!isMountedRef.current) return;
-      dispatch({ type: "FETCH_SUCCESS", payload: res.data.data });
+      dispatch({ type: "FETCH_SUCCESS", payload: res.data.data.shipments });
     } catch (err) {
       if (!isMountedRef.current) return;
       if (err.code === "ERR_CANCELED" || err.name === "CanceledError") return;
-      const msg = err.response?.data?.message || "Failed to load shipments.";
-      dispatch({ type: "FETCH_ERROR", payload: msg });
+      dispatch({
+        type: "FETCH_ERROR",
+        payload: err.response?.data?.message || "Failed to load shipments.",
+      });
     }
   }, []);
 
-  // Re-fetch when tab or page changes, or env switches
+  // Initial load + env switch
   useEffect(() => {
-    fetchShipments(state.activeTab, state.currentPage);
-    return () => {
-      abortRef.current?.abort();
-    };
-  }, [state.activeTab, state.currentPage, fetchShipments, refreshKey]);
+    fetchAll();
+    return () => { abortRef.current?.abort(); };
+  }, [fetchAll, refreshKey]);
 
   // Lifecycle cleanup
   useEffect(() => {
@@ -285,20 +210,6 @@ export function useShipments({ refreshKey = 0 } = {}) {
       abortRef.current?.abort();
     };
   }, []);
-
-  // ── Simple nav actions ───────
-  const setTab = useCallback(
-    (tab) => dispatch({ type: "SET_TAB", payload: tab }),
-    [],
-  );
-  const setPage = useCallback(
-    (page) => dispatch({ type: "SET_PAGE", payload: page }),
-    [],
-  );
-  const refetch = useCallback(
-    () => fetchShipments(state.activeTab, state.currentPage),
-    [state.activeTab, state.currentPage, fetchShipments],
-  );
 
   // ── Action menu ──────────────
   const openActionMenu = useCallback(
@@ -321,9 +232,7 @@ export function useShipments({ refreshKey = 0 } = {}) {
   );
 
   const fetchRates = useCallback(async (shipmentId) => {
-    const res = await apiClient.get(
-      `/admin/shipmozo/shipments/${shipmentId}/rates`,
-    );
+    const res = await apiClient.get(`/admin/shipmozo/shipments/${shipmentId}/rates`);
     return res.data.data;
   }, []);
 
@@ -344,56 +253,37 @@ export function useShipments({ refreshKey = 0 } = {}) {
   const openTrackDrawer = useCallback(async (shipment) => {
     dispatch({ type: "OPEN_TRACK_DRAWER", payload: shipment });
     try {
-      const res = await apiClient.get(
-        `/admin/shipmozo/shipments/${shipment._id}/track`,
-      );
-      // Also sync the status in the row using normalized status
+      const res = await apiClient.get(`/admin/shipmozo/shipments/${shipment._id}/track`);
       if (res.data.data?._normalizedStatus) {
         dispatch({
           type: "UPDATE_SHIPMENT",
-          payload: {
-            _id: shipment._id,
-            shipmentStatus: res.data.data._normalizedStatus,
-          },
+          payload: { _id: shipment._id, shipmentStatus: res.data.data._normalizedStatus },
         });
       }
       dispatch({ type: "SET_TRACK_DATA", payload: res.data.data });
     } catch (err) {
       dispatch({
         type: "SET_TRACK_ERROR",
-        payload:
-          err.response?.data?.message || "Failed to fetch tracking data.",
+        payload: err.response?.data?.message || "Failed to fetch tracking data.",
       });
     }
   }, []);
-  const closeTrackDrawer = useCallback(
-    () => dispatch({ type: "CLOSE_TRACK_DRAWER" }),
-    [],
-  );
+  const closeTrackDrawer = useCallback(() => dispatch({ type: "CLOSE_TRACK_DRAWER" }), []);
 
   // ── Label ────────────────────
   const openLabelModal = useCallback(async (shipment) => {
     dispatch({ type: "OPEN_LABEL_MODAL", payload: shipment });
     try {
-      const res = await apiClient.get(
-        `/admin/shipmozo/shipments/${shipment._id}/label`,
-      );
-      dispatch({
-        type: "SET_LABEL_DATA",
-        payload: res.data.data?.label ?? null,
-      });
+      const res = await apiClient.get(`/admin/shipmozo/shipments/${shipment._id}/label`);
+      dispatch({ type: "SET_LABEL_DATA", payload: res.data.data?.label ?? null });
     } catch (err) {
       dispatch({
         type: "SET_LABEL_ERROR",
-        payload:
-          err.response?.data?.message || "Failed to fetch shipping label.",
+        payload: err.response?.data?.message || "Failed to fetch shipping label.",
       });
     }
   }, []);
-  const closeLabelModal = useCallback(
-    () => dispatch({ type: "CLOSE_LABEL_MODAL" }),
-    [],
-  );
+  const closeLabelModal = useCallback(() => dispatch({ type: "CLOSE_LABEL_MODAL" }), []);
 
   // ── Cancel ───────────────────
   const openCancelDialog = useCallback(
@@ -409,15 +299,10 @@ export function useShipments({ refreshKey = 0 } = {}) {
     async (shipmentId) => {
       dispatch({ type: "SET_CANCEL_LOADING" });
       try {
-        await apiClient.post(
-          `/admin/shipmozo/shipments/${shipmentId}/cancel`,
-        );
-        // Remove the row instantly so it doesn't linger in the wrong tab
+        await apiClient.post(`/admin/shipmozo/shipments/${shipmentId}/cancel`);
         dispatch({ type: "REMOVE_SHIPMENT", payload: shipmentId });
         dispatch({ type: "CLOSE_CANCEL_DIALOG" });
         showToast("Shipment cancelled.", "info");
-        // Refetch to sync pagination counts
-        fetchShipments(state.activeTab, state.currentPage);
       } catch (err) {
         dispatch({
           type: "SET_CANCEL_ERROR",
@@ -425,7 +310,7 @@ export function useShipments({ refreshKey = 0 } = {}) {
         });
       }
     },
-    [showToast, fetchShipments, state.activeTab, state.currentPage],
+    [showToast],
   );
 
   // ── Sync all statuses ────────
@@ -434,29 +319,24 @@ export function useShipments({ refreshKey = 0 } = {}) {
     try {
       await apiClient.post("/admin/shipmozo/shipments/sync-statuses");
       showToast("Statuses synced successfully.", "success");
-      fetchShipments(state.activeTab, state.currentPage);
+      fetchAll();
     } catch (err) {
       showToast(err.response?.data?.message || "Sync failed.", "error");
     } finally {
       dispatch({ type: "SYNC_DONE" });
     }
-  }, [state.activeTab, state.currentPage, fetchShipments, showToast]);
+  }, [fetchAll, showToast]);
 
-  // ── Sync single shipment from Shipmozo (pulls AWB + status after web-side assignment) ──
+  // ── Sync single shipment ─────
   const syncSingleShipment = useCallback(
     async (shipmentId) => {
-      console.log("[Sync] Triggered for shipmentId:", shipmentId);
       try {
-        const res = await apiClient.post(
-          `/admin/shipmozo/shipments/${shipmentId}/sync`,
-        );
-        console.log("[Sync] Response:", res.data);
+        const res = await apiClient.post(`/admin/shipmozo/shipments/${shipmentId}/sync`);
         const record = res.data.data?.record;
         if (record) {
           dispatch({ type: "UPDATE_SHIPMENT", payload: record });
         }
         if (res.data.data?.cancelled) {
-          // Shipmozo deleted — remove from list
           dispatch({ type: "REMOVE_SHIPMENT", payload: shipmentId });
           showToast("Order not found on Shipmozo — marked as cancelled.", "info");
         } else {
@@ -475,23 +355,17 @@ export function useShipments({ refreshKey = 0 } = {}) {
 
   return {
     // State
-    shipments: state.shipments,
+    allShipments: state.allShipments,
     loading: state.loading,
     error: state.error,
     syncing: state.syncing,
-    activeTab: state.activeTab,
-    currentPage: state.currentPage,
-    totalPages: state.totalPages,
-    totalRecords: state.totalRecords,
     actionMenu: state.actionMenu,
     assignDrawer: state.assignDrawer,
     trackDrawer: state.trackDrawer,
     labelModal: state.labelModal,
     cancelDialog: state.cancelDialog,
     // Actions
-    setTab,
-    setPage,
-    refetch,
+    refetch: fetchAll,
     openActionMenu,
     closeActionMenu,
     openAssignDrawer,
