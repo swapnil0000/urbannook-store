@@ -115,11 +115,11 @@ const getFulfillmentData = async (req, res, next) => {
     const [webPending, igPending] = await Promise.all([
       Order.find(
         { status: "PAID", orderId: { $nin: activeShipmentOrderIds } },
-        { orderId: 1, userId: 1, createdAt: 1, items: 1, amount: 1 },
+        { orderId: 1, userId: 1, createdAt: 1, items: 1, amount: 1, isPriority: 1, prioritizedAt: 1 },
       ).sort({ createdAt: 1 }).lean(),
       InstagramOrder.find(
         { status: "PAID", orderId: { $nin: activeShipmentOrderIds } },
-        { orderId: 1, customerName: 1, mobileNo: 1, createdAt: 1, orderedAt: 1, items: 1, amount: 1 },
+        { orderId: 1, customerName: 1, mobileNo: 1, createdAt: 1, orderedAt: 1, items: 1, amount: 1, isPriority: 1, prioritizedAt: 1 },
       ).sort({ createdAt: 1 }).lean(),
     ]);
 
@@ -135,22 +135,26 @@ const getFulfillmentData = async (req, res, next) => {
 
     const pendingFulfillment = [
       ...webPending.map((o) => ({
-        orderId:      o.orderId,
-        customerName: pendingUserMap[o.userId]?.name || `User ${(o.userId || "").slice(-6)}`,
-        date:         o.createdAt,
-        items:        o.items || [],
-        amount:       o.amount ?? 0,
-        status:       "PAID",   // query already filters PAID-only; include for frontend guard
-        source:       "WEBSITE",
+        orderId:       o.orderId,
+        customerName:  pendingUserMap[o.userId]?.name || `User ${(o.userId || "").slice(-6)}`,
+        date:          o.createdAt,
+        items:         o.items || [],
+        amount:        o.amount ?? 0,
+        status:        "PAID",
+        source:        "WEBSITE",
+        isPriority:    !!o.isPriority,
+        prioritizedAt: o.prioritizedAt ?? null,
       })),
       ...igPending.map((o) => ({
-        orderId:      o.orderId,
-        customerName: o.customerName,
-        date:         o.orderedAt || o.createdAt,
-        items:        o.items || [],
-        amount:       o.amount ?? 0,
-        status:       "PAID",   // same
-        source:       "INSTAGRAM",
+        orderId:       o.orderId,
+        customerName:  o.customerName,
+        date:          o.orderedAt || o.createdAt,
+        items:         o.items || [],
+        amount:        o.amount ?? 0,
+        status:        "PAID",
+        source:        "INSTAGRAM",
+        isPriority:    !!o.isPriority,
+        prioritizedAt: o.prioritizedAt ?? null,
       })),
     ].sort((a, b) => new Date(a.date) - new Date(b.date))  // OLDEST FIRST → FIFO
      .filter((o, idx, arr) => arr.findIndex((x) => x.orderId === o.orderId) === idx); // deduplicate
@@ -342,4 +346,33 @@ const confirmDispatch = async (req, res, next) => {
   }
 };
 
-export { getPaidOrders, getFulfillmentData, confirmDispatch };
+// PATCH /admin/management/priority/:orderId?source=WEBSITE|INSTAGRAM
+// Toggles the isPriority flag on the order so every admin sees the same state.
+// Sets prioritizedAt on mark; clears it on unmark.
+const togglePriority = async (req, res, next) => {
+  try {
+    const { orderId } = req.params;
+    const source      = (req.query.source || "WEBSITE").toUpperCase();
+
+    const Model = source === "INSTAGRAM" ? InstagramOrder : Order;
+    const order = await Model.findOne({ orderId });
+    if (!order) throw new ApiError(404, "Order not found.");
+
+    order.isPriority    = !order.isPriority;
+    order.prioritizedAt = order.isPriority ? new Date() : null;
+    await order.save();
+
+    return res.status(200).json(
+      new ApiResponse(200, `Priority ${order.isPriority ? "set" : "cleared"}.`, {
+        orderId,
+        source,
+        isPriority:    order.isPriority,
+        prioritizedAt: order.prioritizedAt,
+      }),
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+export { getPaidOrders, getFulfillmentData, confirmDispatch, togglePriority };

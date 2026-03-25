@@ -204,7 +204,7 @@ export default function ShipmentRow({
                 className="fixed z-[9999] min-w-[168px] rounded-lg shadow-2xl py-1"
                 style={{
                   top: menuPos.top, right: menuPos.right,
-                  background: "var(--color-urban-surface)",
+                  background: "var(--color-urban-panel)",
                   border: "1px solid var(--color-urban-border)",
                 }}
               >

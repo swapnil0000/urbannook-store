@@ -5,7 +5,7 @@ import User from "../models/user.model.js";
 import { ApiResponse, ApiError } from "../utils/apiResponse.js";
 import { parseAddress } from "../utils/addressParser.js";
 import * as shipmozoService from "../services/shipmozoService.js";
-import { sendInTransitEmail } from "../services/emailService.js";
+import { sendDispatchEmail, sendInTransitEmail, sendDeliveredEmail } from "../services/emailService.js";
 
 // Valid payment types accepted by Shipmozo
 const ALLOWED_PAYMENT_TYPES = new Set(["PREPAID", "COD"]);
@@ -78,39 +78,187 @@ function normalizeTrackingStatus(raw) {
   return TRACKING_STATUS_MAP[raw] ?? TRACKING_STATUS_MAP[raw.toLowerCase()] ?? null;
 }
 
-/**
- * If a ShipmentRecord has transitioned to IN_TRANSIT and no email has been sent yet,
- * look up the customer and send the transit email (WEBSITE orders only).
- * Non-fatal — email failure is logged but does not abort the calling operation.
- * @param {import('../models/shipment.record.model.js').default} record — mongoose doc (not lean)
- */
-async function maybeFireTransitEmail(record) {
-  if (
-    record.shipmentStatus !== "IN_TRANSIT" ||
-    record.transitEmailSentAt ||
-    record.sourceOrderType !== "WEBSITE"
-  ) return;
+// ── Email helpers (all non-fatal — log and move on) ──────────────────────────
+//
+// Stage 1 — AWB received → sendDispatchEmail
+//   Guard: record.awbNumber exists && dispatchConfirmedAt is null && WEBSITE
+//   Called from: syncStatusForShipment (when AWB is set), syncAllStatuses
+//
+// Stage 2 — Status → IN_TRANSIT → sendInTransitEmail
+//   Guard: shipmentStatus === "IN_TRANSIT" && transitEmailSentAt is null && WEBSITE
+//   Called from: both sync functions
+//
+// Stage 3 — Status → DELIVERED → sendDeliveredEmail
+//   Guard: shipmentStatus === "DELIVERED" && deliveredEmailSentAt is null && WEBSITE
+//   Called from: both sync functions
 
-  try {
-    const order = await Order.findOne({ orderId: record.sourceOrderId }, { userId: 1 }).lean();
-    if (!order) return;
-    const user = await User.findOne({ userId: order.userId }, { name: 1, email: 1 }).lean();
-    if (!user?.email) return;
+async function maybeFireDispatchEmail(record) {
+  const tag = `[Email:Dispatch][${record.sourceOrderId}]`;
 
-    await sendInTransitEmail({
-      to: user.email,
-      customerName: user.name || "Valued Customer",
-      orderId: record.sourceOrderId,
-      awbNumber: record.awbNumber,
-      courierCompany: record.courierCompany,
-    });
-
-    record.transitEmailSentAt = new Date();
-    await record.save();
-    console.log(`[Email] IN_TRANSIT email sent for order ${record.sourceOrderId}`);
-  } catch (emailErr) {
-    console.error("[Email] Transit email failed (non-fatal):", emailErr.message);
+  if (!record.awbNumber) {
+    console.log(`${tag} Skipped — no AWB on record`);
+    return;
   }
+  if (record.dispatchConfirmedAt) {
+    console.log(`${tag} Skipped — already confirmed at ${record.dispatchConfirmedAt.toISOString()}`);
+    return;
+  }
+  if (record.sourceOrderType !== "WEBSITE") {
+    console.log(`${tag} Skipped — Instagram order (no email)`);
+    return;
+  }
+
+  console.log(`${tag} Attempting... (AWB: ${record.awbNumber})`);
+
+  // Set DB lock first (fast write) — any concurrent sync call sees this immediately
+  record.dispatchConfirmedAt = new Date();
+  await record.save();
+  console.log(`${tag} Lock set — sending email in background`);
+
+  // Fire email in background — does NOT block the sync response
+  const _orderId        = record.sourceOrderId;
+  const _awbNumber      = record.awbNumber;
+  const _courierCompany = record.courierCompany;
+  (async () => {
+    try {
+      const order = await Order.findOne(
+        { orderId: _orderId },
+        { userId: 1, items: 1, amount: 1, "deliveryAddress.formattedAddress": 1 },
+      ).lean();
+      if (!order) { console.warn(`${tag} ⚠️ Order not found in DB`); return; }
+
+      const user = await User.findOne({ userId: order.userId }, { name: 1, email: 1, mobileNumber: 1 }).lean();
+      if (!user?.email) { console.warn(`${tag} ⚠️ No email on user account`); return; }
+
+      console.log(`${tag} Sending to ${user.email}`);
+      await sendDispatchEmail({
+        to:              user.email,
+        customerName:    user.name || "Valued Customer",
+        orderId:         _orderId,
+        awbNumber:       _awbNumber,
+        courierCompany:  _courierCompany,
+        items:           order.items || [],
+        amount:          order.amount || 0,
+        deliveryAddress: order.deliveryAddress?.formattedAddress || "",
+        mobileNumber:    user.mobileNumber ? String(user.mobileNumber) : "",
+      });
+      console.log(`${tag} ✅ Sent`);
+    } catch (err) {
+      console.error(`${tag} ❌ Background send failed:`, err.message);
+      // Lock stays set — sendEmailWithRetry already tried 3× before throwing
+    }
+  })();
+  // Returns here immediately — sync response is not waiting for SMTP
+}
+
+async function maybeFireTransitEmail(record) {
+  const tag = `[Email:Transit][${record.sourceOrderId}]`;
+
+  if (record.shipmentStatus !== "IN_TRANSIT") {
+    console.log(`${tag} Skipped — status is ${record.shipmentStatus}`);
+    return;
+  }
+  if (record.transitEmailSentAt) {
+    console.log(`${tag} Skipped — already sent at ${record.transitEmailSentAt.toISOString()}`);
+    return;
+  }
+  if (record.sourceOrderType !== "WEBSITE") {
+    console.log(`${tag} Skipped — Instagram order (no email)`);
+    return;
+  }
+
+  console.log(`${tag} Attempting... (AWB: ${record.awbNumber})`);
+
+  record.transitEmailSentAt = new Date();
+  await record.save();
+  console.log(`${tag} Lock set — sending email in background`);
+
+  const _orderId        = record.sourceOrderId;
+  const _awbNumber      = record.awbNumber;
+  const _courierCompany = record.courierCompany;
+  (async () => {
+    try {
+      const order = await Order.findOne(
+        { orderId: _orderId },
+        { userId: 1, items: 1, amount: 1, "deliveryAddress.formattedAddress": 1 },
+      ).lean();
+      if (!order) { console.warn(`${tag} ⚠️ Order not found in DB`); return; }
+
+      const user = await User.findOne({ userId: order.userId }, { name: 1, email: 1, mobileNumber: 1 }).lean();
+      if (!user?.email) { console.warn(`${tag} ⚠️ No email on user account`); return; }
+
+      console.log(`${tag} Sending to ${user.email}`);
+      await sendInTransitEmail({
+        to:              user.email,
+        customerName:    user.name || "Valued Customer",
+        orderId:         _orderId,
+        awbNumber:       _awbNumber,
+        courierCompany:  _courierCompany,
+        items:           order.items || [],
+        amount:          order.amount || 0,
+        deliveryAddress: order.deliveryAddress?.formattedAddress || "",
+        mobileNumber:    user.mobileNumber ? String(user.mobileNumber) : "",
+      });
+      console.log(`${tag} ✅ Sent`);
+    } catch (err) {
+      console.error(`${tag} ❌ Background send failed:`, err.message);
+    }
+  })();
+}
+
+async function maybeFireDeliveredEmail(record) {
+  const tag = `[Email:Delivered][${record.sourceOrderId}]`;
+
+  if (record.shipmentStatus !== "DELIVERED") {
+    console.log(`${tag} Skipped — status is ${record.shipmentStatus}`);
+    return;
+  }
+  if (record.deliveredEmailSentAt) {
+    console.log(`${tag} Skipped — already sent at ${record.deliveredEmailSentAt.toISOString()}`);
+    return;
+  }
+  if (record.sourceOrderType !== "WEBSITE") {
+    console.log(`${tag} Skipped — Instagram order (no email)`);
+    return;
+  }
+
+  console.log(`${tag} Attempting...`);
+
+  record.deliveredEmailSentAt = new Date();
+  await record.save();
+  console.log(`${tag} Lock set — sending email in background`);
+
+  const _orderId        = record.sourceOrderId;
+  const _awbNumber      = record.awbNumber;
+  const _courierCompany = record.courierCompany;
+  (async () => {
+    try {
+      const order = await Order.findOne(
+        { orderId: _orderId },
+        { userId: 1, items: 1, amount: 1, "deliveryAddress.formattedAddress": 1 },
+      ).lean();
+      if (!order) { console.warn(`${tag} ⚠️ Order not found in DB`); return; }
+
+      const user = await User.findOne({ userId: order.userId }, { name: 1, email: 1, mobileNumber: 1 }).lean();
+      if (!user?.email) { console.warn(`${tag} ⚠️ No email on user account`); return; }
+
+      console.log(`${tag} Sending to ${user.email}`);
+      await sendDeliveredEmail({
+        to:              user.email,
+        customerName:    user.name || "Valued Customer",
+        orderId:         _orderId,
+        awbNumber:       _awbNumber,
+        courierCompany:  _courierCompany,
+        items:           order.items || [],
+        amount:          order.amount || 0,
+        deliveryAddress: order.deliveryAddress?.formattedAddress || "",
+        mobileNumber:    user.mobileNumber ? String(user.mobileNumber) : "",
+      });
+      console.log(`${tag} ✅ Sent`);
+    } catch (err) {
+      console.error(`${tag} ❌ Background send failed:`, err.message);
+    }
+  })();
 }
 
 /**
@@ -919,11 +1067,14 @@ const syncAllStatuses = async (_req, res, next) => {
           // Ensure trackingInfo is written to source order (idempotent — no-op if already set)
           await writeTrackingToSourceOrder(record);
 
-          // Fire IN_TRANSIT email if newly transitioned (idempotent)
-          await maybeFireTransitEmail(record);
+          // Fire stage emails (all idempotent via their respective sentAt guards)
+          await maybeFireDispatchEmail(record);  // Stage 1: AWB received
+          await maybeFireTransitEmail(record);   // Stage 2: IN_TRANSIT
+          await maybeFireDeliveredEmail(record); // Stage 3: DELIVERED
 
           results.synced++;
-        } catch {
+        } catch (err) {
+          console.error(`[syncAllStatuses] Error on record ${record._id}:`, err.message);
           results.errors++;
         }
       }),
@@ -1048,8 +1199,10 @@ const syncStatusForShipment = async (req, res, next) => {
     // Write AWB to source order — isValidAwb guard is inside writeTrackingToSourceOrder
     await writeTrackingToSourceOrder(record);
 
-    // Fire IN_TRANSIT email if applicable
-    await maybeFireTransitEmail(record);
+    // Fire stage emails (all idempotent via their respective sentAt guards)
+    await maybeFireDispatchEmail(record);  // Stage 1: AWB received
+    await maybeFireTransitEmail(record);   // Stage 2: IN_TRANSIT
+    await maybeFireDeliveredEmail(record); // Stage 3: DELIVERED
 
     return res.status(200).json(
       new ApiResponse(200, "Shipment synced from Shipmozo.", {

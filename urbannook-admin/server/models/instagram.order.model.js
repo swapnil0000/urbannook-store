@@ -21,6 +21,8 @@ const instagramOrderSchema = new mongoose.Schema(
       },
     ],
     amount: { type: Number },
+    isPriority:    { type: Boolean, default: false },
+    prioritizedAt: { type: Date,    default: null },
     status: {
       type: String,
       enum: ["CREATED", "PAID", "FAILED"],
