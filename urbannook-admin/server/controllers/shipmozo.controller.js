@@ -5,6 +5,7 @@ import User from "../models/user.model.js";
 import { ApiResponse, ApiError } from "../utils/apiResponse.js";
 import { parseAddress } from "../utils/addressParser.js";
 import * as shipmozoService from "../services/shipmozoService.js";
+import { sendDispatchEmail, sendInTransitEmail, sendDeliveredEmail } from "../services/emailService.js";
 
 // Valid payment types accepted by Shipmozo
 const ALLOWED_PAYMENT_TYPES = new Set(["PREPAID", "COD"]);
@@ -19,16 +20,310 @@ const NON_CANCELLABLE_STATUSES = new Set([
   "RTO_DELIVERED",
 ]);
 
-// Map Shipmozo tracking status strings → our ShipmentRecord enum values
+// Map Shipmozo tracking status strings → our ShipmentRecord enum values.
+// Shipmozo returns human-readable strings like "In Transit", "Delivered" etc.
+// Keys are lowercased at lookup time (see normalizeTrackingStatus below).
 const TRACKING_STATUS_MAP = {
-  IN_TRANSIT: "IN_TRANSIT",
-  OUT_FOR_DELIVERY: "OUT_FOR_DELIVERY",
-  DELIVERED: "DELIVERED",
-  RTO_INITIATED: "RTO_INITIATED",
-  RTO_DELIVERED: "RTO_DELIVERED",
-  CANCELLED: "CANCELLED",
-  EXCEPTION: "EXCEPTION",
+  // ── Pre-pickup ────────────────────────────────────────────────────────────
+  "data received":            "PUSHED",
+  "pickup pending":           "PUSHED",
+  "out for pickup":           "PICKUP_SCHEDULED",
+  "scheduled":                "PICKUP_SCHEDULED",
+  "pickup scheduled":         "PICKUP_SCHEDULED",
+  "assigned":                 "ASSIGNED",
+
+  // ── Pickup done / in motion ───────────────────────────────────────────────
+  "pickdone":                 "IN_TRANSIT",   // XpressBees: "PickDone"
+  "pickup done":              "IN_TRANSIT",
+  "pickup completed":         "IN_TRANSIT",
+  "picked":                   "IN_TRANSIT",   // XpressBees: "Picked"
+  "in transit":               "IN_TRANSIT",
+  "intransit":                "IN_TRANSIT",   // XpressBees: "InTransit"
+  "shipped":                  "IN_TRANSIT",
+
+  // ── Last-mile ─────────────────────────────────────────────────────────────
+  "at delivery center":       "OUT_FOR_DELIVERY",   // XpressBees current_status
+  "reached at destination":   "OUT_FOR_DELIVERY",   // XpressBees scan_detail
+  "out for delivery":         "OUT_FOR_DELIVERY",
+  "with delivery boy":        "OUT_FOR_DELIVERY",
+
+  // ── Terminal ──────────────────────────────────────────────────────────────
+  "delivered":                "DELIVERED",
+  "cancelled":                "CANCELLED",
+  "cancel":                   "CANCELLED",
+  "rto initiated":            "RTO_INITIATED",
+  "return initiated":         "RTO_INITIATED",
+  "rto in transit":           "RTO_INITIATED",
+  "rto delivered":            "RTO_DELIVERED",
+  "exception":                "EXCEPTION",
+  "lost":                     "EXCEPTION",
+  "damaged":                  "EXCEPTION",
+
+  // ── Backward-compat uppercase (assign-courier / schedule-pickup responses) ─
+  "IN_TRANSIT":               "IN_TRANSIT",
+  "OUT_FOR_DELIVERY":         "OUT_FOR_DELIVERY",
+  "DELIVERED":                "DELIVERED",
+  "RTO_INITIATED":            "RTO_INITIATED",
+  "RTO_DELIVERED":            "RTO_DELIVERED",
+  "CANCELLED":                "CANCELLED",
+  "EXCEPTION":                "EXCEPTION",
 };
+
+/**
+ * Normalize a raw Shipmozo status string to our enum value.
+ * Tries exact match first, then lowercase lookup.
+ */
+function normalizeTrackingStatus(raw) {
+  if (!raw) return null;
+  return TRACKING_STATUS_MAP[raw] ?? TRACKING_STATUS_MAP[raw.toLowerCase()] ?? null;
+}
+
+// ── Email helpers (all non-fatal — log and move on) ──────────────────────────
+//
+// Stage 1 — AWB received → sendDispatchEmail
+//   Guard: record.awbNumber exists && dispatchConfirmedAt is null && WEBSITE
+//   Called from: syncStatusForShipment (when AWB is set), syncAllStatuses
+//
+// Stage 2 — Status → IN_TRANSIT → sendInTransitEmail
+//   Guard: shipmentStatus === "IN_TRANSIT" && transitEmailSentAt is null && WEBSITE
+//   Called from: both sync functions
+//
+// Stage 3 — Status → DELIVERED → sendDeliveredEmail
+//   Guard: shipmentStatus === "DELIVERED" && deliveredEmailSentAt is null && WEBSITE
+//   Called from: both sync functions
+
+async function maybeFireDispatchEmail(record) {
+  const tag = `[Email:Dispatch][${record.sourceOrderId}]`;
+
+  if (!record.awbNumber) {
+    console.log(`${tag} Skipped — no AWB on record`);
+    return;
+  }
+  if (record.dispatchConfirmedAt) {
+    console.log(`${tag} Skipped — already confirmed at ${record.dispatchConfirmedAt.toISOString()}`);
+    return;
+  }
+  if (record.sourceOrderType !== "WEBSITE") {
+    console.log(`${tag} Skipped — Instagram order (no email)`);
+    return;
+  }
+
+  console.log(`${tag} Attempting... (AWB: ${record.awbNumber})`);
+
+  // Set DB lock first (fast write) — any concurrent sync call sees this immediately
+  record.dispatchConfirmedAt = new Date();
+  await record.save();
+  console.log(`${tag} Lock set — sending email in background`);
+
+  // Fire email in background — does NOT block the sync response
+  const _orderId        = record.sourceOrderId;
+  const _awbNumber      = record.awbNumber;
+  const _courierCompany = record.courierCompany;
+  (async () => {
+    try {
+      const order = await Order.findOne(
+        { orderId: _orderId },
+        { userId: 1, items: 1, amount: 1, "deliveryAddress.formattedAddress": 1 },
+      ).lean();
+      if (!order) { console.warn(`${tag} ⚠️ Order not found in DB`); return; }
+
+      const user = await User.findOne({ userId: order.userId }, { name: 1, email: 1, mobileNumber: 1 }).lean();
+      if (!user?.email) { console.warn(`${tag} ⚠️ No email on user account`); return; }
+
+      console.log(`${tag} Sending to ${user.email}`);
+      await sendDispatchEmail({
+        to:              user.email,
+        customerName:    user.name || "Valued Customer",
+        orderId:         _orderId,
+        awbNumber:       _awbNumber,
+        courierCompany:  _courierCompany,
+        items:           order.items || [],
+        amount:          order.amount || 0,
+        deliveryAddress: order.deliveryAddress?.formattedAddress || "",
+        mobileNumber:    user.mobileNumber ? String(user.mobileNumber) : "",
+      });
+      console.log(`${tag} ✅ Sent`);
+    } catch (err) {
+      console.error(`${tag} ❌ Background send failed:`, err.message);
+      // Lock stays set — sendEmailWithRetry already tried 3× before throwing
+    }
+  })();
+  // Returns here immediately — sync response is not waiting for SMTP
+}
+
+async function maybeFireTransitEmail(record) {
+  const tag = `[Email:Transit][${record.sourceOrderId}]`;
+
+  if (record.shipmentStatus !== "IN_TRANSIT") {
+    console.log(`${tag} Skipped — status is ${record.shipmentStatus}`);
+    return;
+  }
+  if (record.transitEmailSentAt) {
+    console.log(`${tag} Skipped — already sent at ${record.transitEmailSentAt.toISOString()}`);
+    return;
+  }
+  if (record.sourceOrderType !== "WEBSITE") {
+    console.log(`${tag} Skipped — Instagram order (no email)`);
+    return;
+  }
+
+  console.log(`${tag} Attempting... (AWB: ${record.awbNumber})`);
+
+  record.transitEmailSentAt = new Date();
+  await record.save();
+  console.log(`${tag} Lock set — sending email in background`);
+
+  const _orderId        = record.sourceOrderId;
+  const _awbNumber      = record.awbNumber;
+  const _courierCompany = record.courierCompany;
+  (async () => {
+    try {
+      const order = await Order.findOne(
+        { orderId: _orderId },
+        { userId: 1, items: 1, amount: 1, "deliveryAddress.formattedAddress": 1 },
+      ).lean();
+      if (!order) { console.warn(`${tag} ⚠️ Order not found in DB`); return; }
+
+      const user = await User.findOne({ userId: order.userId }, { name: 1, email: 1, mobileNumber: 1 }).lean();
+      if (!user?.email) { console.warn(`${tag} ⚠️ No email on user account`); return; }
+
+      console.log(`${tag} Sending to ${user.email}`);
+      await sendInTransitEmail({
+        to:              user.email,
+        customerName:    user.name || "Valued Customer",
+        orderId:         _orderId,
+        awbNumber:       _awbNumber,
+        courierCompany:  _courierCompany,
+        items:           order.items || [],
+        amount:          order.amount || 0,
+        deliveryAddress: order.deliveryAddress?.formattedAddress || "",
+        mobileNumber:    user.mobileNumber ? String(user.mobileNumber) : "",
+      });
+      console.log(`${tag} ✅ Sent`);
+    } catch (err) {
+      console.error(`${tag} ❌ Background send failed:`, err.message);
+    }
+  })();
+}
+
+async function maybeFireDeliveredEmail(record) {
+  const tag = `[Email:Delivered][${record.sourceOrderId}]`;
+
+  if (record.shipmentStatus !== "DELIVERED") {
+    console.log(`${tag} Skipped — status is ${record.shipmentStatus}`);
+    return;
+  }
+  if (record.deliveredEmailSentAt) {
+    console.log(`${tag} Skipped — already sent at ${record.deliveredEmailSentAt.toISOString()}`);
+    return;
+  }
+  if (record.sourceOrderType !== "WEBSITE") {
+    console.log(`${tag} Skipped — Instagram order (no email)`);
+    return;
+  }
+
+  console.log(`${tag} Attempting...`);
+
+  record.deliveredEmailSentAt = new Date();
+  await record.save();
+  console.log(`${tag} Lock set — sending email in background`);
+
+  const _orderId        = record.sourceOrderId;
+  const _awbNumber      = record.awbNumber;
+  const _courierCompany = record.courierCompany;
+  (async () => {
+    try {
+      const order = await Order.findOne(
+        { orderId: _orderId },
+        { userId: 1, items: 1, amount: 1, "deliveryAddress.formattedAddress": 1 },
+      ).lean();
+      if (!order) { console.warn(`${tag} ⚠️ Order not found in DB`); return; }
+
+      const user = await User.findOne({ userId: order.userId }, { name: 1, email: 1, mobileNumber: 1 }).lean();
+      if (!user?.email) { console.warn(`${tag} ⚠️ No email on user account`); return; }
+
+      console.log(`${tag} Sending to ${user.email}`);
+      await sendDeliveredEmail({
+        to:              user.email,
+        customerName:    user.name || "Valued Customer",
+        orderId:         _orderId,
+        awbNumber:       _awbNumber,
+        courierCompany:  _courierCompany,
+        items:           order.items || [],
+        amount:          order.amount || 0,
+        deliveryAddress: order.deliveryAddress?.formattedAddress || "",
+        mobileNumber:    user.mobileNumber ? String(user.mobileNumber) : "",
+      });
+      console.log(`${tag} ✅ Sent`);
+    } catch (err) {
+      console.error(`${tag} ❌ Background send failed:`, err.message);
+    }
+  })();
+}
+
+/**
+ * Basic AWB sanity check — rejects obvious test/junk values before they touch the DB.
+ * Rules:
+ *  - Must be 8–30 alphanumeric characters (no spaces / special chars)
+ *  - Must not be a pure sequential run like "12345678" or "1234567812345"
+ *  - Must not be all the same digit repeated ("00000000", "11111111")
+ */
+function isValidAwb(awb) {
+  if (!awb || typeof awb !== "string") return false;
+  const clean = awb.trim();
+  if (!/^[A-Za-z0-9]{8,30}$/.test(clean)) return false;       // length + alphanumeric
+  if (/^(0123456789|1234567890|12345678901234|123456789012345)/.test(clean)) return false; // ascending run
+  if (/^(.)\1{6,}$/.test(clean)) return false;                 // all same char ("0000000")
+  return true;
+}
+
+/**
+ * Write AWB number and carrier back to the source Order or InstagramOrder.
+ * Called any time record.awbNumber is newly populated.
+ * Non-fatal — failure is logged but does not abort the calling operation.
+ */
+async function writeTrackingToSourceOrder(record) {
+  console.log(`[Tracking] called — AWB: "${record.awbNumber}" | type: ${record.sourceOrderType} | order: ${record.sourceOrderId}`);
+  if (!record.awbNumber) {
+    console.warn(`[Tracking] Skipped — no AWB on record.`);
+    return;
+  }
+  // Reject junk/test values regardless of how they got into the record
+  if (!isValidAwb(record.awbNumber)) {
+    console.warn(`[Tracking] Skipped — AWB "${record.awbNumber}" failed validation.`);
+    return;
+  }
+  const update = {
+    $set: {
+      "trackingInfo.trackingNumber": record.awbNumber,
+      "trackingInfo.carrier":        record.courierCompany || null,
+      "trackingInfo.updatedAt":      new Date(),
+    },
+  };
+  try {
+    let result;
+    if (record.sourceOrderType === "WEBSITE") {
+      result = await Order.updateOne({ orderId: record.sourceOrderId }, update);
+    } else {
+      result = await InstagramOrder.updateOne({ orderId: record.sourceOrderId }, update);
+    }
+    console.log(
+      `[Tracking] Writing AWB "${record.awbNumber}" to ${record.sourceOrderType} order "${record.sourceOrderId}"`,
+    );
+    console.log(
+      `[Tracking] Result → matched: ${result.matchedCount} | modified: ${result.modifiedCount}`,
+    );
+    if (result.matchedCount === 0) {
+      console.warn(`[Tracking] ❌ Order "${record.sourceOrderId}" NOT FOUND in DB — trackingInfo not written.`);
+    } else if (result.modifiedCount === 0) {
+      console.warn(`[Tracking] ⚠️ Order found but not modified — trackingInfo may already be up to date.`);
+    } else {
+      console.log(`[Tracking] ✅ trackingInfo updated successfully.`);
+    }
+  } catch (err) {
+    console.error("[Tracking] ❌ Failed to write trackingInfo to source order:", err.message);
+  }
+}
 
 // POST /admin/shipmozo/push-order
 // Pushes a website or Instagram order to Shipmozo as a new shipment.
@@ -527,10 +822,11 @@ const assignCourierToShipment = async (req, res, next) => {
     record.courierCompany = courierName;
 
     // Prefer awb_number from assign response; fall back to reference_id
-    const awbFromAssign =
+    const awbFromAssignRaw =
       result.data?.awb_number ?? result.data?.reference_id ?? null;
+    const awbFromAssign = isValidAwb(String(awbFromAssignRaw ?? "")) ? String(awbFromAssignRaw) : null;
     if (awbFromAssign && !record.awbNumber) {
-      record.awbNumber = String(awbFromAssign);
+      record.awbNumber = awbFromAssign;
     }
 
     // For couriers that don't auto-schedule pickup, call schedulePickup to obtain AWB
@@ -539,12 +835,13 @@ const assignCourierToShipment = async (req, res, next) => {
         const pickupResult = await shipmozoService.schedulePickup(
           record.shipmozoOrderId,
         );
-        const awbFromPickup =
+        const awbFromPickupRaw =
           pickupResult?.data?.awb_number ??
           pickupResult?.data?.reference_id ??
           null;
+        const awbFromPickup = isValidAwb(String(awbFromPickupRaw ?? "")) ? String(awbFromPickupRaw) : null;
         if (awbFromPickup) {
-          record.awbNumber = String(awbFromPickup);
+          record.awbNumber = awbFromPickup;
           record.shipmentStatus = "PICKUP_SCHEDULED";
         }
       } catch (pickupErr) {
@@ -557,6 +854,9 @@ const assignCourierToShipment = async (req, res, next) => {
     }
 
     await record.save();
+
+    // Write AWB to source order tracking field (non-fatal)
+    await writeTrackingToSourceOrder(record);
 
     return res
       .status(200)
@@ -615,7 +915,8 @@ const getLabelForShipment = async (req, res, next) => {
 // Fetches live tracking data and optionally syncs shipmentStatus.
 const trackShipment = async (req, res, next) => {
   try {
-    const record = await ShipmentRecord.findById(req.params.id).lean();
+    // Use mutable doc so maybeFireTransitEmail can save transitEmailSentAt
+    const record = await ShipmentRecord.findById(req.params.id);
     if (!record) throw new ApiError(404, "Shipment record not found.");
     if (!record.awbNumber) {
       throw new ApiError(
@@ -625,24 +926,31 @@ const trackShipment = async (req, res, next) => {
     }
 
     const result = await shipmozoService.trackOrder(record.awbNumber);
-    const trackData = result?.data ?? result;
+    // track-order data can be an object or array — normalize
+    const rawData = result?.data;
+    const trackData = Array.isArray(rawData) ? rawData[0] : (rawData ?? result);
 
     // Sync status and dates back to our record
     const updateFields = { lastTrackedAt: new Date() };
 
-    if (
-      trackData?.current_status &&
-      TRACKING_STATUS_MAP[trackData.current_status]
-    ) {
-      updateFields.shipmentStatus =
-        TRACKING_STATUS_MAP[trackData.current_status];
+    const normalizedStatus = normalizeTrackingStatus(trackData?.current_status);
+    if (normalizedStatus) {
+      updateFields.shipmentStatus = normalizedStatus;
     }
     if (trackData?.expected_delivery_date) {
       const parsed = new Date(trackData.expected_delivery_date);
       if (!isNaN(parsed.getTime())) updateFields.expectedDeliveryDate = parsed;
     }
 
-    await ShipmentRecord.findByIdAndUpdate(record._id, updateFields);
+    // Apply updates to the doc so maybeFireTransitEmail sees the new status
+    Object.assign(record, updateFields);
+    await record.save();
+
+    // Ensure trackingInfo is written to source order (idempotent — no-op if already set)
+    await writeTrackingToSourceOrder(record);
+
+    // Fire IN_TRANSIT email if newly transitioned (idempotent)
+    await maybeFireTransitEmail(record);
 
     // Include normalizedStatus so the frontend can update the row badge correctly
     // without mapping raw Shipmozo strings ("Pickup Pending" etc.) itself.
@@ -650,7 +958,7 @@ const trackShipment = async (req, res, next) => {
       .status(200)
       .json(new ApiResponse(200, "Tracking data fetched.", {
         ...trackData,
-        _normalizedStatus: updateFields.shipmentStatus ?? null,
+        _normalizedStatus: normalizedStatus ?? null,
       }));
   } catch (err) {
     next(err);
@@ -686,9 +994,7 @@ const cancelShipment = async (req, res, next) => {
         if (!isNaN(awbNum)) cancelPayload.awb_number = awbNum;
       }
 
-      console.log("[Shipmozo] Cancel payload:", JSON.stringify(cancelPayload));
       const cancelResult = await shipmozoService.cancelOrder(cancelPayload);
-      console.log("[Shipmozo] Cancel response:", JSON.stringify(cancelResult));
     } else {
       console.warn(
         `[Shipmozo] cancelShipment: no shipmozoOrderId for record ${record._id} — cancelling locally only.`,
@@ -733,11 +1039,12 @@ const TERMINAL_STATUSES = new Set(["DELIVERED", "CANCELLED", "RTO_DELIVERED"]);
 
 const syncAllStatuses = async (_req, res, next) => {
   try {
+    // Fetch mutable docs so maybeFireTransitEmail can save fields
     const activeRecords = await ShipmentRecord.find({
       isCancelled: { $ne: true },
       awbNumber:   { $ne: null },
       shipmentStatus: { $nin: [...TERMINAL_STATUSES] },
-    }).lean();
+    });
 
     const results = { synced: 0, updated: 0, errors: 0 };
 
@@ -746,18 +1053,28 @@ const syncAllStatuses = async (_req, res, next) => {
         try {
           const result    = await shipmozoService.trackOrder(record.awbNumber);
           const trackData = result?.data ?? result;
-          const updates   = { lastTrackedAt: new Date() };
 
-          const mapped = TRACKING_STATUS_MAP[trackData?.current_status];
+          const mapped = normalizeTrackingStatus(trackData?.current_status);
           if (mapped && mapped !== record.shipmentStatus) {
-            updates.shipmentStatus = mapped;
-            if (mapped === "CANCELLED") updates.isCancelled = true;
+            record.shipmentStatus = mapped;
+            if (mapped === "CANCELLED") record.isCancelled = true;
             results.updated++;
           }
 
-          await ShipmentRecord.findByIdAndUpdate(record._id, updates);
+          record.lastTrackedAt = new Date();
+          await record.save();
+
+          // Ensure trackingInfo is written to source order (idempotent — no-op if already set)
+          await writeTrackingToSourceOrder(record);
+
+          // Fire stage emails (all idempotent via their respective sentAt guards)
+          await maybeFireDispatchEmail(record);  // Stage 1: AWB received
+          await maybeFireTransitEmail(record);   // Stage 2: IN_TRANSIT
+          await maybeFireDeliveredEmail(record); // Stage 3: DELIVERED
+
           results.synced++;
-        } catch {
+        } catch (err) {
+          console.error(`[syncAllStatuses] Error on record ${record._id}:`, err.message);
           results.errors++;
         }
       }),
@@ -766,6 +1083,133 @@ const syncAllStatuses = async (_req, res, next) => {
     return res
       .status(200)
       .json(new ApiResponse(200, "Status sync complete.", results));
+  } catch (err) {
+    next(err);
+  }
+};
+
+// POST /admin/shipmozo/shipments/:id/sync
+// Pulls the latest order detail from Shipmozo (AWB, courier, status) and writes it back.
+// Use this for rows where the courier was assigned on the Shipmozo website (not via our API),
+// meaning awbNumber is still null locally. If Shipmozo says the order doesn't exist, marks
+// the record as cancelled (handles the "deleted from Shipmozo website" bug).
+const syncStatusForShipment = async (req, res, next) => {
+  try {
+    const record = await ShipmentRecord.findById(req.params.id);
+    if (!record) throw new ApiError(404, "Shipment record not found.");
+
+    console.log(`[Sync] id: ${req.params.id} | awbNumber: "${record.awbNumber}" | shipmozoOrderId: "${record.shipmozoOrderId}" | sourceOrderType: ${record.sourceOrderType}`);
+
+    if (!record.shipmozoOrderId) {
+      throw new ApiError(
+        400,
+        "No Shipmozo order ID stored — cannot sync. The push may not have completed successfully.",
+      );
+    }
+
+    let orderDetail;
+    try {
+      const result = await shipmozoService.getOrderDetail(record.shipmozoOrderId);
+      // Shipmozo returns data as an array — always take the first element
+      const rawData = result?.data;
+      orderDetail = Array.isArray(rawData) ? rawData[0] : (rawData ?? result);
+    } catch (fetchErr) {
+      // If Shipmozo returns 404 / not-found, treat as deleted from their side
+      const status = fetchErr?.statusCode ?? fetchErr?.status ?? 0;
+      if (status === 404 || fetchErr?.message?.toLowerCase().includes("not found")) {
+        record.isCancelled = true;
+        record.shipmentStatus = "CANCELLED";
+        await record.save();
+        return res.status(200).json(
+          new ApiResponse(200, "Order not found on Shipmozo — marked as cancelled.", {
+            cancelled: true,
+            record: record.toObject(),
+          }),
+        );
+      }
+      throw fetchErr;
+    }
+
+    // Pull AWB and courier — Shipmozo nests these under shipping_details.
+    // shipping_details can be [] (empty array) when no courier assigned yet.
+    const shippingDetails = Array.isArray(orderDetail?.shipping_details)
+      ? null
+      : (orderDetail?.shipping_details ?? null);
+    const awb = shippingDetails?.awb_number ?? orderDetail?.awb_number ?? orderDetail?.awb ?? null;
+    const courier =
+      shippingDetails?.courier_company ??
+      (typeof orderDetail?.courier === "string"
+        ? orderDetail.courier
+        : (orderDetail?.courier?.name ?? orderDetail?.courier_name ?? null));
+
+    // Validate AWB from Shipmozo before saving — reject test/junk values
+    const awbCleaned = awb ? String(awb).trim() : null;
+    if (awbCleaned && !isValidAwb(awbCleaned)) {
+      console.warn(`[Sync] Rejected invalid AWB "${awbCleaned}" from Shipmozo for order ${record.sourceOrderId}`);
+    }
+    const validAwb = isValidAwb(awbCleaned) ? awbCleaned : null;
+    console.log(`[Sync] AWB from Shipmozo: "${awb}" → validAwb: "${validAwb}" | record already has AWB: "${record.awbNumber}"`);
+
+    if (validAwb && !record.awbNumber) {
+      record.awbNumber = validAwb;
+    }
+    if (courier && !record.courierCompany) {
+      record.courierCompany = courier;
+    }
+
+    // order_status from get-order-detail is a management status ("SCHEDULED" etc.), not
+    // real-time tracking. If we now have an AWB, call track-order for the true current status.
+    if (record.awbNumber) {
+      try {
+        const trackResult = await shipmozoService.trackOrder(record.awbNumber);
+        const rawTrackData = trackResult?.data;
+        const trackData = Array.isArray(rawTrackData) ? rawTrackData[0] : rawTrackData;
+        const trackStatus = normalizeTrackingStatus(trackData?.current_status);
+        if (trackStatus) {
+          record.shipmentStatus = trackStatus;
+          if (trackStatus === "CANCELLED") record.isCancelled = true;
+        }
+        if (trackData?.expected_delivery_date) {
+          const parsedEdd = new Date(trackData.expected_delivery_date);
+          if (!isNaN(parsedEdd.getTime())) record.expectedDeliveryDate = parsedEdd;
+        }
+      } catch (trackErr) {
+        // Non-fatal — fall back to order_status from get-order-detail
+        console.warn("[syncStatusForShipment] track-order failed (non-fatal):", trackErr.message);
+        const rawStatus = orderDetail?.order_status ?? orderDetail?.status ?? null;
+        const normalized = normalizeTrackingStatus(rawStatus);
+        if (normalized && normalized !== record.shipmentStatus) {
+          record.shipmentStatus = normalized;
+        } else if (record.shipmentStatus === "PUSHED") {
+          record.shipmentStatus = "ASSIGNED";
+        }
+      }
+    } else {
+      // No AWB — use order_status as best available signal
+      const rawStatus = orderDetail?.order_status ?? orderDetail?.status ?? null;
+      const normalized = normalizeTrackingStatus(rawStatus);
+      if (normalized && normalized !== record.shipmentStatus) {
+        record.shipmentStatus = normalized;
+      }
+    }
+
+    record.lastTrackedAt = new Date();
+    await record.save();
+
+    // Write AWB to source order — isValidAwb guard is inside writeTrackingToSourceOrder
+    await writeTrackingToSourceOrder(record);
+
+    // Fire stage emails (all idempotent via their respective sentAt guards)
+    await maybeFireDispatchEmail(record);  // Stage 1: AWB received
+    await maybeFireTransitEmail(record);   // Stage 2: IN_TRANSIT
+    await maybeFireDeliveredEmail(record); // Stage 3: DELIVERED
+
+    return res.status(200).json(
+      new ApiResponse(200, "Shipment synced from Shipmozo.", {
+        cancelled: false,
+        record: record.toObject(),
+      }),
+    );
   } catch (err) {
     next(err);
   }
@@ -783,4 +1227,5 @@ export {
   cancelShipment,
   getShippedOrderIds,
   syncAllStatuses,
+  syncStatusForShipment,
 };

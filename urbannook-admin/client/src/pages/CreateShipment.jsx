@@ -289,7 +289,8 @@ export default function CreateShipment() {
       });
       setSuccess(true);
       showToast("Shipment pushed to Shipmozo!", "success");
-      setTimeout(() => navigate("/admin/shipments"), 2200);
+      const returnTo = location.state?.returnTo;
+      setTimeout(() => navigate(returnTo || "/admin/shipments"), 2200);
     } catch (err) {
       setSubmitError(
         err.response?.data?.message ||
@@ -328,7 +329,9 @@ export default function CreateShipment() {
             className="text-xs mt-1.5"
             style={{ color: "var(--color-urban-text-muted)" }}
           >
-            Redirecting to Shipments dashboard…
+            {location.state?.returnTo === "/admin/management"
+              ? "Redirecting to Management…"
+              : "Redirecting to Shipments dashboard…"}
           </p>
         </div>
       </div>

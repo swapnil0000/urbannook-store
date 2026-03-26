@@ -24,22 +24,24 @@ export default function Orders() {
   const [createOpen, setCreateOpen] = useState(false);
 
   // ── Shipped order IDs ────────────────────────────────────────────────────
-  const [shippedOrderIds, setShippedOrderIds] = useState(new Set());
+  // null = still loading (filter skipped); Set = loaded (filter active)
+  const [shippedOrderIds, setShippedOrderIds] = useState(null);
   useEffect(() => {
     apiClient
       .get("/admin/shipmozo/shipped-order-ids")
       .then((res) => setShippedOrderIds(new Set(res.data.data ?? [])))
-      .catch(() => {});
-  }, []);
+      .catch(() => setShippedOrderIds(new Set()));
+  }, [refreshKey]);
 
   // ── Dispatched order IDs ──────────────────────────────────────────────────
-  const [dispatchedOrderIds, setDispatchedOrderIds] = useState(new Set());
+  // null = still loading (filter skipped); Set = loaded (filter active)
+  const [dispatchedOrderIds, setDispatchedOrderIds] = useState(null);
   useEffect(() => {
     apiClient
       .get("/admin/dispatch/order-ids")
       .then((res) => setDispatchedOrderIds(new Set(res.data.data ?? [])))
-      .catch(() => {});
-  }, []);
+      .catch(() => setDispatchedOrderIds(new Set()));
+  }, [refreshKey]);
 
   const handleDispatch = (orderId, orderType) => {
     apiClient

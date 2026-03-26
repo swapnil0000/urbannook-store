@@ -24,16 +24,23 @@ const instagramOrderSchema = new mongoose.Schema(
       },
     ],
     amount: { type: Number },
+    isPriority:    { type: Boolean, default: false },
+    prioritizedAt: { type: Date,    default: null },
     status: {
       type:    String,
       enum:    ["CREATED", "PAID", "FAILED"],
       default: "CREATED",
     },
-    orderedAt: { type: Date },
+    orderedAt: { type: Date }, // admin-entered order date (when customer actually placed it)
+    trackingInfo: {
+      carrier:        { type: String },
+      trackingNumber: { type: String },
+      updatedAt:      { type: Date },
+    },
 
     // Razorpay fields
-    razorpayOrderId:     { type: String }, // set when customer initiates payment
-    razorpayPaymentId:   { type: String }, // set after successful payment
+    razorpayOrderId:   { type: String }, // set when customer initiates payment
+    razorpayPaymentId: { type: String }, // set after successful payment
   },
   { timestamps: true },
 );

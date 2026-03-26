@@ -9,8 +9,9 @@ import Shipments from "./Shipments.jsx";
 import CreateShipment from "./CreateShipment.jsx";
 import Testimonial from "./Testimonial.jsx";
 import AdminManagement from "./AdminManagement.jsx";
+import Management from "./Management.jsx";
 
 export {
   Login, Dashboard, Products, Waitlist, Orders, Coupons,
-  AbandonedCarts, Shipments, CreateShipment, Testimonial, AdminManagement,
+  AbandonedCarts, Shipments, CreateShipment, Testimonial, AdminManagement, Management,
 };
