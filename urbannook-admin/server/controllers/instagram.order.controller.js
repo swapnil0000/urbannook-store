@@ -1,29 +1,28 @@
 import InstagramOrder from "../models/instagram.order.model.js";
-import Product from "../models/product.model.js";
-import Counter from "../models/counter.model.js";
+import Product        from "../models/product.model.js";
+import Counter        from "../models/counter.model.js";
 import { ApiResponse, ApiError } from "../utils/apiResponse.js";
 import orderEventEmitter from "../utils/orderEvents.js";
 
 const ALLOWED_SORT_FIELDS = new Set(["createdAt", "amount"]);
-const ALLOWED_STATUSES = new Set(["CREATED", "PAID", "FAILED"]);
+const ALLOWED_STATUSES    = new Set(["CREATED", "PAID", "FAILED"]);
 
-//   GET /admin/orders/instagram from ig new changes
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /admin/orders/instagram
+// ─────────────────────────────────────────────────────────────────────────────
 const getAllInstagramOrders = async (req, res, next) => {
   try {
-    const rawPage = parseInt(req.query.page, 10);
+    const rawPage  = parseInt(req.query.page,  10);
     const rawLimit = parseInt(req.query.limit, 10);
-    const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1;
-    const limit =
-      Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 100) : 20;
-    const skip = (page - 1) * limit;
+    const page  = Number.isFinite(rawPage)  && rawPage  > 0 ? rawPage  : 1;
+    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 100) : 20;
+    const skip  = (page - 1) * limit;
 
-    const sortBy = ALLOWED_SORT_FIELDS.has(req.query.sortBy)
-      ? req.query.sortBy
-      : "createdAt";
+    const sortBy    = ALLOWED_SORT_FIELDS.has(req.query.sortBy) ? req.query.sortBy : "createdAt";
     const sortOrder = req.query.sortOrder === "asc" ? 1 : -1;
 
-    const startDate = req.query.startDate ? new Date(req.query.startDate) : null;
-    const endDate   = req.query.endDate   ? new Date(req.query.endDate)   : null;
+    const startDate  = req.query.startDate ? new Date(req.query.startDate) : null;
+    const endDate    = req.query.endDate   ? new Date(req.query.endDate)   : null;
     const startValid = startDate && !isNaN(startDate.getTime());
     const endValid   = endDate   && !isNaN(endDate.getTime());
 
@@ -36,16 +35,12 @@ const getAllInstagramOrders = async (req, res, next) => {
       );
     }
 
-    // Build aggregation pipeline so we can sort/filter by effectiveDate
-    // (orderedAt when admin set it; createdAt as fallback for legacy records)
     const pipeline = [];
 
-    // Step 1 — compute effectiveDate
     pipeline.push({
       $addFields: { effectiveDate: { $ifNull: ["$orderedAt", "$createdAt"] } },
     });
 
-    // Step 2 — match filters
     const matchStage = {};
     if (req.query.status && ALLOWED_STATUSES.has(req.query.status)) {
       matchStage.status = req.query.status;
@@ -67,7 +62,6 @@ const getAllInstagramOrders = async (req, res, next) => {
     const sortField = sortBy === "createdAt" ? "effectiveDate" : sortBy;
     pipeline.push({ $sort: { [sortField]: sortOrder, createdAt: -1 } });
 
-    // Step 4 — paginate + count in one pass
     pipeline.push({
       $facet: {
         orders: [{ $skip: skip }, { $limit: limit }],
@@ -75,8 +69,8 @@ const getAllInstagramOrders = async (req, res, next) => {
       },
     });
 
-    const [result] = await InstagramOrder.aggregate(pipeline);
-    const orders     = result?.orders ?? [];
+    const [result]  = await InstagramOrder.aggregate(pipeline);
+    const orders      = result?.orders ?? [];
     const totalOrders = result?.total[0]?.n ?? 0;
     const totalPages  = totalOrders > 0 ? Math.ceil(totalOrders / limit) : 0;
 
@@ -91,7 +85,59 @@ const getAllInstagramOrders = async (req, res, next) => {
   }
 };
 
-//  POST /admin/orders/instagram
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /admin/orders/instagram/payment-link
+// Quick flow: name + amount only → creates order → returns checkout URL.
+// ─────────────────────────────────────────────────────────────────────────────
+const createPaymentLinkOrder = async (req, res, next) => {
+  try {
+    const { productId, productName, amount: rawAmount, notes } = req.body;
+
+    const validationErrors = [];
+    if (!productId?.trim())   validationErrors.push("Product is required.");
+    if (!productName?.trim()) validationErrors.push("Product name is required.");
+    const amount = Number(rawAmount);
+    if (!Number.isFinite(amount) || amount <= 0)
+      validationErrors.push("Amount must be a positive number.");
+    if (validationErrors.length > 0) throw new ApiError(400, validationErrors.join(" "));
+
+    const counter = await Counter.findByIdAndUpdate(
+      "instagram_order",
+      { $inc: { sequence_value: 1 } },
+      { new: true, upsert: true },
+    );
+    const orderId = `IG-${String(counter.sequence_value).padStart(4, "0")}`;
+
+    const order = await InstagramOrder.create({
+      orderId,
+      customerName: "Pending", // filled by customer on checkout page
+      productName:  productName.trim(),
+      notes:        notes?.trim() || undefined,
+      amount,
+      status:       "CREATED",
+    });
+
+    orderEventEmitter.emit("new_instagram_order", order.toObject());
+
+    const baseUrl     = process.env.IG_CHECKOUT_BASE_URL || "https://urbannook.in/ig-checkout";
+    const checkoutUrl = `${baseUrl}/${orderId}`;
+
+    return res.status(201).json(
+      new ApiResponse(201, "Checkout link created successfully", {
+        ...order.toObject(),
+        productName: productName.trim(),
+        checkoutUrl,
+      }),
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /admin/orders/instagram
+// Full manual create (name + contact + address + items).
+// ─────────────────────────────────────────────────────────────────────────────
 const createInstagramOrder = async (req, res, next) => {
   try {
     const {
@@ -105,18 +151,14 @@ const createInstagramOrder = async (req, res, next) => {
     } = req.body;
 
     const validationErrors = [];
-    if (!customerName?.trim())
-      validationErrors.push("Customer name is required.");
-    if (!contactNumber?.trim())
-      validationErrors.push("Contact number is required.");
-    if (!deliveryAddress?.trim())
-      validationErrors.push("Delivery address is required.");
+    if (!customerName?.trim())    validationErrors.push("Customer name is required.");
+    if (!contactNumber?.trim())   validationErrors.push("Contact number is required.");
+    if (!deliveryAddress?.trim()) validationErrors.push("Delivery address is required.");
     if (!Array.isArray(items) || items.length === 0) {
       validationErrors.push("At least one item is required.");
     } else {
       items.forEach((item, i) => {
-        if (!item.productId?.trim())
-          validationErrors.push(`Item ${i + 1}: product is required.`);
+        if (!item.productId?.trim()) validationErrors.push(`Item ${i + 1}: product is required.`);
         const qty = parseInt(item.quantity, 10);
         if (!Number.isFinite(qty) || qty < 1)
           validationErrors.push(`Item ${i + 1}: quantity must be at least 1.`);
@@ -128,40 +170,21 @@ const createInstagramOrder = async (req, res, next) => {
       });
     }
     if (status !== undefined && !ALLOWED_STATUSES.has(status)) {
-      validationErrors.push(
-        `Status must be one of: ${[...ALLOWED_STATUSES].join(", ")}.`,
-      );
+      validationErrors.push(`Status must be one of: ${[...ALLOWED_STATUSES].join(", ")}.`);
     }
-    if (validationErrors.length > 0)
-      throw new ApiError(400, validationErrors.join(" "));
+    if (validationErrors.length > 0) throw new ApiError(400, validationErrors.join(" "));
 
     const productIds = items.map((i) => i.productId.trim());
-    const products = await Product.find({
-      productId: { $in: productIds },
-    }).lean();
+    const products   = await Product.find({ productId: { $in: productIds } }).lean();
     const productMap = new Map(products.map((p) => [p.productId, p]));
 
     const missingIds = productIds.filter((id) => !productMap.has(id));
-    if (missingIds.length > 0)
-      throw new ApiError(400, `Products not found: ${missingIds.join(", ")}`);
-
-    const unavailableNames = productIds
-      .filter((id) =>
-        ["out_of_stock", "discontinued"].includes(
-          productMap.get(id).productStatus,
-        ),
-      )
-      .map((id) => productMap.get(id).productName);
-    if (unavailableNames.length > 0)
-      throw new ApiError(
-        400,
-        `Unavailable products: ${unavailableNames.join(", ")}`,
-      );
+    if (missingIds.length > 0) throw new ApiError(400, `Products not found: ${missingIds.join(", ")}`);
 
     // Build items — custom price is scoped to THIS order only.
     // The Product document is read but NEVER written here.
     const builtItems = items.map((item) => {
-      const p = productMap.get(item.productId.trim());
+      const p        = productMap.get(item.productId.trim());
       const quantity = parseInt(item.quantity, 10);
       const isCustomPrice = item.isCustomPrice === true;
       const customPrice   = parseFloat(item.priceAtPurchase);
@@ -184,9 +207,7 @@ const createInstagramOrder = async (req, res, next) => {
     });
 
     const amount = builtItems.reduce(
-      (sum, item) =>
-        sum +
-        item.productSnapshot.priceAtPurchase * item.productSnapshot.quantity,
+      (sum, item) => sum + item.productSnapshot.priceAtPurchase * item.productSnapshot.quantity,
       0,
     );
 
@@ -197,39 +218,44 @@ const createInstagramOrder = async (req, res, next) => {
     );
     const orderId = `IG-${String(counter.sequence_value).padStart(4, "0")}`;
 
-    // Always save orderedAt — use the provided date if valid, otherwise default to now
-    const parsedOrderedAt = orderedAt ? new Date(orderedAt) : null;
-    const effectiveOrderedAt =
-      parsedOrderedAt && !isNaN(parsedOrderedAt) ? parsedOrderedAt : new Date();
+    const parsedOrderedAt    = orderedAt ? new Date(orderedAt) : null;
+    const effectiveOrderedAt = parsedOrderedAt && !isNaN(parsedOrderedAt) ? parsedOrderedAt : new Date();
 
     const order = await InstagramOrder.create({
       orderId,
-      customerName: customerName.trim(),
-      contactNumber: contactNumber.trim(),
+      customerName:    customerName.trim(),
+      contactNumber:   contactNumber.trim(),
       deliveryAddress: deliveryAddress.trim(),
-      notes: notes?.trim() || undefined,
-      items: builtItems,
+      notes:           notes?.trim() || undefined,
+      items:           builtItems,
       amount,
-      status: status ?? "CREATED",
-      orderedAt: effectiveOrderedAt,
+      status:          status ?? "CREATED",
+      orderedAt:       effectiveOrderedAt,
     });
 
-    return res
-      .status(201)
-      .json(
-        new ApiResponse(201, "Instagram order created successfully", order),
-      );
+    orderEventEmitter.emit("new_instagram_order", order.toObject());
+
+    return res.status(201).json(
+      new ApiResponse(201, "Instagram order created successfully", order),
+    );
   } catch (err) {
     next(err);
   }
 };
 
-//   GET /admin/orders/instagram/stream  (SSE)
+// ─────────────────────────────────────────────────────────────────────────────
+// PUT /admin/orders/instagram/:orderId  — manual edit (address, items, etc.)
+// ─────────────────────────────────────────────────────────────────────────────
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /admin/orders/instagram/stream  — SSE
+// ─────────────────────────────────────────────────────────────────────────────
 const streamInstagramOrders = (req, res) => {
   res.writeHead(200, {
-    "Content-Type": "text/event-stream",
-    "Cache-Control": "no-cache, no-transform",
-    Connection: "keep-alive",
+    "Content-Type":    "text/event-stream",
+    "Cache-Control":   "no-cache, no-transform",
+    Connection:        "keep-alive",
     "X-Accel-Buffering": "no",
   });
 
@@ -239,25 +265,15 @@ const streamInstagramOrders = (req, res) => {
 
   const sendOrder = (order) => {
     try {
-      res.write(
-        `event: new_instagram_order\ndata: ${JSON.stringify(order)}\n\n`,
-      );
-    } catch {
-      /* client disconnected */
-    }
+      res.write(`event: new_instagram_order\ndata: ${JSON.stringify(order)}\n\n`);
+    } catch { /* client disconnected */ }
   };
 
   orderEventEmitter.on("new_instagram_order", sendOrder);
-  console.log(
-    `[SSE:Instagram] Client connected (${req.admin?.email ?? "unknown"})`,
-  );
 
   req.on("close", () => {
     clearInterval(heartbeat);
     orderEventEmitter.off("new_instagram_order", sendOrder);
-    console.log(
-      `[SSE:Instagram] Client disconnected (${req.admin?.email ?? "unknown"})`,
-    );
   });
 };
 
@@ -415,6 +431,7 @@ const updateInstagramOrder = async (req, res, next) => {
 export {
   getAllInstagramOrders,
   createInstagramOrder,
+  createPaymentLinkOrder,
   updateInstagramOrder,
   streamInstagramOrders,
 };

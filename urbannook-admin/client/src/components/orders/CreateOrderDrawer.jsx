@@ -30,7 +30,6 @@ function formReducer(state, action) {
       return {
         ...state,
         form: { ...state.form, [action.field]: action.value },
-        // Clear the field error on change
         errors: { ...state.errors, [action.field]: undefined },
         submitError: null,
       };
@@ -67,14 +66,10 @@ function formReducer(state, action) {
       };
 
     case "REMOVE_ITEM":
-      // Always keep at least one item row
       if (state.form.items.length <= 1) return state;
       return {
         ...state,
-        form: {
-          ...state.form,
-          items: state.form.items.filter((_, i) => i !== action.index),
-        },
+        form: { ...state.form, items: state.form.items.filter((_, i) => i !== action.index) },
       };
 
     case "SET_ERRORS":
@@ -94,7 +89,6 @@ function formReducer(state, action) {
   }
 }
 
-//   Client-side validation
 function validate(form) {
   const errors = {};
   if (!form.customerName.trim()) errors.customerName = "Required";
@@ -121,32 +115,25 @@ function validate(form) {
   return errors;
 }
 
-//   Component
 export default function CreateOrderDrawer({ open, onClose }) {
   const [state, dispatch] = useReducer(formReducer, initialState);
   const { showToast } = useToast();
 
-  // Products fetched once when the drawer opens
   const [products, setProducts] = useState([]);
   const [productsLoading, setProductsLoading] = useState(false);
 
-  // Slide-in animation state
   const [visible, setVisible] = useState(false);
   const rafRef = useRef(null);
   const closeTimerRef = useRef(null);
 
-  //   Slide-in animation (same pattern as OrderDetailDrawer)
   useEffect(() => {
     if (open) {
       if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
       rafRef.current = requestAnimationFrame(() => setVisible(true));
     }
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
   }, [open]);
 
-  //   Fetch available products on open
   useEffect(() => {
     if (!open) return;
     setProductsLoading(true);
@@ -154,37 +141,26 @@ export default function CreateOrderDrawer({ open, onClose }) {
       .get("/admin/total/products")
       .then((res) => {
         const list = Array.isArray(res.data.data) ? res.data.data : [];
-        // Only show products the admin can actually sell
         setProducts(
           list.filter(
-            (p) =>
-              p.productStatus !== "out_of_stock" &&
-              p.productStatus !== "discontinued",
+            (p) => p.productStatus !== "out_of_stock" && p.productStatus !== "discontinued",
           ),
         );
       })
-      .catch(() => {
-        // Non-critical — server validates anyway; dropdown just stays empty
-      })
+      .catch(() => {})
       .finally(() => setProductsLoading(false));
   }, [open]);
 
-  //   Escape key
   useEffect(() => {
     if (!open) return;
-    const handler = (e) => {
-      if (e.key === "Escape") handleClose();
-    };
+    const handler = (e) => { if (e.key === "Escape") handleClose(); };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  //   Cleanup on unmount
   useEffect(() => {
-    return () => {
-      if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
-    };
+    return () => { if (closeTimerRef.current) clearTimeout(closeTimerRef.current); };
   }, []);
 
   const handleClose = useCallback(() => {
@@ -195,7 +171,6 @@ export default function CreateOrderDrawer({ open, onClose }) {
     }, 300);
   }, [onClose]);
 
-  //   Derived: build product lookup map + auto-compute total
   const productMap = new Map(products.map((p) => [p.productId, p]));
 
   const computedTotal = state.form.items.reduce((sum, item) => {
@@ -207,10 +182,8 @@ export default function CreateOrderDrawer({ open, onClose }) {
     return Number.isFinite(unitPrice) && unitPrice >= 0 ? sum + unitPrice * qty : sum;
   }, 0);
 
-  //   Submit
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     const errors = validate(state.form);
     if (Object.keys(errors).length > 0) {
       dispatch({ type: "SET_ERRORS", payload: errors });
@@ -238,13 +211,9 @@ export default function CreateOrderDrawer({ open, onClose }) {
       });
 
       showToast("Instagram order created!", "success");
-      // The Change Stream + SSE pipeline pushes the new order into
-      // InstagramOrdersView automatically — no manual refetch needed.
       handleClose();
     } catch (err) {
-      const message =
-        err.response?.data?.message ||
-        "Failed to create order. Please try again.";
+      const message = err.response?.data?.message || "Failed to create order. Please try again.";
       dispatch({ type: "SUBMIT_ERROR", payload: message });
     }
   };
@@ -255,20 +224,14 @@ export default function CreateOrderDrawer({ open, onClose }) {
 
   return (
     <>
-      {/*   Backdrop     */}
       <div
-        className={`fixed inset-0 bg-black/40 z-40 transition-opacity duration-300 ${
-          visible ? "opacity-100" : "opacity-0"
-        }`}
+        className={`fixed inset-0 bg-black/40 z-40 transition-opacity duration-300 ${visible ? "opacity-100" : "opacity-0"}`}
         onClick={handleClose}
         aria-hidden="true"
       />
 
-      {/*   Drawer panel      */}
       <aside
-        className={`fixed inset-y-0 right-0 w-full sm:w-[560px] z-50 flex flex-col shadow-2xl transition-transform duration-300 ease-in-out ${
-          visible ? "translate-x-0" : "translate-x-full"
-        }`}
+        className={`fixed inset-y-0 right-0 w-full sm:w-[560px] z-50 flex flex-col shadow-2xl transition-transform duration-300 ease-in-out ${visible ? "translate-x-0" : "translate-x-full"}`}
         style={{ background: "var(--color-urban-panel)", borderLeft: "1px solid var(--color-urban-border)" }}
         role="dialog"
         aria-modal="true"
@@ -295,21 +258,15 @@ export default function CreateOrderDrawer({ open, onClose }) {
           </button>
         </div>
 
-        {/* Scrollable form body + sticky footer */}
-        <form
-          onSubmit={handleSubmit}
-          noValidate
-          className="flex flex-col flex-1 overflow-hidden"
-        >
+        <form onSubmit={handleSubmit} noValidate className="flex flex-col flex-1 overflow-hidden">
           <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
-            {/* Server error banner */}
             {submitError && (
               <div className="text-sm rounded-xl px-4 py-3" style={{ background: "#fee2e2", border: "1px solid #fca5a5", color: "#b91c1c" }}>
                 {submitError}
               </div>
             )}
 
-            {/*   Order Date     */}
+            {/* Order Date */}
             <section>
               <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--color-urban-text-muted)" }}>
                 Order Date
@@ -317,28 +274,20 @@ export default function CreateOrderDrawer({ open, onClose }) {
               <div>
                 <label className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}>
                   Date of order{" "}
-                  <span className="font-normal" style={{ color: "var(--color-urban-text-muted)" }}>
-                    (when customer placed it)
-                  </span>
+                  <span className="font-normal" style={{ color: "var(--color-urban-text-muted)" }}>(when customer placed it)</span>
                 </label>
                 <input
                   type="date"
                   value={form.orderedAt}
                   max={today()}
-                  onChange={(e) =>
-                    dispatch({ type: "SET_FIELD", field: "orderedAt", value: e.target.value })
-                  }
-                  style={{
-                    border: "1px solid var(--color-urban-border)",
-                    background: "var(--color-urban-raised)",
-                    color: "var(--color-urban-text)",
-                  }}
+                  onChange={(e) => dispatch({ type: "SET_FIELD", field: "orderedAt", value: e.target.value })}
+                  style={{ border: "1px solid var(--color-urban-border)", background: "var(--color-urban-raised)", color: "var(--color-urban-text)" }}
                   className="w-full text-sm rounded-lg px-3 py-2 focus:outline-none"
                 />
               </div>
             </section>
 
-            {/*   Customer     */}
+            {/* Customer */}
             <section>
               <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--color-urban-text-muted)" }}>
                 Customer
@@ -351,23 +300,11 @@ export default function CreateOrderDrawer({ open, onClose }) {
                   <input
                     type="text"
                     value={form.customerName}
-                    onChange={(e) =>
-                      dispatch({
-                        type: "SET_FIELD",
-                        field: "customerName",
-                        value: e.target.value,
-                      })
-                    }
+                    onChange={(e) => dispatch({ type: "SET_FIELD", field: "customerName", value: e.target.value })}
                     placeholder="e.g. Aisha Khan"
-                    className={`w-full text-sm border rounded-lg px-3 py-2 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent ${
-                      errors.customerName ? "border-red-400" : "border-gray-200"
-                    }`}
+                    className={`w-full text-sm border rounded-lg px-3 py-2 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent ${errors.customerName ? "border-red-400" : "border-gray-200"}`}
                   />
-                  {errors.customerName && (
-                    <p className="text-xs text-red-500 mt-1">
-                      {errors.customerName}
-                    </p>
-                  )}
+                  {errors.customerName && <p className="text-xs text-red-500 mt-1">{errors.customerName}</p>}
                 </div>
 
                 <div>
@@ -377,30 +314,16 @@ export default function CreateOrderDrawer({ open, onClose }) {
                   <input
                     type="text"
                     value={form.contactNumber}
-                    onChange={(e) =>
-                      dispatch({
-                        type: "SET_FIELD",
-                        field: "contactNumber",
-                        value: e.target.value,
-                      })
-                    }
+                    onChange={(e) => dispatch({ type: "SET_FIELD", field: "contactNumber", value: e.target.value })}
                     placeholder="e.g. +91 98765 43210"
-                    className={`w-full text-sm border rounded-lg px-3 py-2 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent ${
-                      errors.contactNumber
-                        ? "border-red-400"
-                        : "border-gray-200"
-                    }`}
+                    className={`w-full text-sm border rounded-lg px-3 py-2 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent ${errors.contactNumber ? "border-red-400" : "border-gray-200"}`}
                   />
-                  {errors.contactNumber && (
-                    <p className="text-xs text-red-500 mt-1">
-                      {errors.contactNumber}
-                    </p>
-                  )}
+                  {errors.contactNumber && <p className="text-xs text-red-500 mt-1">{errors.contactNumber}</p>}
                 </div>
               </div>
             </section>
 
-            {/*   Delivery     */}
+            {/* Delivery */}
             <section>
               <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--color-urban-text-muted)" }}>
                 Delivery
@@ -423,20 +346,11 @@ export default function CreateOrderDrawer({ open, onClose }) {
 
                 <div>
                   <label className="block text-sm font-medium mb-1" style={{ color: "var(--color-urban-text-sec)" }}>
-                    Notes
-                    <span className="font-normal ml-1" style={{ color: "var(--color-urban-text-muted)" }}>
-                      (optional)
-                    </span>
+                    Notes <span className="font-normal ml-1" style={{ color: "var(--color-urban-text-muted)" }}>(optional)</span>
                   </label>
                   <textarea
                     value={form.notes}
-                    onChange={(e) =>
-                      dispatch({
-                        type: "SET_FIELD",
-                        field: "notes",
-                        value: e.target.value,
-                      })
-                    }
+                    onChange={(e) => dispatch({ type: "SET_FIELD", field: "notes", value: e.target.value })}
                     rows={2}
                     placeholder="Special instructions, DM context, etc."
                     className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent resize-none"
@@ -445,7 +359,7 @@ export default function CreateOrderDrawer({ open, onClose }) {
               </div>
             </section>
 
-            {/*   Items      */}
+            {/* Items */}
             <section>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--color-urban-text-muted)" }}>
@@ -454,7 +368,8 @@ export default function CreateOrderDrawer({ open, onClose }) {
                 <button
                   type="button"
                   onClick={() => dispatch({ type: "ADD_ITEM" })}
-                  className="inline-flex items-center gap-1 text-xs font-medium transition-colors" style={{ color: "var(--color-urban-neon)" }}
+                  className="inline-flex items-center gap-1 text-xs font-medium transition-colors"
+                  style={{ color: "var(--color-urban-neon)" }}
                 >
                   <Plus className="h-3.5 w-3.5" />
                   Add item
@@ -480,78 +395,43 @@ export default function CreateOrderDrawer({ open, onClose }) {
                         : null;
 
                     return (
-                      <div
-                        key={i}
-                        className="rounded-lg p-3 space-y-2" style={{ border: "1px solid var(--color-urban-border)" }}
-                      >
+                      <div key={i} className="rounded-lg p-3 space-y-2" style={{ border: "1px solid var(--color-urban-border)" }}>
                         <div className="flex items-start gap-2">
-                          {/* Product select */}
                           <div className="flex-1 min-w-0">
                             <select
                               value={item.productId}
-                              onChange={(e) =>
-                                dispatch({
-                                  type: "SET_ITEM_FIELD",
-                                  index: i,
-                                  field: "productId",
-                                  value: e.target.value,
-                                })
-                              }
-                              className={`w-full text-sm border rounded-lg px-3 py-2 text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent ${
-                                errors[`items[${i}].productId`]
-                                  ? "border-red-400"
-                                  : "border-gray-200"
-                              }`}
+                              onChange={(e) => dispatch({ type: "SET_ITEM_FIELD", index: i, field: "productId", value: e.target.value })}
+                              className={`w-full text-sm border rounded-lg px-3 py-2 text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent ${errors[`items[${i}].productId`] ? "border-red-400" : "border-gray-200"}`}
                             >
                               <option value="">Select product</option>
                               {products.map((p) => (
-                                <option key={p.productId} value={p.productId}>
-                                  {p.productName}
-                                </option>
+                                <option key={p.productId} value={p.productId}>{p.productName}</option>
                               ))}
                             </select>
                             {errors[`items[${i}].productId`] && (
-                              <p className="text-xs text-red-500 mt-1">
-                                {errors[`items[${i}].productId`]}
-                              </p>
+                              <p className="text-xs text-red-500 mt-1">{errors[`items[${i}].productId`]}</p>
                             )}
                           </div>
 
-                          {/* Quantity */}
                           <div className="w-20 shrink-0">
                             <input
                               type="number"
                               min="1"
                               value={item.quantity}
-                              onChange={(e) =>
-                                dispatch({
-                                  type: "SET_ITEM_FIELD",
-                                  index: i,
-                                  field: "quantity",
-                                  value: e.target.value,
-                                })
-                              }
-                              className={`w-full text-sm border rounded-lg px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent ${
-                                errors[`items[${i}].quantity`]
-                                  ? "border-red-400"
-                                  : "border-gray-200"
-                              }`}
+                              onChange={(e) => dispatch({ type: "SET_ITEM_FIELD", index: i, field: "quantity", value: e.target.value })}
+                              className={`w-full text-sm border rounded-lg px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent ${errors[`items[${i}].quantity`] ? "border-red-400" : "border-gray-200"}`}
                             />
                             {errors[`items[${i}].quantity`] && (
-                              <p className="text-xs text-red-500 mt-1">
-                                {errors[`items[${i}].quantity`]}
-                              </p>
+                              <p className="text-xs text-red-500 mt-1">{errors[`items[${i}].quantity`]}</p>
                             )}
                           </div>
 
-                          {/* Remove row */}
                           <button
                             type="button"
-                            onClick={() =>
-                              dispatch({ type: "REMOVE_ITEM", index: i })
-                            }
+                            onClick={() => dispatch({ type: "REMOVE_ITEM", index: i })}
                             disabled={form.items.length === 1}
-                            className="p-1.5 mt-0.5 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed shrink-0" style={{ color: "var(--color-urban-text-muted)" }}
+                            className="p-1.5 mt-0.5 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+                            style={{ color: "var(--color-urban-text-muted)" }}
                             aria-label="Remove item"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -645,7 +525,7 @@ export default function CreateOrderDrawer({ open, onClose }) {
               )}
             </section>
 
-            {/*   Payment status    */}
+            {/* Payment status */}
             <section>
               <h3 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--color-urban-text-muted)" }}>
                 Payment
@@ -656,13 +536,7 @@ export default function CreateOrderDrawer({ open, onClose }) {
                 </label>
                 <select
                   value={form.status}
-                  onChange={(e) =>
-                    dispatch({
-                      type: "SET_FIELD",
-                      field: "status",
-                      value: e.target.value,
-                    })
-                  }
+                  onChange={(e) => dispatch({ type: "SET_FIELD", field: "status", value: e.target.value })}
                   className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
                 >
                   <option value="CREATED">CREATED — awaiting payment</option>
@@ -673,7 +547,7 @@ export default function CreateOrderDrawer({ open, onClose }) {
             </section>
           </div>
 
-          {/*   Sticky footer     */}
+          {/* Sticky footer */}
           <div
             className="shrink-0 px-6 py-4 flex items-center justify-between gap-4"
             style={{ borderTop: "1px solid var(--color-urban-border)", background: "var(--color-urban-raised)" }}

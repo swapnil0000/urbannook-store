@@ -6,6 +6,7 @@ import {
   RefreshCw,
   Bell,
   Plus,
+  QrCode,
 } from "lucide-react";
 import { useAllOrders } from "../hooks/useAllOrders";
 import OrdersToolbar from "../components/orders/OrdersToolbar";
@@ -13,6 +14,7 @@ import OrdersTable from "../components/orders/OrdersTable";
 import OrderDetailDrawer from "../components/orders/OrderDetailDrawer";
 import Pagination from "../components/orders/Pagination";
 import CreateOrderDrawer from "../components/orders/CreateOrderDrawer";
+import IGPaymentLinkDrawer from "../components/orders/IGPaymentLinkDrawer";
 import { useEnv } from "../context/EnvContext";
 import apiClient from "../api/axios";
 
@@ -173,6 +175,14 @@ export default function Orders() {
             Refresh
           </button>
           <button
+            onClick={() => setPaymentLinkOpen(true)}
+            className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-semibold rounded-lg transition-all hover:opacity-90"
+            style={{ border: "1px solid #f9a8d4", color: "#be185d", background: "#fdf2f8" }}
+          >
+            <QrCode className="h-3.5 w-3.5" />
+            Send Payment Link
+          </button>
+          <button
             onClick={() => setCreateOpen(true)}
             className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white rounded-xl
                        bg-linear-to-br from-urban-accent-from to-urban-accent-to
@@ -311,6 +321,11 @@ export default function Orders() {
       <CreateOrderDrawer
         open={createOpen}
         onClose={() => setCreateOpen(false)}
+      />
+      <IGPaymentLinkDrawer
+        open={paymentLinkOpen}
+        onClose={() => setPaymentLinkOpen(false)}
+        onCreated={refetch}
       />
     </div>
   );

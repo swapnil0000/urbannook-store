@@ -9,8 +9,9 @@ import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import connectDB from "./config/db.js";
-import adminRoutes from "./routes/admin.js";
-import publicRoutes from "./routes/public.js";
+import adminRoutes   from "./routes/admin.js";
+import publicRoutes  from "./routes/public.js";
+import webhookRoutes from "./routes/webhooks.js";
 import { restartChangeStreams, stopChangeStreams } from "./utils/changeStreamManager.js";
 
 const app = express();
@@ -33,6 +34,8 @@ app.use(
   }),
 );
 app.use(cookieParser());
+// Webhook route must come BEFORE express.json() — it needs the raw body for HMAC verification
+app.use("/api/v1/webhooks", webhookRoutes);
 app.use(express.json());
 
 //   Routes

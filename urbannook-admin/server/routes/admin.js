@@ -23,6 +23,7 @@ import {
 import {
   getAllInstagramOrders,
   createInstagramOrder,
+  createPaymentLinkOrder,
   updateInstagramOrder,
   streamInstagramOrders,
 } from "../controllers/instagram.order.controller.js";
@@ -134,8 +135,9 @@ router.get("/abandoned-carts", auth, requirePermission("abandoned_carts", "read"
 router.get("/orders/stream",           auth, requirePermission("orders", "read"),  streamOrders);
 router.get("/orders/instagram/stream", auth, requirePermission("instagram_orders", "read"),  streamInstagramOrders);
 router.get("/orders/instagram",        auth, requirePermission("instagram_orders", "read"),  getAllInstagramOrders);
-router.post("/orders/instagram",       auth, requirePermission("instagram_orders", "write"), createInstagramOrder);
-router.put("/orders/instagram/:orderId",auth, requirePermission("instagram_orders", "write"), updateInstagramOrder);
+router.post("/orders/instagram",                       auth, requirePermission("instagram_orders", "write"), createInstagramOrder);
+router.post("/orders/instagram/payment-link",          auth, requirePermission("instagram_orders", "write"), createPaymentLinkOrder);
+router.put("/orders/instagram/:orderId",               auth, requirePermission("instagram_orders", "write"), updateInstagramOrder);
 router.get("/orders",                  auth, requirePermission("orders", "read"),  getAllOrders);
 router.get("/orders/:orderId",         auth, requirePermission("orders", "read"),  getOrderById);
 router.get("/users/:userId",           auth, requirePermission("users",  "read"),  getUserByUserId);
