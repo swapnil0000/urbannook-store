@@ -5,13 +5,17 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 import http from "http";
+import path from "path";
+import { fileURLToPath } from "url";
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 import connectDB from "./config/db.js";
 import adminRoutes from "./routes/admin.js";
 import publicRoutes from "./routes/public.js";
 import { restartChangeStreams, stopChangeStreams } from "./utils/changeStreamManager.js";
+import { startShipmentSyncJob, stopShipmentSyncJob } from "./jobs/shipmentSync.job.js";
 
 const app = express();
 const server = http.createServer(app);
@@ -34,6 +38,9 @@ app.use(
 );
 app.use(cookieParser());
 app.use(express.json());
+
+//   Static assets (logo, etc.) — publicly accessible, no auth required
+app.use("/static", express.static(path.join(__dirname, "static")));
 
 //   Routes
 app.use("/api/v1/admin", adminRoutes);
@@ -60,6 +67,7 @@ const PORT = process.env.PORT || 3000;
 
 connectDB().then(() => {
   restartChangeStreams();
+  startShipmentSyncJob();
   server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
   });
@@ -67,5 +75,6 @@ connectDB().then(() => {
 
 process.on("SIGTERM", () => {
   stopChangeStreams();
+  stopShipmentSyncJob();
   server.close(() => process.exit(0));
 });

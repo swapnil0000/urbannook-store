@@ -211,6 +211,37 @@ export function useShipments({ refreshKey = 0 } = {}) {
     };
   }, []);
 
+  // ── Silent background poll (no loading spinner) ──────────────────────────
+  // Fetches fresh data every 60 s so AWB numbers and status changes from the
+  // cron job appear automatically without the user refreshing the page.
+  const silentAbortRef = useRef(null);
+
+  const silentFetch = useCallback(async () => {
+    if (silentAbortRef.current) silentAbortRef.current.abort();
+    silentAbortRef.current = new AbortController();
+    try {
+      const res = await apiClient.get("/admin/shipmozo/shipments", {
+        params: { page: 1, limit: FETCH_LIMIT },
+        signal: silentAbortRef.current.signal,
+      });
+      if (!isMountedRef.current) return;
+      dispatch({ type: "FETCH_SUCCESS", payload: res.data.data.shipments });
+    } catch (err) {
+      if (err.code === "ERR_CANCELED" || err.name === "CanceledError") return;
+      // Silent — background polls never show an error toast
+    }
+  }, []);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (isMountedRef.current) silentFetch();
+    }, 60_000);
+    return () => {
+      clearInterval(id);
+      silentAbortRef.current?.abort();
+    };
+  }, [silentFetch]);
+
   // ── Action menu ──────────────
   const openActionMenu = useCallback(
     (shipmentId) => dispatch({ type: "OPEN_ACTION_MENU", payload: shipmentId }),

@@ -242,6 +242,11 @@ export default function OrderDetailPanel({ order, onClose, onOrderUpdated, class
                         <p className="text-xs mt-0.5" style={{ color: "var(--color-urban-text-sec)" }}>
                           Qty: {snap.quantity ?? "—"} · {price}
                         </p>
+                        {snap.selectedColor && (
+                          <p className="text-xs mt-0.5" style={{ color: "var(--color-urban-text-sec)" }}>
+                            Color: {snap.selectedColor}
+                          </p>
+                        )}
                         {(snap.productCategory || snap.productSubCategory) && (
                           <p className="text-xs truncate mt-0.5" style={{ color: "var(--color-urban-text-muted)" }}>
                             {[snap.productCategory, snap.productSubCategory].filter(Boolean).join(" › ")}

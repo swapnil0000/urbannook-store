@@ -1,24 +1,24 @@
-import { TrendingUp, TrendingDown, Info } from "lucide-react";
+// import { TrendingUp, TrendingDown, Info } from "lucide-react"; // unused — trend feature disabled
 import Skeleton from "./Skeleton";
 
-function TrendTip({ children }) {
-  return (
-    <span className="relative inline-flex items-center group/tip">
-      <Info size={10} className="text-urban-text-muted/50 cursor-help ml-0.5" />
-      <span
-        className="absolute bottom-full right-0 mb-2 w-56 rounded-xl px-3 py-2
-                       text-[9px] leading-relaxed text-urban-text-sec whitespace-normal
-                       bg-urban-panel border border-urban-border shadow-xl
-                       opacity-0 group-hover/tip:opacity-100 pointer-events-none
-                       transition-opacity duration-150 z-30"
-      >
-        {children}
-      </span>
-    </span>
-  );
-}
+// function TrendTip({ children }) {
+//   return (
+//     <span className="relative inline-flex items-center group/tip">
+//       <Info size={10} className="text-urban-text-muted/50 cursor-help ml-0.5" />
+//       <span
+//         className="absolute bottom-full right-0 mb-2 w-56 rounded-xl px-3 py-2
+//                        text-[9px] leading-relaxed text-urban-text-sec whitespace-normal
+//                        bg-urban-panel border border-urban-border shadow-xl
+//                        opacity-0 group-hover/tip:opacity-100 pointer-events-none
+//                        transition-opacity duration-150 z-30"
+//       >
+//         {children}
+//       </span>
+//     </span>
+//   );
+// }
 
-function ChannelBox({ icon: Icon, label, value, trend, loading }) {
+function ChannelBox({ icon: Icon, label, value, loading }) {
   return (
     <div className="flex-1 min-w-0 rounded-xl bg-urban-raised border border-urban-border px-3 py-2.5">
       <div className="flex items-center gap-1.5 mb-2">
@@ -53,7 +53,7 @@ export default function KpiCard({
   icon: Icon,
   loading,
   value,
-  trend,
+  // trend,   // unused — trend feature disabled
   channels,
   badge,
   badgeColor,
@@ -128,7 +128,6 @@ export default function KpiCard({
               icon={ch.icon}
               label={ch.label}
               value={ch.value}
-              trend={ch.trend}
               loading={loading}
             />
           ))}

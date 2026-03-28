@@ -45,10 +45,16 @@ const sendEmailWithRetry = async (to, subject, html, retries = 3) => {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const info = await transporter.sendMail({
-        from: `"UrbanNook" <${process.env.ZOHO_ADMIN_EMAIL}>`,
+        from:    `"UrbanNook Orders" <${process.env.ZOHO_ADMIN_EMAIL}>`,
+        replyTo: `"UrbanNook Support" <${process.env.ZOHO_ADMIN_EMAIL}>`,
         to,
         subject,
         html,
+        headers: {
+          "X-Priority":        "3",
+          "X-Mailer":          "UrbanNook Mailer",
+          "List-Unsubscribe":  `<mailto:${process.env.ZOHO_ADMIN_EMAIL}?subject=unsubscribe>`,
+        },
       });
       console.log(
         `[emailService] Sent to ${to} — Message-ID: ${info.messageId}`,

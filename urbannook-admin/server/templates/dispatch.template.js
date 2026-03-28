@@ -22,21 +22,21 @@ const dispatchTemplate = ({
       const price = s.priceAtPurchase || 0;
       return `
       <tr>
-        <td style="padding:10px 12px; border-bottom:1px solid #E5E5E5; font-family:Arial,Helvetica,sans-serif; font-size:13px; color:#2E443C;">
+        <td style="padding:14px 0; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:13px; color:#333333; border-bottom:1px solid #F5ECD0; line-height:1.4;">
           ${s.productName || "Product"}
         </td>
-        <td style="padding:10px 12px; border-bottom:1px solid #E5E5E5; font-family:Arial,Helvetica,sans-serif; font-size:13px; color:#2E443C; text-align:center;">
+        <td style="padding:14px 0; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:13px; color:#777777; text-align:center; border-bottom:1px solid #F5ECD0;">
           ${qty}
         </td>
-        <td style="padding:10px 12px; border-bottom:1px solid #E5E5E5; font-family:Arial,Helvetica,sans-serif; font-size:13px; color:#2E443C; text-align:right;">
-          ₹${(price * qty).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+        <td style="padding:14px 0; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:13px; font-weight:600; color:#2E443C; text-align:right; border-bottom:1px solid #F5ECD0;">
+          &#8377;${(price * qty).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
         </td>
       </tr>`;
     })
     .join("");
 
-  const formattedAmount = `₹${(amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
-  const trackingUrl = `https://panel.shipmozo.com/track-order`;
+  const formattedAmount = `&#8377;${(amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+  const trackingUrl = `https://panel.shipmozo.com/track-order?awb_number=${awbNumber}`;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -47,185 +47,184 @@ const dispatchTemplate = ({
   <meta name="supported-color-schemes" content="light">
   <style>:root { color-scheme: light only; supported-color-schemes: light; }</style>
 </head>
-<body style="margin:0; padding:0; background-color:#2E443C;">
+<body style="margin:0; padding:0; background-color:#FAFAF8; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
 
 <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
-       style="width:100%; background-color:#2E443C; padding:20px 10px;">
+       style="width:100%; background-color:#FAFAF8; padding:40px 20px;">
   <tr><td align="center">
 
     <table width="600" cellpadding="0" cellspacing="0" role="presentation"
-           style="width:100%; max-width:600px;">
+           style="width:100%; max-width:600px; background-color:#ffffff;">
 
-      <!-- LOGO -->
+      <!-- HEADER -->
       <tr>
-        <td align="center" style="padding:24px 0 16px;">
-          <h1 style="margin:0; font-family:Arial,Helvetica,sans-serif; font-size:28px; letter-spacing:1px; color:#ffffff;">
-            UrbanNook
-          </h1>
+        <td align="center" style="padding:44px 40px 20px;">
+          <img src="${process.env.SERVER_URL}/static/logo.png"
+               alt=""
+               width="160"
+               style="display:block; border:0; max-width:160px; height:auto; margin:0 auto;" />
+          <p style="margin:6px 0 0; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:20px; font-weight:300; letter-spacing:6px; color:#2E443C; text-transform:uppercase; text-align:center;">URBANNOOK</p>
+          <div style="width:60px; height:1px; background-color:#F5DEB3; margin:14px auto 0;"></div>
         </td>
       </tr>
 
-      <!-- CARD -->
+      <!-- HERO -->
       <tr>
-        <td style="padding:0;">
-          <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
-                 style="background-color:#F9F9F7; border-radius:16px; overflow:hidden;">
+        <td align="center" style="padding:44px 48px 16px;">
+          <h2 style="margin:0 0 16px; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:27px; font-weight:600; color:#2E443C; line-height:1.25; letter-spacing:-0.3px;">
+            Your order is on its way.
+          </h2>
+          <p style="margin:0; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:14px; color:#666666; line-height:1.75; max-width:420px;">
+            Dear <strong style="color:#2E443C; font-weight:600;">${name}</strong>, your package has been picked up by the courier partner and is now on its way to you.
+          </p>
+        </td>
+      </tr>
 
-            <!-- HEADER BAND -->
+      <!-- CTA -->
+      <tr>
+        <td align="center" style="padding:28px 40px 44px;">
+          <a href="${trackingUrl}"
+             style="display:inline-block; background-color:#2E443C; color:#ffffff; text-decoration:none; padding:14px 44px; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:12px; font-weight:600; letter-spacing:2.5px; text-transform:uppercase;">
+            Track Your Order
+          </a>
+          <p style="margin:16px 0 0; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:11px; color:#AAAAAA; letter-spacing:0.5px;">
+            AWB&nbsp;No.&nbsp;<strong style="color:#2E443C; letter-spacing:1px;">${awbNumber || "—"}</strong>
+            &nbsp;&middot;&nbsp;
+            via&nbsp;${courierCompany || "—"}
+          </p>
+        </td>
+      </tr>
+
+      <!-- SECTION DIVIDER -->
+      <tr><td style="padding:0 40px;"><div style="height:1px; background-color:#F5DEB3;"></div></td></tr>
+
+      <!-- ORDER SUMMARY LABEL -->
+      <tr>
+        <td style="padding:32px 40px 18px;">
+          <table cellpadding="0" cellspacing="0" role="presentation">
             <tr>
-              <td style="background-color:#2E443C; padding:20px 30px;">
-                <p style="margin:0; font-family:Arial,Helvetica,sans-serif; font-size:13px; color:rgba(255,255,255,0.7);">
-                  Dear ${name},
-                </p>
-                <h2 style="margin:6px 0 0; font-family:Arial,Helvetica,sans-serif; font-size:20px; font-weight:700; color:#ffffff;">
-                  Your order is on its way!
-                </h2>
+              <td style="border-bottom:1px solid #F5DEB3; padding-bottom:7px;">
+                <span style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:9px; font-weight:700; letter-spacing:3px; color:#2E443C; text-transform:uppercase;">
+                  Order Summary
+                </span>
+                <span style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:11px; color:#AAAAAA; margin-left:10px; font-weight:400; text-transform:none; letter-spacing:0;">
+                  ${items.length} item${items.length !== 1 ? "s" : ""}
+                </span>
               </td>
             </tr>
-
-            <!-- GREETING -->
-            <tr>
-              <td style="padding:20px 30px 0; font-family:Arial,Helvetica,sans-serif; font-size:14px; color:#444; line-height:1.6;">
-                Hi <strong>${name}</strong>, your order has been picked up by the courier and is heading your way!
-              </td>
-            </tr>
-
-            <!-- TRACK BUTTON -->
-            <tr>
-              <td align="center" style="padding:20px 30px;">
-                <a href="${trackingUrl}"
-                   style="display:inline-block; background-color:#2E443C; color:#ffffff; text-decoration:none; padding:12px 32px; border-radius:8px; font-family:Arial,Helvetica,sans-serif; font-size:15px; font-weight:600;">
-                  Track Your Order
-                </a>
-                <p style="margin:10px 0 0; font-family:Arial,Helvetica,sans-serif; font-size:12px; color:#888;">
-                  Enter your AWB number on the tracking page: <strong style="color:#2E443C;">${awbNumber || "—"}</strong>
-                </p>
-              </td>
-            </tr>
-
-            <!-- DIVIDER -->
-            <tr><td style="padding:0 30px;"><div style="border-top:1px solid #E5E5E5;"></div></td></tr>
-
-            <!-- ORDER DETAILS HEADING -->
-            <tr>
-              <td style="padding:20px 30px 10px;">
-                <p style="margin:0; font-family:Arial,Helvetica,sans-serif; font-size:15px; font-weight:700; color:#2E443C;">
-                  Order Details &nbsp;<span style="font-weight:400; font-size:13px; color:#888;">Total ${items.length} item${items.length !== 1 ? "s" : ""}</span>
-                </p>
-              </td>
-            </tr>
-
-            <!-- ITEMS TABLE -->
-            <tr>
-              <td style="padding:0 30px 16px;">
-                <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
-                  <thead>
-                    <tr style="background-color:#2E443C;">
-                      <th style="padding:10px 12px; font-family:Arial,Helvetica,sans-serif; font-size:12px; font-weight:600; color:#ffffff; text-align:left;">Product</th>
-                      <th style="padding:10px 12px; font-family:Arial,Helvetica,sans-serif; font-size:12px; font-weight:600; color:#ffffff; text-align:center;">Qty</th>
-                      <th style="padding:10px 12px; font-family:Arial,Helvetica,sans-serif; font-size:12px; font-weight:600; color:#ffffff; text-align:right;">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>${itemRows}</tbody>
-                  <tfoot>
-                    <tr style="background-color:#2E443C;">
-                      <td colspan="2" style="padding:12px; font-family:Arial,Helvetica,sans-serif; font-size:14px; font-weight:700; color:#ffffff;">Total Amount</td>
-                      <td style="padding:12px; font-family:Arial,Helvetica,sans-serif; font-size:14px; font-weight:700; color:#ffffff; text-align:right;">${formattedAmount}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </td>
-            </tr>
-
-            <!-- DIVIDER -->
-            <tr><td style="padding:0 30px;"><div style="border-top:1px solid #E5E5E5;"></div></td></tr>
-
-            <!-- SHIPPING + ADDRESS (2-col) -->
-            <tr>
-              <td style="padding:20px 30px;">
-                <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
-                  <tr>
-                    <!-- Shipping Details -->
-                    <td width="48%" valign="top" style="padding-right:12px;">
-                      <p style="margin:0 0 10px; font-family:Arial,Helvetica,sans-serif; font-size:13px; font-weight:700; color:#2E443C;">
-                        Shipping Details:
-                      </p>
-                      <table cellpadding="0" cellspacing="0" role="presentation">
-                        <tr>
-                          <td style="font-family:Arial,Helvetica,sans-serif; font-size:12px; color:#888; padding-bottom:5px; white-space:nowrap; padding-right:8px;">Order ID :</td>
-                          <td style="font-family:Arial,Helvetica,sans-serif; font-size:12px; color:#2E443C; font-weight:600; padding-bottom:5px;">#${orderId}</td>
-                        </tr>
-                        <tr>
-                          <td style="font-family:Arial,Helvetica,sans-serif; font-size:12px; color:#888; padding-bottom:5px; white-space:nowrap; padding-right:8px;">Courier :</td>
-                          <td style="font-family:Arial,Helvetica,sans-serif; font-size:12px; color:#2E443C; font-weight:600; padding-bottom:5px;">${courierCompany || "—"}</td>
-                        </tr>
-                        <tr>
-                          <td style="font-family:Arial,Helvetica,sans-serif; font-size:12px; color:#888; white-space:nowrap; padding-right:8px;">AWB No. :</td>
-                          <td style="font-family:Arial,Helvetica,sans-serif; font-size:12px; color:#2E443C; font-weight:700;">${awbNumber || "—"}</td>
-                        </tr>
-                      </table>
-                    </td>
-
-                    <!-- Delivery Address -->
-                    <td width="52%" valign="top">
-                      <p style="margin:0 0 10px; font-family:Arial,Helvetica,sans-serif; font-size:13px; font-weight:700; color:#2E443C;">
-                        Delivery Address:
-                      </p>
-                      <p style="margin:0; font-family:Arial,Helvetica,sans-serif; font-size:12px; color:#555; line-height:1.7;">
-                        <strong>${name}</strong><br/>
-                        ${deliveryAddress || "—"}<br/>
-                        ${mobileNumber ? `+91-${mobileNumber}` : ""}
-                      </p>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-
-            <!-- DIVIDER -->
-            <tr><td style="padding:0 30px;"><div style="border-top:1px solid #E5E5E5;"></div></td></tr>
-
-            <!-- CONTACT + SELLER -->
-            <tr>
-              <td style="padding:20px 30px 24px;">
-                <p style="margin:0 0 16px; font-family:Arial,Helvetica,sans-serif; font-size:13px; color:#555; line-height:1.6;">
-                  Please contact UrbanNook at
-                  <a href="mailto:${process.env.ZOHO_ADMIN_EMAIL}" style="color:#2E443C; font-weight:600;">${process.env.ZOHO_ADMIN_EMAIL}</a>
-                  if you have any product-related query or need help with your order.
-                </p>
-                <table cellpadding="0" cellspacing="0" role="presentation"
-                       style="background-color:#F0F4F2; border-radius:8px; padding:14px 16px; width:100%;">
-                  <tr>
-                    <td>
-                      <p style="margin:0 0 4px; font-family:Arial,Helvetica,sans-serif; font-size:12px; font-weight:700; color:#2E443C;">
-                        Seller Details:
-                      </p>
-                      <p style="margin:0; font-family:Arial,Helvetica,sans-serif; font-size:12px; color:#555; line-height:1.6;">
-                        Seller Name: UrbanNook<br/>
-                        Email ID: <a href="mailto:${process.env.ZOHO_ADMIN_EMAIL}" style="color:#2E443C;">${process.env.ZOHO_ADMIN_EMAIL}</a>
-                      </p>
-                    </td>
-                  </tr>
-                </table>
-                <p style="margin:16px 0 0; font-family:Arial,Helvetica,sans-serif; font-size:13px; color:#555;">
-                  Best Regards,<br/>
-                  <strong style="color:#2E443C;">Team UrbanNook</strong>
-                </p>
-              </td>
-            </tr>
-
           </table>
         </td>
       </tr>
 
-      <!-- FOOTER -->
+      <!-- ITEMS TABLE -->
       <tr>
-        <td style="text-align:center; color:rgba(255,255,255,0.7); font-family:Arial,Helvetica,sans-serif; font-size:11px; padding:16px 0;">
-          © 2026 Urban Nook. All rights reserved.
+        <td style="padding:0 40px 8px;">
+          <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+            <thead>
+              <tr>
+                <th style="padding:0 0 10px; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:9px; font-weight:600; color:#AAAAAA; text-transform:uppercase; letter-spacing:2px; text-align:left; border-bottom:1px solid #F5ECD0;">Product</th>
+                <th style="padding:0 0 10px; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:9px; font-weight:600; color:#AAAAAA; text-transform:uppercase; letter-spacing:2px; text-align:center; border-bottom:1px solid #F5ECD0;">Qty</th>
+                <th style="padding:0 0 10px; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:9px; font-weight:600; color:#AAAAAA; text-transform:uppercase; letter-spacing:2px; text-align:right; border-bottom:1px solid #F5ECD0;">Amount</th>
+              </tr>
+            </thead>
+            <tbody>${itemRows}</tbody>
+            <tfoot>
+              <tr>
+                <td colspan="2" style="padding:18px 0 4px; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:10px; font-weight:700; color:#2E443C; text-transform:uppercase; letter-spacing:2.5px; border-top:1px solid #F5DEB3; text-align:right; padding-right:24px;">
+                  Total
+                </td>
+                <td style="padding:18px 0 4px; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:17px; font-weight:700; color:#2E443C; border-top:1px solid #F5DEB3; text-align:right;">
+                  ${formattedAmount}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </td>
+      </tr>
+
+      <!-- SECTION DIVIDER -->
+      <tr><td style="padding:20px 40px 0;"><div style="height:1px; background-color:#F5DEB3;"></div></td></tr>
+
+      <!-- SHIPPING + ADDRESS (2-col) -->
+      <tr>
+        <td style="padding:32px 40px 40px;">
+          <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+            <tr>
+              <!-- Left: Shipping Details -->
+              <td width="44%" valign="top" style="padding-right:20px;">
+                <p style="margin:0 0 18px; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:9px; font-weight:700; color:#AAAAAA; text-transform:uppercase; letter-spacing:3px;">
+                  Shipping Details
+                </p>
+                <table cellpadding="0" cellspacing="0" role="presentation">
+                  <tr>
+                    <td style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:9px; color:#BBBBBB; text-transform:uppercase; letter-spacing:1px; padding-bottom:11px; padding-right:14px; white-space:nowrap; vertical-align:top;">Order ID</td>
+                    <td style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:13px; font-weight:600; color:#2E443C; padding-bottom:11px;">#${orderId}</td>
+                  </tr>
+                  <tr>
+                    <td style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:9px; color:#BBBBBB; text-transform:uppercase; letter-spacing:1px; padding-bottom:11px; padding-right:14px; white-space:nowrap; vertical-align:top;">Courier</td>
+                    <td style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:13px; font-weight:600; color:#2E443C; padding-bottom:11px;">${courierCompany || "—"}</td>
+                  </tr>
+                  <tr>
+                    <td style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:9px; color:#BBBBBB; text-transform:uppercase; letter-spacing:1px; padding-right:14px; white-space:nowrap; vertical-align:top;">AWB No.</td>
+                    <td style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:13px; font-weight:700; color:#2E443C;">${awbNumber || "—"}</td>
+                  </tr>
+                </table>
+              </td>
+
+              <!-- Right: Delivery Address -->
+              <td width="56%" valign="top" style="border-left:1px solid #F5DEB3; padding-left:28px;">
+                <p style="margin:0 0 18px; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:9px; font-weight:700; color:#AAAAAA; text-transform:uppercase; letter-spacing:3px;">
+                  Delivery Address
+                </p>
+                <p style="margin:0; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:13px; color:#444444; line-height:1.85;">
+                  <strong style="color:#2E443C; font-weight:600;">${name}</strong><br/>
+                  ${deliveryAddress || "—"}<br/>
+                  ${mobileNumber ? `+91&nbsp;${mobileNumber}` : ""}
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+      <!-- FOOTER / SUPPORT -->
+      <tr>
+        <td style="background-color:#F7F4EF; padding:32px 40px 36px; border-top:1px solid #EEE8DC;">
+          <p style="margin:0 0 20px; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:13px; color:#666666; line-height:1.75;">
+            Questions about your order? Contact UrbanNook at
+            <a href="mailto:${process.env.ZOHO_ADMIN_EMAIL}" style="color:#2E443C; font-weight:600; text-decoration:none;">${process.env.ZOHO_ADMIN_EMAIL}</a>.
+          </p>
+          <table cellpadding="0" cellspacing="0" role="presentation" width="100%">
+            <tr>
+              <td style="border-top:1px solid #E8E0D5; padding-top:20px;">
+                <p style="margin:0 0 5px; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:9px; font-weight:700; color:#2E443C; text-transform:uppercase; letter-spacing:2.5px;">
+                  Seller Details
+                </p>
+                <p style="margin:0; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:12px; color:#888888; line-height:1.7;">
+                  UrbanNook &nbsp;&middot;&nbsp;
+                  <a href="mailto:${process.env.ZOHO_ADMIN_EMAIL}" style="color:#2E443C; text-decoration:none;">${process.env.ZOHO_ADMIN_EMAIL}</a>
+                </p>
+              </td>
+            </tr>
+          </table>
+          <p style="margin:22px 0 0; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:13px; color:#666666; line-height:1.6;">
+            Warm regards,<br/>
+            <strong style="color:#2E443C; letter-spacing:0.5px;">Team UrbanNook</strong>
+          </p>
+        </td>
+      </tr>
+
+      <!-- BOTTOM BAR -->
+      <tr>
+        <td style="background-color:#2E443C; padding:20px 40px; text-align:center;">
+          <p style="margin:0; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:10px; color:rgba(245,222,179,0.65); letter-spacing:0.5px;">
+            &copy; ${new Date().getFullYear()} Urban Nook. All rights reserved.
+          </p>
         </td>
       </tr>
 
     </table>
+
   </td></tr>
 </table>
 
