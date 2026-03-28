@@ -59,11 +59,10 @@ const inTransitTemplate = ({
       <!-- HEADER -->
       <tr>
         <td align="center" style="padding:44px 40px 20px;">
-          <img src="${process.env.SERVER_URL}/static/logo.png"
+          <img src="${process.env.EMAIL_ASSET_DARK_LOGO}"
                alt=""
-               width="160"
-               style="display:block; border:0; max-width:160px; height:auto; margin:0 auto;" />
-          <p style="margin:6px 0 0; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif; font-size:20px; font-weight:300; letter-spacing:6px; color:#2E443C; text-transform:uppercase; text-align:center;">URBANNOOK</p>
+               width="120"
+               style="display:block; border:0; max-width:120px; height:auto; margin:0 auto;" />
           <div style="width:60px; height:1px; background-color:#F5DEB3; margin:14px auto 0;"></div>
         </td>
       </tr>

@@ -956,6 +956,7 @@ const cancelShipment = async (req, res, next) => {
       }
 
       const cancelResult = await shipmozoService.cancelOrder(cancelPayload);
+      console.log(`[Shipmozo] cancelShipment API response for ${record.shipmozoOrderId}:`, JSON.stringify(cancelResult));
     } else {
       console.warn(
         `[Shipmozo] cancelShipment: no shipmozoOrderId for record ${record._id} — cancelling locally only.`,

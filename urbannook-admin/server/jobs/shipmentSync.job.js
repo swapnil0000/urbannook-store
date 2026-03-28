@@ -260,8 +260,8 @@ let tier1Task = null;
 let tier2Task = null;
 
 export function startShipmentSyncJob() {
-  tier1Task = cron.schedule("*/1 * * * *", tier1SyncNoAwbOrders);
-  tier2Task = cron.schedule("*/1 * * * *", tier2SyncActiveShipments);
+  tier1Task = cron.schedule("*/5 * * * *", tier1SyncNoAwbOrders);
+  tier2Task = cron.schedule("*/30 * * * *", tier2SyncActiveShipments);
   console.log(
     "[ShipSync] Started → T1: 5 min (cap 10) | T2: 30 min (cap 15) | delays: API 600ms / Email 400ms",
   );
