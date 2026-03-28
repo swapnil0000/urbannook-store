@@ -73,7 +73,7 @@ const TRACKING_STATUS_MAP = {
  * Normalize a raw Shipmozo status string to our enum value.
  * Tries exact match first, then lowercase lookup.
  */
-function normalizeTrackingStatus(raw) {
+export function normalizeTrackingStatus(raw) {
   if (!raw) return null;
   return TRACKING_STATUS_MAP[raw] ?? TRACKING_STATUS_MAP[raw.toLowerCase()] ?? null;
 }
@@ -92,173 +92,134 @@ function normalizeTrackingStatus(raw) {
 //   Guard: shipmentStatus === "DELIVERED" && deliveredEmailSentAt is null && WEBSITE
 //   Called from: both sync functions
 
-async function maybeFireDispatchEmail(record) {
+export async function maybeFireDispatchEmail(record) {
   const tag = `[Email:Dispatch][${record.sourceOrderId}]`;
 
-  if (!record.awbNumber) {
-    console.log(`${tag} Skipped — no AWB on record`);
-    return;
+  if (!record.awbNumber) return;
+  if (record.dispatchConfirmedAt) return;
+  if (record.sourceOrderType !== "WEBSITE") return;
+
+  // Atomic DB claim — only one caller wins; concurrent cron runs see modifiedCount 0
+  const claimed = await ShipmentRecord.updateOne(
+    { _id: record._id, dispatchConfirmedAt: null },
+    { $set: { dispatchConfirmedAt: new Date() } },
+  );
+  if (claimed.modifiedCount === 0) return;
+
+  console.log(`${tag} Claimed — sending email…`);
+  const rollback = () => ShipmentRecord.updateOne({ _id: record._id }, { $set: { dispatchConfirmedAt: null } });
+  try {
+    const order = await Order.findOne(
+      { orderId: record.sourceOrderId },
+      { userId: 1, items: 1, amount: 1, "deliveryAddress.formattedAddress": 1 },
+    ).lean();
+    if (!order) { await rollback(); console.warn(`${tag} ⚠️ Order not found — guard rolled back`); return; }
+
+    const user = await User.findOne({ userId: order.userId }, { name: 1, email: 1, mobileNumber: 1 }).lean();
+    if (!user?.email) { await rollback(); console.warn(`${tag} ⚠️ No email on user — guard rolled back`); return; }
+
+    await sendDispatchEmail({
+      to:              user.email,
+      customerName:    user.name || "Valued Customer",
+      orderId:         record.sourceOrderId,
+      awbNumber:       record.awbNumber,
+      courierCompany:  record.courierCompany,
+      items:           order.items || [],
+      amount:          order.amount || 0,
+      deliveryAddress: order.deliveryAddress?.formattedAddress || "",
+      mobileNumber:    user.mobileNumber ? String(user.mobileNumber) : "",
+    });
+    console.log(`${tag} ✅ Sent`);
+  } catch (err) {
+    await rollback();
+    console.error(`${tag} ❌ Failed, guard rolled back for retry:`, err.message);
   }
-  if (record.dispatchConfirmedAt) {
-    console.log(`${tag} Skipped — already confirmed at ${record.dispatchConfirmedAt.toISOString()}`);
-    return;
-  }
-  if (record.sourceOrderType !== "WEBSITE") {
-    console.log(`${tag} Skipped — Instagram order (no email)`);
-    return;
-  }
-
-  console.log(`${tag} Attempting... (AWB: ${record.awbNumber})`);
-
-  // Set DB lock first (fast write) — any concurrent sync call sees this immediately
-  record.dispatchConfirmedAt = new Date();
-  await record.save();
-  console.log(`${tag} Lock set — sending email in background`);
-
-  // Fire email in background — does NOT block the sync response
-  const _orderId        = record.sourceOrderId;
-  const _awbNumber      = record.awbNumber;
-  const _courierCompany = record.courierCompany;
-  (async () => {
-    try {
-      const order = await Order.findOne(
-        { orderId: _orderId },
-        { userId: 1, items: 1, amount: 1, "deliveryAddress.formattedAddress": 1 },
-      ).lean();
-      if (!order) { console.warn(`${tag} ⚠️ Order not found in DB`); return; }
-
-      const user = await User.findOne({ userId: order.userId }, { name: 1, email: 1, mobileNumber: 1 }).lean();
-      if (!user?.email) { console.warn(`${tag} ⚠️ No email on user account`); return; }
-
-      console.log(`${tag} Sending to ${user.email}`);
-      await sendDispatchEmail({
-        to:              user.email,
-        customerName:    user.name || "Valued Customer",
-        orderId:         _orderId,
-        awbNumber:       _awbNumber,
-        courierCompany:  _courierCompany,
-        items:           order.items || [],
-        amount:          order.amount || 0,
-        deliveryAddress: order.deliveryAddress?.formattedAddress || "",
-        mobileNumber:    user.mobileNumber ? String(user.mobileNumber) : "",
-      });
-      console.log(`${tag} ✅ Sent`);
-    } catch (err) {
-      console.error(`${tag} ❌ Background send failed:`, err.message);
-      // Lock stays set — sendEmailWithRetry already tried 3× before throwing
-    }
-  })();
-  // Returns here immediately — sync response is not waiting for SMTP
 }
 
-async function maybeFireTransitEmail(record) {
+export async function maybeFireTransitEmail(record) {
   const tag = `[Email:Transit][${record.sourceOrderId}]`;
 
-  if (record.shipmentStatus !== "IN_TRANSIT") {
-    console.log(`${tag} Skipped — status is ${record.shipmentStatus}`);
-    return;
+  if (record.shipmentStatus !== "IN_TRANSIT") return;
+  if (record.transitEmailSentAt) return;
+  if (record.sourceOrderType !== "WEBSITE") return;
+
+  const claimed = await ShipmentRecord.updateOne(
+    { _id: record._id, transitEmailSentAt: null },
+    { $set: { transitEmailSentAt: new Date() } },
+  );
+  if (claimed.modifiedCount === 0) return;
+
+  console.log(`${tag} Claimed — sending email…`);
+  const rollback = () => ShipmentRecord.updateOne({ _id: record._id }, { $set: { transitEmailSentAt: null } });
+  try {
+    const order = await Order.findOne(
+      { orderId: record.sourceOrderId },
+      { userId: 1, items: 1, amount: 1, "deliveryAddress.formattedAddress": 1 },
+    ).lean();
+    if (!order) { await rollback(); console.warn(`${tag} ⚠️ Order not found — guard rolled back`); return; }
+
+    const user = await User.findOne({ userId: order.userId }, { name: 1, email: 1, mobileNumber: 1 }).lean();
+    if (!user?.email) { await rollback(); console.warn(`${tag} ⚠️ No email on user — guard rolled back`); return; }
+
+    await sendInTransitEmail({
+      to:              user.email,
+      customerName:    user.name || "Valued Customer",
+      orderId:         record.sourceOrderId,
+      awbNumber:       record.awbNumber,
+      courierCompany:  record.courierCompany,
+      items:           order.items || [],
+      amount:          order.amount || 0,
+      deliveryAddress: order.deliveryAddress?.formattedAddress || "",
+      mobileNumber:    user.mobileNumber ? String(user.mobileNumber) : "",
+    });
+    console.log(`${tag} ✅ Sent`);
+  } catch (err) {
+    await rollback();
+    console.error(`${tag} ❌ Failed, guard rolled back for retry:`, err.message);
   }
-  if (record.transitEmailSentAt) {
-    console.log(`${tag} Skipped — already sent at ${record.transitEmailSentAt.toISOString()}`);
-    return;
-  }
-  if (record.sourceOrderType !== "WEBSITE") {
-    console.log(`${tag} Skipped — Instagram order (no email)`);
-    return;
-  }
-
-  console.log(`${tag} Attempting... (AWB: ${record.awbNumber})`);
-
-  record.transitEmailSentAt = new Date();
-  await record.save();
-  console.log(`${tag} Lock set — sending email in background`);
-
-  const _orderId        = record.sourceOrderId;
-  const _awbNumber      = record.awbNumber;
-  const _courierCompany = record.courierCompany;
-  (async () => {
-    try {
-      const order = await Order.findOne(
-        { orderId: _orderId },
-        { userId: 1, items: 1, amount: 1, "deliveryAddress.formattedAddress": 1 },
-      ).lean();
-      if (!order) { console.warn(`${tag} ⚠️ Order not found in DB`); return; }
-
-      const user = await User.findOne({ userId: order.userId }, { name: 1, email: 1, mobileNumber: 1 }).lean();
-      if (!user?.email) { console.warn(`${tag} ⚠️ No email on user account`); return; }
-
-      console.log(`${tag} Sending to ${user.email}`);
-      await sendInTransitEmail({
-        to:              user.email,
-        customerName:    user.name || "Valued Customer",
-        orderId:         _orderId,
-        awbNumber:       _awbNumber,
-        courierCompany:  _courierCompany,
-        items:           order.items || [],
-        amount:          order.amount || 0,
-        deliveryAddress: order.deliveryAddress?.formattedAddress || "",
-        mobileNumber:    user.mobileNumber ? String(user.mobileNumber) : "",
-      });
-      console.log(`${tag} ✅ Sent`);
-    } catch (err) {
-      console.error(`${tag} ❌ Background send failed:`, err.message);
-    }
-  })();
 }
 
-async function maybeFireDeliveredEmail(record) {
+export async function maybeFireDeliveredEmail(record) {
   const tag = `[Email:Delivered][${record.sourceOrderId}]`;
 
-  if (record.shipmentStatus !== "DELIVERED") {
-    console.log(`${tag} Skipped — status is ${record.shipmentStatus}`);
-    return;
+  if (record.shipmentStatus !== "DELIVERED") return;
+  if (record.deliveredEmailSentAt) return;
+  if (record.sourceOrderType !== "WEBSITE") return;
+
+  const claimed = await ShipmentRecord.updateOne(
+    { _id: record._id, deliveredEmailSentAt: null },
+    { $set: { deliveredEmailSentAt: new Date() } },
+  );
+  if (claimed.modifiedCount === 0) return;
+
+  console.log(`${tag} Claimed — sending email…`);
+  const rollback = () => ShipmentRecord.updateOne({ _id: record._id }, { $set: { deliveredEmailSentAt: null } });
+  try {
+    const order = await Order.findOne(
+      { orderId: record.sourceOrderId },
+      { userId: 1, items: 1, amount: 1, "deliveryAddress.formattedAddress": 1 },
+    ).lean();
+    if (!order) { await rollback(); console.warn(`${tag} ⚠️ Order not found — guard rolled back`); return; }
+
+    const user = await User.findOne({ userId: order.userId }, { name: 1, email: 1, mobileNumber: 1 }).lean();
+    if (!user?.email) { await rollback(); console.warn(`${tag} ⚠️ No email on user — guard rolled back`); return; }
+
+    await sendDeliveredEmail({
+      to:              user.email,
+      customerName:    user.name || "Valued Customer",
+      orderId:         record.sourceOrderId,
+      awbNumber:       record.awbNumber,
+      courierCompany:  record.courierCompany,
+      items:           order.items || [],
+      amount:          order.amount || 0,
+      deliveryAddress: order.deliveryAddress?.formattedAddress || "",
+      mobileNumber:    user.mobileNumber ? String(user.mobileNumber) : "",
+    });
+    console.log(`${tag} ✅ Sent`);
+  } catch (err) {
+    await rollback();
+    console.error(`${tag} ❌ Failed, guard rolled back for retry:`, err.message);
   }
-  if (record.deliveredEmailSentAt) {
-    console.log(`${tag} Skipped — already sent at ${record.deliveredEmailSentAt.toISOString()}`);
-    return;
-  }
-  if (record.sourceOrderType !== "WEBSITE") {
-    console.log(`${tag} Skipped — Instagram order (no email)`);
-    return;
-  }
-
-  console.log(`${tag} Attempting...`);
-
-  record.deliveredEmailSentAt = new Date();
-  await record.save();
-  console.log(`${tag} Lock set — sending email in background`);
-
-  const _orderId        = record.sourceOrderId;
-  const _awbNumber      = record.awbNumber;
-  const _courierCompany = record.courierCompany;
-  (async () => {
-    try {
-      const order = await Order.findOne(
-        { orderId: _orderId },
-        { userId: 1, items: 1, amount: 1, "deliveryAddress.formattedAddress": 1 },
-      ).lean();
-      if (!order) { console.warn(`${tag} ⚠️ Order not found in DB`); return; }
-
-      const user = await User.findOne({ userId: order.userId }, { name: 1, email: 1, mobileNumber: 1 }).lean();
-      if (!user?.email) { console.warn(`${tag} ⚠️ No email on user account`); return; }
-
-      console.log(`${tag} Sending to ${user.email}`);
-      await sendDeliveredEmail({
-        to:              user.email,
-        customerName:    user.name || "Valued Customer",
-        orderId:         _orderId,
-        awbNumber:       _awbNumber,
-        courierCompany:  _courierCompany,
-        items:           order.items || [],
-        amount:          order.amount || 0,
-        deliveryAddress: order.deliveryAddress?.formattedAddress || "",
-        mobileNumber:    user.mobileNumber ? String(user.mobileNumber) : "",
-      });
-      console.log(`${tag} ✅ Sent`);
-    } catch (err) {
-      console.error(`${tag} ❌ Background send failed:`, err.message);
-    }
-  })();
 }
 
 /**
@@ -268,7 +229,7 @@ async function maybeFireDeliveredEmail(record) {
  *  - Must not be a pure sequential run like "12345678" or "1234567812345"
  *  - Must not be all the same digit repeated ("00000000", "11111111")
  */
-function isValidAwb(awb) {
+export function isValidAwb(awb) {
   if (!awb || typeof awb !== "string") return false;
   const clean = awb.trim();
   if (!/^[A-Za-z0-9]{8,30}$/.test(clean)) return false;       // length + alphanumeric
@@ -282,7 +243,7 @@ function isValidAwb(awb) {
  * Called any time record.awbNumber is newly populated.
  * Non-fatal — failure is logged but does not abort the calling operation.
  */
-async function writeTrackingToSourceOrder(record) {
+export async function writeTrackingToSourceOrder(record) {
   console.log(`[Tracking] called — AWB: "${record.awbNumber}" | type: ${record.sourceOrderType} | order: ${record.sourceOrderId}`);
   if (!record.awbNumber) {
     console.warn(`[Tracking] Skipped — no AWB on record.`);
@@ -995,6 +956,7 @@ const cancelShipment = async (req, res, next) => {
       }
 
       const cancelResult = await shipmozoService.cancelOrder(cancelPayload);
+      console.log(`[Shipmozo] cancelShipment API response for ${record.shipmozoOrderId}:`, JSON.stringify(cancelResult));
     } else {
       console.warn(
         `[Shipmozo] cancelShipment: no shipmozoOrderId for record ${record._id} — cancelling locally only.`,
@@ -1035,7 +997,7 @@ const getShippedOrderIds = async (_req, res, next) => {
 // POST /admin/shipmozo/shipments/sync-statuses
 // Batch-tracks all active shipments (those with an AWB that are not in a terminal state)
 // and writes the updated status back to our DB. Returns counts of synced/error records.
-const TERMINAL_STATUSES = new Set(["DELIVERED", "CANCELLED", "RTO_DELIVERED"]);
+export const TERMINAL_STATUSES = new Set(["DELIVERED", "CANCELLED", "RTO_DELIVERED"]);
 
 const syncAllStatuses = async (_req, res, next) => {
   try {

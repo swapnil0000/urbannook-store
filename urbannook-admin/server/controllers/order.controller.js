@@ -168,8 +168,8 @@ const getDashboardStats = async (req, res) => {
               },
             },
           ],
-          pendingCount: [
-            { $match: { status: "PAID", fulfillmentStatus: "PROCESSING" } },
+          deliveredCount: [
+            { $match: { fulfillmentStatus: "DELIVERED" } },
             { $count: "n" },
           ],
           todayOrders: [
@@ -309,7 +309,7 @@ const getDashboardStats = async (req, res) => {
   const webOrders = webKpi.PAID?.count ?? 0;
   const webRevenue = webKpi.PAID?.revenue ?? 0;
   const webCreated = webKpi.CREATED?.count ?? 0;
-  const pending = webFacet.pendingCount[0]?.n ?? 0;
+  const delivered = webFacet.deliveredCount[0]?.n ?? 0;
 
   // ── Web today/yesterday ──
   const webTodayCount = webFacet.todayOrders[0]?.count ?? 0;
@@ -399,7 +399,7 @@ const getDashboardStats = async (req, res) => {
         instaOrders,
         webCreated,
         instaCreated,
-        pending,
+        delivered,
         totalRevenue: webRevenue + instaRevenue,
         webRevenue,
         instaRevenue,

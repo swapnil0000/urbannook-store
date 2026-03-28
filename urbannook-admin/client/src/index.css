@@ -22,7 +22,9 @@
   --color-urban-base: #fcfffd; /* page bg     — cool blue-gray  edf2f7  f3fef6   */
   --color-urban-surface: rgba(255, 255, 255, 0.25);
   /* page cards  — pure white           */
-  --color-urban-panel: var(--color-urban-base); /* drawers/modals — same as base bg  */
+  --color-urban-panel: var(
+    --color-urban-base
+  ); /* drawers/modals — same as base bg  */
   --color-urban-sidebar: #ffffff; /* sidebar     — clear mint (brand!)#f0fdf4  */
   --color-urban-raised: #f3f6fb; /* inputs/chip — slightly elevated    */
   --color-urban-border: #f3fef6; /* dividers d8e0ea    — visible cool border  */
@@ -47,8 +49,8 @@
   --shadow-urban-card:
     0 1px 4px rgba(15, 23, 42, 0.1), 0 4px 14px rgba(15, 23, 42, 0.06);
   --shadow-urban-card-hover: 0 6px 24px rgba(15, 23, 42, 0.12);
-  --glow-urban-card-hover:
-    0 0 0 1px rgba(5, 150, 105, 0.28), 0 4px 16px rgba(5, 150, 105, 0.07);
+  --glow-urban-card-hover: 0 4px 16px
+    color-mix(in srgb, var(--color-urban-neon) 10%, transparent);
 
   /* Backdrop (light = no blur needed) ──────────────────────────────────── */
   --backdrop-urban-card: none;
@@ -94,7 +96,7 @@
   --shadow-urban-card-hover:
     0 1px 0 0 rgba(255, 255, 255, 0.1) inset, 0 12px 48px rgba(0, 0, 0, 0.55);
   --glow-urban-card-hover:
-    0 0 0 1px rgba(82, 183, 136, 0.4), 0 0 20px rgba(82, 183, 136, 0.1),
+    0 0 24px color-mix(in srgb, var(--color-urban-neon) 12%, transparent),
     0 1px 0 0 rgba(255, 255, 255, 0.1) inset;
 
   /* Glass backdrop ──────── */
@@ -204,7 +206,8 @@ body {
 .un-card {
   position: relative;
   background: var(--color-urban-surface);
-  border: 1px solid var(--color-urban-border);
+  border: 1px solid transparent;
+  /* ::before handles the visible border glow */
   border-radius: 0.75rem;
   box-shadow: var(--shadow-urban-card);
   backdrop-filter: var(--backdrop-urban-card);
@@ -249,8 +252,9 @@ body {
   border-radius: inherit;
   background: linear-gradient(
     135deg,
-    rgba(255, 255, 255, 0.25) 0%,
-    rgba(255, 255, 255, 0.07) 45%,
+    rgba(255, 255, 255, 0.18) 0%,
+    rgba(255, 255, 255, 0.08) 30%,
+    rgba(255, 255, 255, 0.02) 60%,
     rgba(255, 255, 255, 0) 100%
   );
   opacity: 0;
@@ -258,6 +262,7 @@ body {
   pointer-events: none;
   z-index: 1;
 }
+/* 0.18 0.08 0.02 0 */
 
 .un-card:hover::before,
 .un-card:hover::after {

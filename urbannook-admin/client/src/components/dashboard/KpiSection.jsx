@@ -11,8 +11,8 @@ export default function KpiSection({ kpi, loading }) {
         loading={loading}
         value={fmt(kpi?.totalOrders)}
         trend={kpi?.ordersTrend ?? null}
-        badge={kpi?.pending ? `${fmt(kpi.pending)} pending` : null}
-        badgeColor={{ background: "#fef9c3", color: "#92400e" }}
+        badge={kpi?.delivered ? `${fmt(kpi.delivered)} delivered` : null}
+        badgeColor={{ background: "#dcfce7", color: "#166534" }}
         channels={[
           { icon: Globe,     label: "Web",       value: fmt(kpi?.webOrders),   trend: kpi?.webOrdersTrend   ?? null },
           { icon: Instagram, label: "Instagram", value: fmt(kpi?.instaOrders), trend: kpi?.instaOrdersTrend ?? null },

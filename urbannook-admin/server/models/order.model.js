@@ -10,6 +10,7 @@ const orderSchema = new mongoose.Schema(
         productSnapshot: {
           productName: { type: String },
           productImg: { type: String },
+          selectedColor: { type: String, default: null },
           quantity: { type: Number },
           productCategory: { type: String },
           productSubCategory: { type: String },
